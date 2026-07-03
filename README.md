@@ -22,7 +22,7 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 ## Requirements
 
 - macOS 14 (Sonoma) or later, Apple Silicon recommended
-- Xcode 15.4+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+- Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (current XcodeGen emits an Xcode 16 project format)
 - A [Groq API key](https://console.groq.com) (optional — only for AI cleanup)
 
 ## First build
