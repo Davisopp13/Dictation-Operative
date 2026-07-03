@@ -1,0 +1,55 @@
+import Foundation
+import Observation
+
+@Observable
+final class SettingsStore {
+    private enum Keys {
+        static let selectedModelVariant = "selectedModelVariant"
+        static let cleanupEnabled = "cleanupEnabled"
+        static let cleanupModel = "cleanupModel"
+        static let customDictionary = "customDictionary"
+        static let language = "language"
+        static let onboardingCompleted = "onboardingCompleted"
+    }
+
+    private let defaults: UserDefaults
+
+    var selectedModelVariant: String {
+        didSet { defaults.set(selectedModelVariant, forKey: Keys.selectedModelVariant) }
+    }
+
+    var cleanupEnabled: Bool {
+        didSet { defaults.set(cleanupEnabled, forKey: Keys.cleanupEnabled) }
+    }
+
+    var cleanupModel: String {
+        didSet { defaults.set(cleanupModel, forKey: Keys.cleanupModel) }
+    }
+
+    var customDictionary: [String] {
+        didSet { defaults.set(customDictionary, forKey: Keys.customDictionary) }
+    }
+
+    /// ISO 639-1 code passed to the transcriber; "auto" means detect.
+    var language: String {
+        didSet { defaults.set(language, forKey: Keys.language) }
+    }
+
+    var onboardingCompleted: Bool {
+        didSet { defaults.set(onboardingCompleted, forKey: Keys.onboardingCompleted) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        selectedModelVariant = defaults.string(forKey: Keys.selectedModelVariant) ?? ModelCatalog.defaultVariant
+        cleanupEnabled = defaults.bool(forKey: Keys.cleanupEnabled)
+        cleanupModel = defaults.string(forKey: Keys.cleanupModel) ?? "llama-3.1-8b-instant"
+        customDictionary = defaults.stringArray(forKey: Keys.customDictionary) ?? []
+        language = defaults.string(forKey: Keys.language) ?? "en"
+        onboardingCompleted = defaults.bool(forKey: Keys.onboardingCompleted)
+    }
+
+    var transcriptionLanguage: String? {
+        language == "auto" ? nil : language
+    }
+}

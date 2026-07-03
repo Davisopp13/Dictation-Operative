@@ -1,0 +1,37 @@
+name: macOS build
+
+# This workflow is the project's remote compiler: the repo is developed in
+# environments that may not have Xcode, so every push gets a real
+# xcodebuild pass on a macOS runner.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec macos/project.yml --project macos
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project macos/Dictation.xcodeproj \
+            -scheme Dictation \
+            -destination 'platform=macOS' \
+            build \
+            CODE_SIGNING_ALLOWED=NO
