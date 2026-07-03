@@ -24,11 +24,12 @@ enum AXInserter {
         }
         let element = ref as! AXUIElement
 
-        // Never write into password fields via AX.
+        // Never write into password fields via AX. (kAXSecureTextFieldRole
+        // is not exported to Swift; the raw role string is stable API.)
         var roleRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
            let role = roleRef as? String,
-           role == kAXSecureTextFieldRole {
+           role == "AXSecureTextField" {
             Log.insertion.debug("AX: secure field, skipping")
             return false
         }
