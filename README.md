@@ -25,6 +25,10 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 - Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (current XcodeGen emits an Xcode 16 project format)
 - A [Groq API key](https://console.groq.com) (optional — only for AI cleanup)
 
+## Try it without Xcode
+
+Every green CI run attaches a ready-built app: open the latest [macOS build run](https://github.com/Davisopp13/Dictation-Operative/actions/workflows/macos-build.yml), download the `Dictation-app-…` artifact, unzip, then **right-click → Open** (the build is ad-hoc signed, not notarized, so Gatekeeper needs the explicit open). Requires an Apple Silicon Mac. Grant Microphone and Accessibility when prompted and download a model in onboarding. Note: each replaced ad-hoc build re-prompts for Accessibility — for daily use, build from source with your own signing identity instead.
+
 ## First build
 
 ```sh

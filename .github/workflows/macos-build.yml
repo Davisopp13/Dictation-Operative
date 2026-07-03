@@ -34,6 +34,23 @@ jobs:
           xcodebuild \
             -project macos/Dictation.xcodeproj \
             -scheme Dictation \
+            -configuration Release \
             -destination 'platform=macOS' \
+            -derivedDataPath build \
             build \
             CODE_SIGNING_ALLOWED=NO
+
+      # Ad-hoc sign and zip the app so it can be downloaded and run on any
+      # Apple Silicon Mac without Xcode (right-click > Open to pass Gatekeeper).
+      - name: Package app artifact
+        run: |
+          APP="build/Build/Products/Release/Dictation.app"
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --keepParent "$APP" Dictation.app.zip
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dictation-app-${{ github.sha }}
+          path: Dictation.app.zip
+          if-no-files-found: error
