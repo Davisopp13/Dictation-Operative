@@ -10,6 +10,7 @@ final class SettingsStore {
         static let customDictionary = "customDictionary"
         static let language = "language"
         static let onboardingCompleted = "onboardingCompleted"
+        static let insertionMode = "insertionMode"
     }
 
     private let defaults: UserDefaults
@@ -39,6 +40,10 @@ final class SettingsStore {
         didSet { defaults.set(onboardingCompleted, forKey: Keys.onboardingCompleted) }
     }
 
+    var insertionMode: InsertionMode {
+        didSet { defaults.set(insertionMode.rawValue, forKey: Keys.insertionMode) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selectedModelVariant = defaults.string(forKey: Keys.selectedModelVariant) ?? ModelCatalog.defaultVariant
@@ -47,6 +52,8 @@ final class SettingsStore {
         customDictionary = defaults.stringArray(forKey: Keys.customDictionary) ?? []
         language = defaults.string(forKey: Keys.language) ?? "en"
         onboardingCompleted = defaults.bool(forKey: Keys.onboardingCompleted)
+        insertionMode = defaults.string(forKey: Keys.insertionMode)
+            .flatMap(InsertionMode.init(rawValue:)) ?? .accessibilityFirst
     }
 
     var transcriptionLanguage: String? {

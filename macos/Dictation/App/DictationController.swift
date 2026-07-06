@@ -161,7 +161,11 @@ final class DictationController {
 
             let finalText = cleaned ?? raw
             state = .inserting
-            let result = await inserter.insert(finalText)
+            let result = await inserter.insert(
+                finalText,
+                into: targetApp,
+                mode: settings.insertionMode
+            )
 
             history.add(HistoryEntry(
                 id: UUID(),
@@ -174,11 +178,10 @@ final class DictationController {
             lastTranscript = finalText
 
             state = .idle
-            if result == .clipboardOnly {
-                showTransientMessage("Copied to clipboard — press ⌘V to paste")
-            } else {
-                indicator.hide()
-            }
+            // Briefly report which path was used — this is also the diagnostic
+            // for "text didn't appear" (e.g. "via Accessibility" but nothing
+            // inserted ⇒ the app falsely accepted the AX write).
+            showTransientMessage(result.indicatorMessage)
         } catch {
             fail(error)
         }

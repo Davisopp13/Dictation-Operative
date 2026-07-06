@@ -20,3 +20,13 @@ Try AX first (skip immediately for secure fields, verify the attribute is settab
 - Universal coverage (terminals and Electron via paste) at the cost of a brief clipboard swap on the fallback path.
 - The 300 ms restore delay is a tunable constant; too short pastes the *old* clipboard.
 - Both paths require Accessibility trust (CGEvent posting from an untrusted process is silently dropped), so permission onboarding is a hard prerequisite for the whole feature.
+
+## Update (first live testing): AX false-success
+
+Some apps — notably terminal/editor-widget Electron apps (Codex, Claude Code) and native terminals — return `.success` from `AXUIElementSetAttributeValue(kAXSelectedTextAttribute)` while the widget silently discards the write. AX "succeeds," so the fallback never runs and no text appears.
+
+Mitigations added:
+- An **AX-hostile denylist** (`TextInserter.axHostileNeedles`, substring-matched against bundle id + app name) forces the paste path for these apps.
+- A user-facing **insertion-method setting** (`InsertionMode.alwaysPaste`) as a universal override.
+- The floating indicator now reports the path used ("via Accessibility" / "via paste" / "clipboard"), making a false-success visible without logs.
+- A 40 ms settle delay before the ⌘V keystroke, for widgets that read the clipboard asynchronously.

@@ -45,6 +45,16 @@ private struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Section("Text insertion") {
+                Picker("Method:", selection: $settings.insertionMode) {
+                    ForEach(InsertionMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                Text("Terminals and some editor apps (Codex, Claude Code) ignore the Accessibility method — they're always pasted. Choose “Always paste” if text won't insert elsewhere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in

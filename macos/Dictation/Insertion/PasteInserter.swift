@@ -6,6 +6,11 @@ import Foundation
 /// restore the previous pasteboard contents. Works in apps the AX path can't
 /// reach (terminals, many Electron apps, secure fields).
 enum PasteInserter {
+    /// Delay between writing the pasteboard and posting ⌘V, so widgets that read
+    /// the clipboard slightly asynchronously (some Electron/terminal views) see
+    /// our text before the paste keystroke arrives.
+    static let settleDelay: Duration = .milliseconds(40)
+
     /// Delay between posting ⌘V and restoring the clipboard. Too short and the
     /// target app pastes the restored (old) contents instead of our text.
     static let restoreDelay: Duration = .milliseconds(300)
@@ -37,6 +42,8 @@ enum PasteInserter {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         let ourChangeCount = pasteboard.changeCount
+
+        try? await Task.sleep(for: settleDelay)
 
         guard AXIsProcessTrusted(), postCommandV() else {
             // Leave our text on the clipboard so the user can paste manually.
