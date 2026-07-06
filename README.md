@@ -41,12 +41,12 @@ open Dictation.xcodeproj
 1. In Xcode: target **Dictation** → *Signing & Capabilities* → select your team (a stable signing identity keeps the Accessibility grant across rebuilds; ad-hoc signing re-prompts every build).
 2. Build & run. The app appears **only in the menu bar** (mic icon) — no Dock icon.
 3. Follow onboarding: grant **Microphone**, grant **Accessibility** (System Settings → Privacy & Security → Accessibility), download a model (`base.en` is a good start, ~80 MB).
-4. Set your hotkeys in Settings → General (defaults: ⌘⇧D toggle; push-to-talk unset).
+4. Set your hotkeys in Settings → General (defaults: **⌘⇧D** toggle, **⌥Space** hold-to-talk). Both are always active; rebind or clear either.
 
 ### Smoke-test checklist
 
-- [ ] Toggle mode: press hotkey, speak, press again → text appears at the cursor
-- [ ] Push-to-talk: hold, speak, release (a quick tap acts as a toggle)
+- [ ] Toggle mode (⌘⇧D): press, speak, press again → text appears at the cursor
+- [ ] Hold-to-talk (⌥Space): hold, speak, release (a quick tap acts as a toggle)
 - [ ] Insertion matrix: TextEdit and Safari (AX path); VS Code and Terminal (paste fallback); a password field (paste; clipboard restored afterwards)
 - [ ] Cleanup: add a Groq key in Settings → Cleanup, dictate “um so like hello world” → “Hello world.”
 - [ ] Offline fallback: disable Wi-Fi, dictate → raw transcript appears within ~10 s

@@ -30,9 +30,9 @@ private struct GeneralSettingsTab: View {
         @Bindable var settings = settings
         Form {
             Section("Hotkeys") {
-                KeyboardShortcuts.Recorder("Toggle dictation:", name: .toggleDictation)
-                KeyboardShortcuts.Recorder("Push to talk (hold):", name: .pushToTalk)
-                Text("A quick tap of the push-to-talk key acts as a toggle.")
+                KeyboardShortcuts.Recorder("Toggle (press to start / stop):", name: .toggleDictation)
+                KeyboardShortcuts.Recorder("Hold to talk (release to insert):", name: .pushToTalk)
+                Text("Both hotkeys are always active — use whichever you prefer, or clear one. A quick tap of the hold-to-talk key acts as a toggle. Note: bind these to key combinations (holding a single modifier like Fn isn't supported yet).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

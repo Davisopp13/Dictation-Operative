@@ -10,8 +10,11 @@ import KeyboardShortcuts
 // Known limitation: Carbon-based, so no modifier-only/Fn hotkeys (roadmap: Phase 2 event tap).
 
 extension KeyboardShortcuts.Name {
+    /// Press once to start, press again to stop (default ⌘⇧D).
     static let toggleDictation = Self("toggleDictation", default: .init(.d, modifiers: [.command, .shift]))
-    static let pushToTalk = Self("pushToTalk")
+    /// Hold to record, release to insert (default ⌥Space). Both hotkeys are
+    /// always active; either can be rebound or cleared in Settings.
+    static let pushToTalk = Self("pushToTalk", default: .init(.space, modifiers: [.option]))
 }
 
 @MainActor
