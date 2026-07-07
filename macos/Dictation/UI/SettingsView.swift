@@ -32,7 +32,18 @@ private struct GeneralSettingsTab: View {
             Section("Hotkeys") {
                 KeyboardShortcuts.Recorder("Toggle (press to start / stop):", name: .toggleDictation)
                 KeyboardShortcuts.Recorder("Hold to talk (release to insert):", name: .pushToTalk)
-                Text("Both hotkeys are always active — use whichever you prefer, or clear one. A quick tap of the hold-to-talk key acts as a toggle. Note: bind these to key combinations (holding a single modifier like Fn isn't supported yet).")
+                Text("Both hotkeys are always active — use whichever you prefer, or clear one. A quick tap of the hold-to-talk key acts as a toggle.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Modifier-only key:", selection: $settings.modifierHotkey) {
+                    ForEach(ModifierHotkey.allCases) { hotkey in
+                        Text(hotkey.displayName).tag(hotkey)
+                    }
+                }
+                .onChange(of: settings.modifierHotkey) { _, newValue in
+                    AppServices.shared.hotkeys?.updateModifierHotkey(newValue)
+                }
+                Text("Tap the modifier to toggle, or hold it to talk (release inserts). Automatically cancelled when the key is used as part of another shortcut.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

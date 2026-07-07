@@ -11,6 +11,7 @@ final class SettingsStore {
         static let language = "language"
         static let onboardingCompleted = "onboardingCompleted"
         static let insertionMode = "insertionMode"
+        static let modifierHotkey = "modifierHotkey"
     }
 
     private let defaults: UserDefaults
@@ -44,6 +45,10 @@ final class SettingsStore {
         didSet { defaults.set(insertionMode.rawValue, forKey: Keys.insertionMode) }
     }
 
+    var modifierHotkey: ModifierHotkey {
+        didSet { defaults.set(modifierHotkey.rawValue, forKey: Keys.modifierHotkey) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selectedModelVariant = defaults.string(forKey: Keys.selectedModelVariant) ?? ModelCatalog.defaultVariant
@@ -54,6 +59,8 @@ final class SettingsStore {
         onboardingCompleted = defaults.bool(forKey: Keys.onboardingCompleted)
         insertionMode = defaults.string(forKey: Keys.insertionMode)
             .flatMap(InsertionMode.init(rawValue:)) ?? .accessibilityFirst
+        modifierHotkey = defaults.string(forKey: Keys.modifierHotkey)
+            .flatMap(ModifierHotkey.init(rawValue:)) ?? .off
     }
 
     var transcriptionLanguage: String? {

@@ -7,7 +7,8 @@ import KeyboardShortcuts
 //   KeyboardShortcuts.Recorder("Label", name:)          — SwiftUI view (used in Settings)
 // Handlers hop through Task { @MainActor } so this compiles whether or not the
 // library annotates its action parameters @MainActor.
-// Known limitation: Carbon-based, so no modifier-only/Fn hotkeys (roadmap: Phase 2 event tap).
+// The library is Carbon-based and can't bind bare modifiers — those are handled
+// separately by ModifierHotkeyMonitor (NSEvent flagsChanged monitoring).
 
 extension KeyboardShortcuts.Name {
     /// Press once to start, press again to stop (default ⌘⇧D).
@@ -25,9 +26,12 @@ final class HotkeyManager {
 
     private weak var controller: DictationController?
     private var pttPressStart: Date?
+    private let modifierMonitor: ModifierHotkeyMonitor
 
-    init(controller: DictationController) {
+    init(controller: DictationController, modifierHotkey: ModifierHotkey) {
         self.controller = controller
+        modifierMonitor = ModifierHotkeyMonitor(controller: controller)
+        modifierMonitor.arm(modifierHotkey)
 
         KeyboardShortcuts.onKeyDown(for: .toggleDictation) { [weak self] in
             Task { @MainActor in
@@ -60,5 +64,9 @@ final class HotkeyManager {
                 // else: quick tap — stay recording, acting as a toggle.
             }
         }
+    }
+
+    func updateModifierHotkey(_ hotkey: ModifierHotkey) {
+        modifierMonitor.arm(hotkey)
     }
 }

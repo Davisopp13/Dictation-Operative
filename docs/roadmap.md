@@ -13,7 +13,7 @@ Native Swift menu-bar app validating the whole loop: hotkey → record → Whisp
 - **Streaming partial transcripts** (WhisperKit LocalAgreement confirmed/hypothesis text) for sub-second perceived latency.
 - **Command mode:** "delete last sentence", "make that a bullet list" interpreted as edits, not text.
 - **Per-app context:** detect the frontmost app and adjust tone/formatting (casual Slack vs formal Mail). Opt-in only — no screenshots.
-- **Modifier-only / Fn hotkeys** via a CGEventTap (the KeyboardShortcuts library is Carbon-based and can't do bare-modifier hotkeys — known MVP limitation).
+- ~~Modifier-only / Fn hotkeys~~ — shipped during Phase 1 testing (`ModifierHotkeyMonitor`, NSEvent flagsChanged monitoring: ⌃⌥ chord, right ⌘/⌥, Fn; tap = toggle, hold = talk).
 - **History upgrade** to SQLite (GRDB) with search, replacing the JSON store (see ADR note).
 - **More cleanup providers** behind `CleanupProvider`: OpenAI, Anthropic, local llama.cpp; provider/model picker UI.
 - **Sparkle auto-updates**, notarized DMG pipeline.

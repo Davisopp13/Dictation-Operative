@@ -37,7 +37,7 @@ final class AppServices {
 
     /// Called once from applicationDidFinishLaunching.
     func start() {
-        hotkeys = HotkeyManager(controller: controller)
+        hotkeys = HotkeyManager(controller: controller, modifierHotkey: settings.modifierHotkey)
         permissions.refresh()
         preloadModelIfAvailable()
         if !settings.onboardingCompleted {

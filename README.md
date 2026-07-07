@@ -41,7 +41,7 @@ open Dictation.xcodeproj
 1. In Xcode: target **Dictation** → *Signing & Capabilities* → select your team (a stable signing identity keeps the Accessibility grant across rebuilds; ad-hoc signing re-prompts every build).
 2. Build & run. The app appears **only in the menu bar** (mic icon) — no Dock icon.
 3. Follow onboarding: grant **Microphone**, grant **Accessibility** (System Settings → Privacy & Security → Accessibility), download a model (`base.en` is a good start, ~80 MB).
-4. Set your hotkeys in Settings → General (defaults: **⌘⇧D** toggle, **⌥Space** hold-to-talk). Both are always active; rebind or clear either.
+4. Set your hotkeys in Settings → General (defaults: **⌘⇧D** toggle, **⌥Space** hold-to-talk). Both are always active; rebind or clear either. You can also enable a **modifier-only key** (⌃⌥, right ⌘/⌥, or Fn): tap it to toggle, hold it to talk.
 
 ### Smoke-test checklist
 
