@@ -13,6 +13,7 @@ final class AppServices {
     let modelManager: ModelManager
     let transcription: TranscriptionService
     let controller: DictationController
+    let updater: UpdaterService
 
     private(set) var hotkeys: HotkeyManager?
     private var onboardingWindow: OnboardingWindowController?
@@ -23,6 +24,8 @@ final class AppServices {
         history = HistoryStore()
         modelManager = ModelManager()
         transcription = TranscriptionService()
+        // Sparkle defers its first check until after the app finishes launching.
+        updater = UpdaterService()
         controller = DictationController(
             settings: settings,
             permissions: permissions,

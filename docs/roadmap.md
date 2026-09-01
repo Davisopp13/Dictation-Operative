@@ -16,7 +16,7 @@ Native Swift menu-bar app validating the whole loop: hotkey → record → Whisp
 - ~~Modifier-only / Fn hotkeys~~ — shipped during Phase 1 testing (`ModifierHotkeyMonitor`, NSEvent flagsChanged monitoring: ⌃⌥ chord, right ⌘/⌥, Fn; tap = toggle, hold = talk).
 - **History upgrade** to SQLite (GRDB) with search, replacing the JSON store (see ADR note).
 - **More cleanup providers** behind `CleanupProvider`: OpenAI, Anthropic, local llama.cpp; provider/model picker UI.
-- **Sparkle auto-updates**, notarized DMG pipeline.
+- ~~**Sparkle auto-updates**, notarized DMG pipeline~~ — shipped (`release.yml` on `v*` tags, appcast served from GitHub Releases; ADR-0006).
 
 ## Phase 3 — iOS
 

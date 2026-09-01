@@ -13,12 +13,23 @@ packages:
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     from: 2.0.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.6
 
 settings:
   base:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # Overridden on the xcodebuild command line by .github/workflows/release.yml
+    # (MARKETING_VERSION from the git tag, CURRENT_PROJECT_VERSION from the run
+    # number so Sparkle sees a monotonically increasing build number).
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Sparkle EdDSA public key. Empty in dev/CI builds (the updater stays
+    # disabled); the release workflow injects the real key.
+    SPARKLE_PUBLIC_ED_KEY: ""
 
 targets:
   Dictation:
@@ -29,14 +40,20 @@ targets:
     dependencies:
       - package: WhisperKit
       - package: KeyboardShortcuts
+      - package: Sparkle
     info:
       path: Dictation/Info.plist
       properties:
         CFBundleDisplayName: Dictation
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         NSMicrophoneUsageDescription: "Dictation records your voice to transcribe it on-device."
+        # Sparkle. The appcast is attached to every GitHub release; the
+        # "latest" redirect always resolves to the newest non-prerelease.
+        SUFeedURL: https://github.com/Davisopp13/Dictation-Operative/releases/latest/download/appcast.xml
+        SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
+        SUEnableAutomaticChecks: true
     entitlements:
       path: Dictation/Dictation.entitlements
       properties:
