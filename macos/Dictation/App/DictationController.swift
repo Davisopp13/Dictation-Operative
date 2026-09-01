@@ -188,10 +188,7 @@ final class DictationController {
     }
 
     private func makeCleanupProvider() -> CleanupProvider? {
-        guard let key = KeychainHelper.get(KeychainHelper.groqAPIKey), !key.isEmpty else {
-            return nil
-        }
-        return GroqCleanupService(apiKey: key, model: settings.cleanupModel)
+        CleanupProviderFactory.make(settings: settings)
     }
 
     // MARK: - Errors & transient messages

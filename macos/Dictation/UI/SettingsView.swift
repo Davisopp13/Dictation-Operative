@@ -150,35 +150,66 @@ private struct ModelRow: View {
 
 private struct CleanupSettingsTab: View {
     @Environment(SettingsStore.self) private var settings
-    @State private var apiKey: String = KeychainHelper.get(KeychainHelper.groqAPIKey) ?? ""
+    @State private var apiKey: String = ""
     @State private var testResult: String?
     @State private var testing = false
     @State private var newWord = ""
 
+    private var kind: CleanupProviderKind { settings.cleanupProvider }
+
+    private var modelBinding: Binding<String> {
+        Binding(
+            get: { settings.cleanupModel(for: kind) },
+            set: { settings.setCleanupModel($0, for: kind) }
+        )
+    }
+
     var body: some View {
         @Bindable var settings = settings
         Form {
-            Section("AI cleanup (Groq)") {
+            Section("AI cleanup") {
                 Toggle("Clean up transcripts with AI", isOn: $settings.cleanupEnabled)
-                TextField("Model:", text: $settings.cleanupModel)
-                SecureField("Groq API key:", text: $apiKey)
-                    .onChange(of: apiKey) { _, newValue in
-                        if newValue.isEmpty {
-                            KeychainHelper.delete(KeychainHelper.groqAPIKey)
-                        } else {
-                            KeychainHelper.set(newValue, for: KeychainHelper.groqAPIKey)
-                        }
+                Picker("Provider:", selection: $settings.cleanupProvider) {
+                    ForEach(CleanupProviderKind.allCases) { kind in
+                        Text(kind.displayName).tag(kind)
                     }
+                }
+                .onChange(of: settings.cleanupProvider) { _, newKind in
+                    apiKey = KeychainHelper.get(newKind.keychainAccount) ?? ""
+                    testResult = nil
+                }
+                Text(kind.help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Model:", text: modelBinding, prompt: Text(kind.defaultModel))
+                if kind == .local {
+                    TextField("Server URL:", text: $settings.localCleanupBaseURL,
+                              prompt: Text(CleanupProviderKind.local.defaultBaseURL ?? ""))
+                }
+                HStack {
+                    SecureField(kind.requiresAPIKey ? "API key:" : "API key (optional):", text: $apiKey)
+                        .onChange(of: apiKey) { _, newValue in
+                            if newValue.isEmpty {
+                                KeychainHelper.delete(kind.keychainAccount)
+                            } else {
+                                KeychainHelper.set(newValue, for: kind.keychainAccount)
+                            }
+                        }
+                    if let console = kind.consoleURL {
+                        Link("Get a key", destination: console)
+                            .font(.caption)
+                    }
+                }
                 HStack {
                     Button(testing ? "Testing…" : "Test Connection") {
                         testConnection()
                     }
-                    .disabled(testing || apiKey.isEmpty)
+                    .disabled(testing || (kind.requiresAPIKey && apiKey.isEmpty))
                     if let testResult {
                         Text(testResult).font(.caption)
                     }
                 }
-                Text("If cleanup fails or times out, the raw transcript is inserted instead — dictation never blocks on the network.")
+                Text("Keys are stored in the Keychain. If cleanup fails or times out, the raw transcript is inserted instead — dictation never blocks on the network.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -205,6 +236,9 @@ private struct CleanupSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            apiKey = KeychainHelper.get(kind.keychainAccount) ?? ""
+        }
     }
 
     private func addWord() {
@@ -217,7 +251,12 @@ private struct CleanupSettingsTab: View {
     private func testConnection() {
         testing = true
         testResult = nil
-        let service = GroqCleanupService(apiKey: apiKey, model: settings.cleanupModel)
+        let service = CleanupProviderFactory.make(
+            kind: kind,
+            apiKey: apiKey,
+            model: settings.cleanupModel(for: kind),
+            baseURL: settings.cleanupBaseURL(for: kind)
+        )
         Task {
             let result = await service.testConnection()
             switch result {
