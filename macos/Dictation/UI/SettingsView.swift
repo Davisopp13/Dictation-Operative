@@ -30,12 +30,7 @@ private struct GeneralSettingsTab: View {
         @Bindable var settings = settings
         Form {
             Section("Hotkeys") {
-                KeyboardShortcuts.Recorder("Toggle (press to start / stop):", name: .toggleDictation)
-                KeyboardShortcuts.Recorder("Hold to talk (release to insert):", name: .pushToTalk)
-                Text("Both hotkeys are always active — use whichever you prefer, or clear one. A quick tap of the hold-to-talk key acts as a toggle.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Picker("Modifier-only key:", selection: $settings.modifierHotkey) {
+                Picker("Dictation key:", selection: $settings.modifierHotkey) {
                     ForEach(ModifierHotkey.allCases) { hotkey in
                         Text(hotkey.displayName).tag(hotkey)
                     }
@@ -43,7 +38,12 @@ private struct GeneralSettingsTab: View {
                 .onChange(of: settings.modifierHotkey) { _, newValue in
                     AppServices.shared.hotkeys?.updateModifierHotkey(newValue)
                 }
-                Text("Tap the modifier to toggle, or hold it to talk (release inserts). Automatically cancelled when the key is used as part of another shortcut.")
+                Text("Default: ⌃⌥ Control + Option. Tap it to toggle, or hold it to talk (release inserts). Automatically cancelled when the keys are used as part of another shortcut.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                KeyboardShortcuts.Recorder("Extra toggle shortcut:", name: .toggleDictation)
+                KeyboardShortcuts.Recorder("Extra hold-to-talk shortcut:", name: .pushToTalk)
+                Text("Optional key combos, unbound by default. All bound hotkeys are active at once. A quick tap of the hold-to-talk combo acts as a toggle.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

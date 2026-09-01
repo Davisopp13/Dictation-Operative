@@ -10,12 +10,15 @@ import KeyboardShortcuts
 // The library is Carbon-based and can't bind bare modifiers — those are handled
 // separately by ModifierHotkeyMonitor (NSEvent flagsChanged monitoring).
 
+// The default hotkey is the ⌃⌥ Control+Option chord (ModifierHotkey.controlOption,
+// see SettingsStore). The two key-combo shortcuts below ship unbound and are
+// optional extras the user can record in Settings.
 extension KeyboardShortcuts.Name {
-    /// Press once to start, press again to stop (default ⌘⇧D).
-    static let toggleDictation = Self("toggleDictation", default: .init(.d, modifiers: [.command, .shift]))
-    /// Hold to record, release to insert (default ⌥Space). Both hotkeys are
-    /// always active; either can be rebound or cleared in Settings.
-    static let pushToTalk = Self("pushToTalk", default: .init(.space, modifiers: [.option]))
+    /// Press once to start, press again to stop. No default; optional.
+    static let toggleDictation = Self("toggleDictation")
+    /// Hold to record, release to insert. No default; optional. All bound
+    /// hotkeys are always active; any can be rebound or cleared in Settings.
+    static let pushToTalk = Self("pushToTalk")
 }
 
 @MainActor

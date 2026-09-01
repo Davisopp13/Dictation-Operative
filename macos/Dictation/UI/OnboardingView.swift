@@ -127,7 +127,7 @@ struct OnboardingView: View {
                 .font(.system(size: 44))
                 .foregroundStyle(.tint)
             Text("Try It").font(.title2.bold())
-            Text("Click into the field below, press ⌘⇧D, speak, and press ⌘⇧D again.")
+            Text("Click into the field below, tap ⌃⌥ (Control + Option), speak, and tap ⌃⌥ again. Or hold ⌃⌥ while you speak and release to insert.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             TextEditor(text: $tryItText)

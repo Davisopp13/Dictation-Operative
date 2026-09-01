@@ -60,7 +60,7 @@ final class SettingsStore {
         insertionMode = defaults.string(forKey: Keys.insertionMode)
             .flatMap(InsertionMode.init(rawValue:)) ?? .accessibilityFirst
         modifierHotkey = defaults.string(forKey: Keys.modifierHotkey)
-            .flatMap(ModifierHotkey.init(rawValue:)) ?? .off
+            .flatMap(ModifierHotkey.init(rawValue:)) ?? .controlOption
     }
 
     var transcriptionLanguage: String? {
