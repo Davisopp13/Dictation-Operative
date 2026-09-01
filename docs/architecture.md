@@ -19,7 +19,7 @@ A native Swift/SwiftUI menu-bar app. One process, no daemons. The core loop:
  └────────────┘  └───────────────┘ └────────────┘
 ```
 
-Supporting components: `PermissionsManager` (mic + Accessibility), `ModelManager` (WhisperKit model catalog/downloads), `SettingsStore` (UserDefaults), `KeychainHelper` (API key), `RecordingIndicatorPanel` (floating non-activating NSPanel), onboarding window.
+Supporting components: `PermissionsManager` (mic + Accessibility), `ModelManager` (WhisperKit model catalog/downloads), `SettingsStore` (UserDefaults), `KeychainHelper` (API key), `RecordingIndicatorPanel` (floating non-activating NSPanel), `UpdaterService` (Sparkle; inert unless the build carries a public key — ADR-0006), onboarding window.
 
 Everything is wired in `AppServices` (a `@MainActor` singleton composition root) so the SwiftUI `App`, the `NSApplicationDelegate`, and the hotkey callbacks all see the same object graph.
 

@@ -12,6 +12,7 @@ struct DictationApp: App {
                 .environment(services.controller)
                 .environment(services.settings)
                 .environment(services.history)
+                .environment(services.updater)
         } label: {
             Image(systemName: services.controller.state.symbolName)
         }

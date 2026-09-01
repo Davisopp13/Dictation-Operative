@@ -67,6 +67,10 @@ backend/    Phase 4 — reserved (shared cleanup/sync "brain", Vercel + Supabase
 
 `.github/workflows/macos-build.yml` regenerates the Xcode project and compiles it on a macOS runner for every push — the project is developed partly from non-Mac environments, so CI is the compile check.
 
+## Releases and updates
+
+Push a `vX.Y.Z` tag and `.github/workflows/release.yml` builds a Developer ID-signed, notarized DMG, generates a Sparkle appcast, and publishes both as a GitHub release. Installed copies update themselves via Sparkle (*Check for Updates…* in the menu). One-time setup of the signing and Sparkle secrets is described in [docs/permissions-and-distribution.md](docs/permissions-and-distribution.md).
+
 ## Distribution note
 
 The app is deliberately **non-sandboxed** (Accessibility insertion and CGEvent posting require it), so Mac App Store distribution is off the table — same as every app in this category. Ship via notarized Developer ID builds. Details: [docs/permissions-and-distribution.md](docs/permissions-and-distribution.md).

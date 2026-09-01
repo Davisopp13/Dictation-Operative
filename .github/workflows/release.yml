@@ -1,0 +1,164 @@
+name: Release
+
+# Tag a commit `vX.Y.Z` and push the tag. This builds a Developer ID-signed,
+# hardened-runtime app, notarizes and staples it, wraps it in a signed +
+# notarized DMG, signs the DMG for Sparkle, generates the appcast, and
+# publishes all of it as a GitHub release.
+#
+# The app's SUFeedURL is .../releases/latest/download/appcast.xml, so
+# publishing the release *is* shipping the update: GitHub's "latest" redirect
+# always serves the appcast attached to the newest non-prerelease release.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   MACOS_CERTIFICATE_P12        base64 of the "Developer ID Application" .p12
+#   MACOS_CERTIFICATE_PASSWORD   password of that .p12
+#   APPLE_TEAM_ID                10-character Apple team id
+#   APPLE_ID                     Apple ID used for notarization
+#   APPLE_APP_SPECIFIC_PASSWORD  app-specific password for that Apple ID
+#   SPARKLE_PRIVATE_ED_KEY       private half printed by Sparkle's generate_keys
+# Required repository *variable* (not secret):
+#   SPARKLE_PUBLIC_ED_KEY        public half from generate_keys; baked into Info.plist
+# See docs/permissions-and-distribution.md for how to produce each of these.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+env:
+  SPARKLE_VERSION: "2.9.6"
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          echo "marketing=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          # Sparkle compares CFBundleVersion numerically; the workflow run
+          # number is monotonic across releases.
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Check configuration
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+          CERT_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          missing=0
+          for name in SPARKLE_PUBLIC_ED_KEY CERT_P12 SPARKLE_PRIVATE_ED_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::$name is not set"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec macos/project.yml --project macos
+
+      - name: Build and sign
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+        run: |
+          xcodebuild \
+            -project macos/Dictation.xcodeproj \
+            -scheme Dictation \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            MARKETING_VERSION="${{ steps.version.outputs.marketing }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
+            SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY"
+          APP="build/Build/Products/Release/Dictation.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+
+      - name: Notarize and staple app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Dictation-notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Dictation-notarize.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$APP"
+
+      - name: Build, sign, and notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION="${{ steps.version.outputs.marketing }}"
+          STAGING="$RUNNER_TEMP/dmg-root"
+          mkdir -p "$STAGING" release
+          cp -R "$APP" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+          DMG="release/Dictation-$VERSION.dmg"
+          hdiutil create -volname "Dictation" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
+          codesign --sign "Developer ID Application" --timestamp "$DMG"
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$DMG"
+          spctl --assess --type open --context context:primary-signature -v "$DMG"
+
+      - name: Generate Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+          KEY_FILE="$RUNNER_TEMP/sparkle_private_key"
+          printf '%s' "$SPARKLE_PRIVATE_ED_KEY" > "$KEY_FILE"
+          "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
+            --ed-key-file "$KEY_FILE" \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            --link "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+            release
+          rm -f "$KEY_FILE"
+          echo "--- appcast.xml ---"
+          cat release/appcast.xml
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/Dictation-*.dmg
+            release/appcast.xml
+          generate_release_notes: true

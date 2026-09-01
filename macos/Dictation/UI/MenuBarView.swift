@@ -5,6 +5,7 @@ struct MenuBarView: View {
     @Environment(DictationController.self) private var controller
     @Environment(SettingsStore.self) private var settings
     @Environment(HistoryStore.self) private var history
+    @Environment(UpdaterService.self) private var updater
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -54,6 +55,13 @@ struct MenuBarView: View {
 
         Button("Setup / Permissions…") {
             AppServices.shared.showOnboarding()
+        }
+
+        if updater.isConfigured {
+            Button("Check for Updates…") {
+                updater.checkForUpdates()
+            }
+            .disabled(!updater.canCheckForUpdates)
         }
 
         Divider()
