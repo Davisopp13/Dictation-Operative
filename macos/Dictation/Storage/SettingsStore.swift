@@ -17,6 +17,7 @@ final class SettingsStore {
         static let onboardingCompleted = "onboardingCompleted"
         static let insertionMode = "insertionMode"
         static let modifierHotkey = "modifierHotkey"
+        static let livePreviewEnabled = "livePreviewEnabled"
     }
 
     private let defaults: UserDefaults
@@ -85,6 +86,11 @@ final class SettingsStore {
         didSet { defaults.set(modifierHotkey.rawValue, forKey: Keys.modifierHotkey) }
     }
 
+    /// Show a rolling partial transcript in the indicator while recording.
+    var livePreviewEnabled: Bool {
+        didSet { defaults.set(livePreviewEnabled, forKey: Keys.livePreviewEnabled) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selectedModelVariant = defaults.string(forKey: Keys.selectedModelVariant) ?? ModelCatalog.defaultVariant
@@ -106,6 +112,7 @@ final class SettingsStore {
             .flatMap(InsertionMode.init(rawValue:)) ?? .accessibilityFirst
         modifierHotkey = defaults.string(forKey: Keys.modifierHotkey)
             .flatMap(ModifierHotkey.init(rawValue:)) ?? .controlOption
+        livePreviewEnabled = (defaults.object(forKey: Keys.livePreviewEnabled) as? Bool) ?? true
     }
 
     var transcriptionLanguage: String? {
