@@ -58,9 +58,10 @@ Rules:
 
 ## Cleanup
 
-- `CleanupProvider` protocol; `GroqCleanupService` is the first implementation (plain `URLSession` against the OpenAI-compatible endpoint, no SDK). `NoopCleanupProvider` when disabled.
+- `CleanupProvider` protocol with two network implementations, both plain `URLSession`, no SDKs: `OpenAICompatibleCleanupService` (Groq, OpenAI, and any local Ollama / llama.cpp server — same `/chat/completions` dialect, different base URL) and `AnthropicCleanupService` (Messages API, `effort: low`, refusal fallbacks on the Claude 5 family). `NoopCleanupProvider` when disabled.
+- `CleanupProviderKind` is the Settings-facing enum (display name, default model, base URL, Keychain account, help text); `CleanupProviderFactory` turns settings + Keychain into a provider, or nil when a required key is missing (raw transcript is inserted, same as cleanup off).
 - Prompt built by `CleanupPrompt` (pure function, unit-tested): remove filler words, fix punctuation/capitalization, preserve meaning, prefer custom-dictionary spellings, output only the cleaned text.
-- Guardrails: `temperature 0`, 10 s timeout, response discarded if empty or > 3× input length. Any failure returns the raw transcript.
+- Guardrails in `CleanupGuard`: `temperature 0` (OpenAI dialect), 10 s timeout, response discarded if empty or > 3× input length, Anthropic `stop_reason: refusal` treated as failure. Any failure returns the raw transcript.
 
 ## Insertion
 
@@ -80,7 +81,7 @@ Rules:
 | Data | Where |
 |---|---|
 | Settings (model, hotkey mode, cleanup toggle, dictionary, language) | `UserDefaults` |
-| Groq API key | Keychain (`com.davisopp.dictation`) |
+| Cleanup API keys (one Keychain item per provider) | Keychain (`com.davisopp.dictation`) |
 | History (raw + cleaned text, app, duration; capped at 500) | JSON file in Application Support (atomic writes) |
 | Models | `~/Library/Application Support/Dictation/Models` |
 

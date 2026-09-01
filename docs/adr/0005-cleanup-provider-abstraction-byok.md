@@ -12,6 +12,10 @@ The AI cleanup pass (filler-word removal, punctuation, custom-dictionary spellin
 - **BYO key**, stored in the Keychain only — mirrors Spokenly's winning local-first + BYOK model and avoids reselling API margin.
 - Guardrails: temperature 0, 10 s hard timeout, response rejected if empty or > 3× input length; **any** failure inserts the raw transcript.
 
+## Update 2026-09-01 (Phase 2)
+
+The "later" providers landed: `GroqCleanupService` became `OpenAICompatibleCleanupService` parameterised by base URL (Groq, OpenAI, local Ollama / llama.cpp), and `AnthropicCleanupService` speaks the Messages API directly. A `CleanupProviderKind` picker in Settings selects the backend; model names and keys are stored per provider (keys in the Keychain, one item each). The guardrails moved into `CleanupGuard` so every provider shares them. The local option needs `NSAllowsLocalNetworking` in Info.plist for plain-HTTP localhost.
+
 ## Consequences
 
 - Cleanup is strictly additive; offline dictation still works end-to-end.

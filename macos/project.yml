@@ -54,6 +54,9 @@ targets:
         SUFeedURL: https://github.com/Davisopp13/Dictation-Operative/releases/latest/download/appcast.xml
         SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
         SUEnableAutomaticChecks: true
+        # Plain-HTTP access to a local Ollama / llama.cpp cleanup server.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: Dictation/Dictation.entitlements
       properties:
