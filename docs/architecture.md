@@ -55,6 +55,7 @@ Rules:
 - `TranscriptionService` is an `actor` owning the `WhisperKit` instance; models load with `prewarm: true` so the first dictation isn't slow, and reload on model change.
 - `ModelManager` owns the catalog (tiny.en → large-v3-turbo), downloads via `WhisperKit.download` into `~/Library/Application Support/Dictation/Models`, and persists a variant → folder map so we never guess WhisperKit's directory layout.
 - All WhisperKit symbols are confined to these two files, so an API drift in the dependency is a two-file fix.
+- **Live preview** (Phase 2): while recording, `DictationController` re-transcribes the last 30 s of audio about once a second (only when ≥ 1 s of new audio arrived) via `transcribePreview`, and `LivePreviewState` (a simplified LocalAgreement: the word prefix shared by consecutive passes is "confirmed", the rest "pending") feeds the indicator. The preview never inserts text — the full pass at stop is still the source of truth. `TranscriptionService` serialises preview and final passes on the one WhisperKit instance; a preview aborts early through WhisperKit's progress callback once its task is cancelled. Toggle in Settings → General.
 
 ## Cleanup
 

@@ -10,7 +10,7 @@ Native Swift menu-bar app validating the whole loop: hotkey → record → Whisp
 
 ## Phase 2 — AI enhancement depth (macOS)
 
-- **Streaming partial transcripts** (WhisperKit LocalAgreement confirmed/hypothesis text) for sub-second perceived latency.
+- ~~**Streaming partial transcripts** (WhisperKit LocalAgreement confirmed/hypothesis text) for sub-second perceived latency~~ — shipped as a live preview in the indicator (`LivePreviewState`, 30 s rolling window, confirmed vs pending words). Insertion still happens at stop (type-as-you-speak stays a non-goal).
 - **Command mode:** "delete last sentence", "make that a bullet list" interpreted as edits, not text.
 - **Per-app context:** detect the frontmost app and adjust tone/formatting (casual Slack vs formal Mail). Opt-in only — no screenshots.
 - ~~Modifier-only / Fn hotkeys~~ — shipped during Phase 1 testing (`ModifierHotkeyMonitor`, NSEvent flagsChanged monitoring: ⌃⌥ chord, right ⌘/⌥, Fn; tap = toggle, hold = talk).

@@ -79,6 +79,12 @@ final class AudioRecorder {
         }
     }
 
+    /// Copy of everything captured so far, without stopping. Used by the live
+    /// preview transcriber while recording continues.
+    func snapshot() -> [Float] {
+        queue.sync { samples }
+    }
+
     /// Stops capture and discards the audio.
     func cancel() {
         stopEngine()

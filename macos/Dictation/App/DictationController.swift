@@ -14,6 +14,8 @@ final class DictationController {
     private(set) var audioLevel: Float = 0
     /// Short-lived message shown in the floating indicator (e.g. "Copied to clipboard").
     private(set) var transientMessage: String?
+    /// Rolling partial transcript while recording (see `LivePreviewState`).
+    private(set) var livePreview = LivePreviewState()
 
     private let settings: SettingsStore
     private let permissions: PermissionsManager
@@ -28,8 +30,16 @@ final class DictationController {
     var onSetupNeeded: (@MainActor () -> Void)?
 
     private var processingTask: Task<Void, Never>?
+    private var previewTask: Task<Void, Never>?
     private var errorClearTask: Task<Void, Never>?
     private var messageClearTask: Task<Void, Never>?
+
+    /// Live preview cadence and window. Whisper's native window is 30 s;
+    /// re-transcribing only that tail keeps each pass ~1 s on Apple Silicon.
+    private static let previewInterval: Duration = .milliseconds(1200)
+    private static let previewWindowSamples = Int(AudioRecorder.targetSampleRate) * 30
+    /// Don't re-run a pass until at least this much new audio arrived.
+    private static let previewMinNewSamples = Int(AudioRecorder.targetSampleRate)
 
     /// Recordings whose peak RMS never exceeds this are treated as silence
     /// (Whisper hallucinates text on silent audio).
@@ -93,6 +103,7 @@ final class DictationController {
             errorClearTask?.cancel()
             state = .recording(start: Date())
             indicator.show(controller: self)
+            startLivePreview()
         } catch {
             fail(error)
         }
@@ -100,6 +111,7 @@ final class DictationController {
 
     func stopAndProcess() {
         guard case .recording(let start) = state else { return }
+        stopLivePreview()
         // Capture the target app NOW, before any UI churn.
         let targetApp = NSWorkspace.shared.frontmostApplication
         let samples = recorder.stop()
@@ -112,11 +124,49 @@ final class DictationController {
     }
 
     func cancel() {
+        stopLivePreview()
         recorder.cancel()
         processingTask?.cancel()
         processingTask = nil
         state = .idle
         indicator.hide()
+    }
+
+    // MARK: - Live preview
+
+    /// Periodically transcribes the tail of the recording so the indicator can
+    /// show words as they are spoken. Never inserts anything; the final pass
+    /// at stop is still the source of truth.
+    private func startLivePreview() {
+        previewTask?.cancel()
+        livePreview.reset()
+        guard settings.livePreviewEnabled else { return }
+
+        previewTask = Task { [weak self] in
+            var lastCount = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.previewInterval)
+                guard !Task.isCancelled, let self, self.state.isRecording else { return }
+
+                let samples = self.recorder.snapshot()
+                guard samples.count - lastCount >= Self.previewMinNewSamples else { continue }
+                lastCount = samples.count
+                let window = Array(samples.suffix(Self.previewWindowSamples))
+
+                let text = try? await self.transcription.transcribePreview(
+                    samples: window,
+                    language: self.settings.transcriptionLanguage
+                )
+                guard !Task.isCancelled, self.state.isRecording,
+                      let text, !text.isEmpty else { continue }
+                self.livePreview.update(with: text)
+            }
+        }
+    }
+
+    private func stopLivePreview() {
+        previewTask?.cancel()
+        previewTask = nil
     }
 
     // MARK: - Pipeline

@@ -55,6 +55,10 @@ private struct GeneralSettingsTab: View {
                 Text("Auto-detect requires a multilingual model (Large v3 Turbo).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("Show live transcript while recording", isOn: $settings.livePreviewEnabled)
+                Text("Re-transcribes the last 30 seconds about once a second and shows it in the floating indicator. Text is still inserted only when you stop. Turn off to save battery.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Text insertion") {
                 Picker("Method:", selection: $settings.insertionMode) {

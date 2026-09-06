@@ -37,8 +37,10 @@ final class RecordingIndicatorPanel {
     }
 
     private func makePanel(controller: DictationController) -> NSPanel {
+        // Wide enough for two lines of live transcript; the pill itself sizes
+        // to its content and is centred in this transparent frame.
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 260, height: 44),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 96),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -71,24 +73,50 @@ final class RecordingIndicatorPanel {
 private struct IndicatorView: View {
     @Environment(DictationController.self) private var controller
 
+    private var showsPreview: Bool {
+        controller.state.isRecording && !controller.livePreview.isEmpty
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: controller.state.symbolName)
-                .foregroundStyle(controller.state.isRecording ? .red : .secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: controller.state.symbolName)
+                    .foregroundStyle(controller.state.isRecording ? .red : .secondary)
 
-            Text(controller.transientMessage ?? controller.state.label)
-                .font(.callout)
-                .lineLimit(1)
+                Text(controller.transientMessage ?? controller.state.label)
+                    .font(.callout)
+                    .lineLimit(1)
 
-            if controller.state.isRecording {
-                LevelMeter(level: controller.audioLevel)
+                if controller.state.isRecording {
+                    LevelMeter(level: controller.audioLevel)
+                }
+            }
+
+            if showsPreview {
+                previewText
+                    .font(.callout)
+                    .lineLimit(2)
+                    .truncationMode(.head)
+                    .frame(maxWidth: 460, alignment: .leading)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(radius: 6, y: 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeOut(duration: 0.15), value: showsPreview)
+    }
+
+    /// Confirmed words in the primary colour, the still-changing tail dimmed.
+    private var previewText: Text {
+        let confirmed = controller.livePreview.confirmedText
+        let pending = controller.livePreview.pendingText
+        var text = Text(confirmed)
+        if !pending.isEmpty {
+            text = text + Text(confirmed.isEmpty ? pending : " " + pending).foregroundStyle(.secondary)
+        }
+        return text
     }
 }
 
