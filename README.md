@@ -15,6 +15,8 @@ global hotkey ──▶ record mic ──▶ transcribe on-device ──▶ AI c
 - **On-device transcription** via [WhisperKit](https://github.com/argmaxinc/WhisperKit) — private, offline-capable, zero marginal cost on Apple Silicon.
 - **Optional AI cleanup** (bring your own key): removes filler words, fixes punctuation/capitalization, applies your custom dictionary. Providers: Groq, OpenAI, Anthropic, or a local Ollama / llama.cpp server. If the provider is slow or down, the raw transcript is inserted instead — dictation never blocks on the cloud.
 - **System-wide insertion**: sets the focused element's selected text via the Accessibility API; falls back to clipboard + simulated ⌘V (with clipboard restore) for apps that don't support AX insertion (terminals, some Electron apps).
+- **Voice commands** edit what you just dictated: “scratch that”, “delete last sentence”, “delete last word”, “make that uppercase”, or “make that a bullet list” / “make that more formal” (AI provider needed). Applies to the last dictation, in the same app, within two minutes.
+- **Per-app style** (opt-in): a one-line tone hint per app (casual in Slack, formal in Mail, plain text in terminals) added to the cleanup prompt. Only the bundle id is used.
 - **Menu-bar only** (no Dock icon), with a floating recording indicator, transcription history, and per-user custom dictionary.
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
@@ -51,6 +53,7 @@ open Dictation.xcodeproj
 - [ ] Insertion matrix: TextEdit and Safari (AX path); VS Code and Terminal (paste fallback); a password field (paste; clipboard restored afterwards)
 - [ ] Cleanup: pick a provider and add a key in Settings → Cleanup, dictate “um so like hello world” → “Hello world.”
 - [ ] Offline fallback: disable Wi-Fi, dictate → raw transcript appears within ~10 s
+- [ ] Voice command: dictate a sentence into TextEdit, then dictate “scratch that” → it disappears; in Terminal → backspaced away
 - [ ] Quit and relaunch → history, hotkeys, and model selection persist
 
 ## Repository layout

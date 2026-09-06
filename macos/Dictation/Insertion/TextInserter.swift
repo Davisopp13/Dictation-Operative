@@ -67,6 +67,40 @@ struct TextInserter {
         }
     }
 
+    /// Replaces the last inserted text (which must still sit immediately before
+    /// the caret) with `new`; empty `new` deletes it. Returns nil when the edit
+    /// could not be done safely — the AX path verified the text isn't there.
+    func replaceLast(
+        _ old: String,
+        with new: String,
+        into app: NSRunningApplication?,
+        mode: InsertionMode
+    ) async -> InsertionResult? {
+        let forcePaste = mode == .alwaysPaste || Self.isAXHostile(app)
+
+        if !forcePaste {
+            switch AXInserter.replaceTrailing(old, with: new) {
+            case .replaced:
+                Log.insertion.info("Replaced via AX")
+                return .axInserted
+            case .mismatch:
+                Log.insertion.info("AX refused replace; not falling back to key events")
+                return nil
+            case .unsupported:
+                break
+            }
+        }
+
+        guard let outcome = await PasteInserter.replaceTrailing(old, with: new) else { return nil }
+        switch outcome {
+        case .pasted:
+            Log.insertion.info("Replaced via backspace + paste")
+            return .pasted
+        case .clipboardOnly:
+            return .clipboardOnly
+        }
+    }
+
     private static func isAXHostile(_ app: NSRunningApplication?) -> Bool {
         guard let app else { return false }
         let haystack = [(app.bundleIdentifier ?? ""), (app.localizedName ?? "")]

@@ -39,7 +39,7 @@ struct OpenAICompatibleCleanupService: CleanupProvider {
         return URL(string: base + "/chat/completions") ?? baseURL
     }
 
-    func cleanup(transcript: String, dictionary: [String]) async throws -> String {
+    func complete(system: String, user: String) async throws -> String {
         var request = URLRequest(url: Self.endpoint(for: baseURL))
         request.httpMethod = "POST"
         request.timeoutInterval = CleanupGuard.timeout
@@ -50,8 +50,8 @@ struct OpenAICompatibleCleanupService: CleanupProvider {
         request.httpBody = try JSONEncoder().encode(ChatRequest(
             model: model,
             messages: [
-                ChatMessage(role: "system", content: CleanupPrompt.system(dictionary: dictionary)),
-                ChatMessage(role: "user", content: transcript),
+                ChatMessage(role: "system", content: system),
+                ChatMessage(role: "user", content: user),
             ],
             temperature: 0
         ))
@@ -60,6 +60,6 @@ struct OpenAICompatibleCleanupService: CleanupProvider {
         try CleanupGuard.checkHTTP(response)
 
         let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
-        return try CleanupGuard.validate(decoded.choices.first?.message.content, transcript: transcript)
+        return try CleanupGuard.validate(decoded.choices.first?.message.content, transcript: user)
     }
 }

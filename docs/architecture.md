@@ -59,10 +59,16 @@ Rules:
 
 ## Cleanup
 
-- `CleanupProvider` protocol with two network implementations, both plain `URLSession`, no SDKs: `OpenAICompatibleCleanupService` (Groq, OpenAI, and any local Ollama / llama.cpp server — same `/chat/completions` dialect, different base URL) and `AnthropicCleanupService` (Messages API, `effort: low`, refusal fallbacks on the Claude 5 family). `NoopCleanupProvider` when disabled.
+- `CleanupProvider` protocol (one requirement: `complete(system:user:)`; `cleanup` and `rewrite` are extensions) with two network implementations, both plain `URLSession`, no SDKs: `OpenAICompatibleCleanupService` (Groq, OpenAI, and any local Ollama / llama.cpp server — same `/chat/completions` dialect, different base URL) and `AnthropicCleanupService` (Messages API, `effort: low`, refusal fallbacks on the Claude 5 family). `NoopCleanupProvider` when disabled.
 - `CleanupProviderKind` is the Settings-facing enum (display name, default model, base URL, Keychain account, help text); `CleanupProviderFactory` turns settings + Keychain into a provider, or nil when a required key is missing (raw transcript is inserted, same as cleanup off).
 - Prompt built by `CleanupPrompt` (pure function, unit-tested): remove filler words, fix punctuation/capitalization, preserve meaning, prefer custom-dictionary spellings, output only the cleaned text.
 - Guardrails in `CleanupGuard`: `temperature 0` (OpenAI dialect), 10 s timeout, response discarded if empty or > 3× input length, Anthropic `stop_reason: refusal` treated as failure. Any failure returns the raw transcript.
+
+## Voice commands and per-app style (Phase 2)
+
+- `VoiceCommand.parse` runs on the raw transcript before cleanup: "scratch that", "delete last sentence/word", "make that uppercase/lowercase" are deterministic; "make that <instruction>" goes through `CleanupProvider.rewrite`. Commands only touch the **last insertion**, within 2 minutes, in the same app (ADR-0007).
+- Replacement: `AXInserter.replaceTrailing` verifies via `AXStringForRange` that the text before the caret is what we inserted, then selects that range and sets the selected text. A mismatch aborts — no blind fallback. AX-hostile apps use `PasteInserter.replaceTrailing` (backspaces + paste).
+- Per-app style (opt-in): `AppStyle.style(for:rules:)` maps the target app's bundle id (exact, then longest substring) to a one-line hint that `CleanupPrompt.system(dictionary:appStyle:)` appends. Nothing but the bundle id is consulted.
 
 ## Insertion
 

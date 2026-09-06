@@ -1,14 +1,30 @@
 import Foundation
 
-/// A post-transcription cleanup pass (filler-word removal, punctuation,
-/// custom-dictionary spellings). Implementations must be side-effect free on
-/// failure: the caller falls back to the raw transcript on any thrown error.
+/// An LLM backend used for the cleanup pass and for spoken rewrite commands.
+/// Implementations must be side-effect free on failure: the caller falls back
+/// to the raw transcript (or leaves the text unchanged) on any thrown error.
 protocol CleanupProvider: Sendable {
     var id: String { get }
-    func cleanup(transcript: String, dictionary: [String]) async throws -> String
+    /// One system prompt + one user message → the model's text reply.
+    /// Providers implement only this; the prompts live in `CleanupPrompt`.
+    func complete(system: String, user: String) async throws -> String
 }
 
 extension CleanupProvider {
+    /// Filler-word removal, punctuation, custom-dictionary spellings, and an
+    /// optional per-app style hint.
+    func cleanup(transcript: String, dictionary: [String], appStyle: String? = nil) async throws -> String {
+        try await complete(
+            system: CleanupPrompt.system(dictionary: dictionary, appStyle: appStyle),
+            user: transcript
+        )
+    }
+
+    /// Applies a spoken edit ("make that a bullet list") to already-inserted text.
+    func rewrite(text: String, instruction: String) async throws -> String {
+        try await complete(system: CleanupPrompt.rewrite(instruction: instruction), user: text)
+    }
+
     /// Cheap connectivity/key check for the Settings "Test connection" button.
     func testConnection() async -> Result<Void, Error> {
         do {
@@ -20,12 +36,12 @@ extension CleanupProvider {
     }
 }
 
-/// Used when cleanup is disabled — returns the transcript untouched.
+/// Used when cleanup is disabled — returns the input untouched.
 struct NoopCleanupProvider: CleanupProvider {
     let id = "noop"
 
-    func cleanup(transcript: String, dictionary: [String]) async throws -> String {
-        transcript
+    func complete(system: String, user: String) async throws -> String {
+        user
     }
 }
 

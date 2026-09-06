@@ -16,6 +16,7 @@ enum PasteInserter {
     static let restoreDelay: Duration = .milliseconds(300)
 
     private static let kVK_ANSI_V: CGKeyCode = 9
+    private static let kVK_Delete: CGKeyCode = 51
 
     enum Outcome {
         case pasted
@@ -60,6 +61,36 @@ enum PasteInserter {
             }
         }
         return .pasted
+    }
+
+    /// Key-based edit for apps the AX range path can't reach (terminals,
+    /// Electron widgets): backspace over `old`, then paste `new`. Blind by
+    /// nature — the caller only uses it where the AX path is unavailable and
+    /// within the voice-command time/app window. Nil if events can't be posted.
+    @MainActor
+    static func replaceTrailing(_ old: String, with new: String) async -> Outcome? {
+        guard AXIsProcessTrusted(), postBackspaces(old.count) else { return nil }
+        try? await Task.sleep(for: .milliseconds(80))
+        if new.isEmpty { return .pasted }
+        return await insert(new)
+    }
+
+    private static func postBackspaces(_ count: Int) -> Bool {
+        guard count > 0 else { return true }
+        let source = CGEventSource(stateID: .combinedSessionState)
+        for _ in 0..<count {
+            guard
+                let keyDown = CGEvent(keyboardEventSource: source, virtualKey: kVK_Delete, keyDown: true),
+                let keyUp = CGEvent(keyboardEventSource: source, virtualKey: kVK_Delete, keyDown: false)
+            else {
+                return false
+            }
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            // Give slow event queues (terminals) a moment per keystroke.
+            usleep(400)
+        }
+        return true
     }
 
     private static func postCommandV() -> Bool {
