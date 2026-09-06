@@ -59,7 +59,7 @@ struct AnthropicCleanupService: CleanupProvider {
         !(model.contains("haiku") || model.contains("-4-5"))
     }
 
-    func cleanup(transcript: String, dictionary: [String]) async throws -> String {
+    func complete(system: String, user: String) async throws -> String {
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = CleanupGuard.timeout
@@ -75,8 +75,8 @@ struct AnthropicCleanupService: CleanupProvider {
         request.httpBody = try encoder.encode(Request(
             model: model,
             maxTokens: 4096,
-            system: CleanupPrompt.system(dictionary: dictionary),
-            messages: [Message(role: "user", content: transcript)],
+            system: system,
+            messages: [Message(role: "user", content: user)],
             // Cleanup is latency-sensitive and mechanical; low effort keeps
             // adaptive thinking short.
             outputConfig: supportsEffort ? OutputConfig(effort: "low") : nil,
@@ -98,6 +98,6 @@ struct AnthropicCleanupService: CleanupProvider {
             .filter { $0.type == "text" }
             .compactMap(\.text)
             .joined()
-        return try CleanupGuard.validate(text, transcript: transcript)
+        return try CleanupGuard.validate(text, transcript: user)
     }
 }

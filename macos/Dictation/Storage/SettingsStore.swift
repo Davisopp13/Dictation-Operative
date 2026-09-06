@@ -18,6 +18,9 @@ final class SettingsStore {
         static let insertionMode = "insertionMode"
         static let modifierHotkey = "modifierHotkey"
         static let livePreviewEnabled = "livePreviewEnabled"
+        static let voiceCommandsEnabled = "voiceCommandsEnabled"
+        static let appContextEnabled = "appContextEnabled"
+        static let appStyles = "appStyles"
     }
 
     private let defaults: UserDefaults
@@ -91,6 +94,21 @@ final class SettingsStore {
         didSet { defaults.set(livePreviewEnabled, forKey: Keys.livePreviewEnabled) }
     }
 
+    /// "Scratch that" and friends edit the last dictation instead of inserting.
+    var voiceCommandsEnabled: Bool {
+        didSet { defaults.set(voiceCommandsEnabled, forKey: Keys.voiceCommandsEnabled) }
+    }
+
+    /// Opt-in: add a per-app style hint to the cleanup prompt.
+    var appContextEnabled: Bool {
+        didSet { defaults.set(appContextEnabled, forKey: Keys.appContextEnabled) }
+    }
+
+    /// Bundle id (or substring) → style instruction. See `AppStyle`.
+    var appStyles: [String: String] {
+        didSet { defaults.set(appStyles, forKey: Keys.appStyles) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selectedModelVariant = defaults.string(forKey: Keys.selectedModelVariant) ?? ModelCatalog.defaultVariant
@@ -113,6 +131,9 @@ final class SettingsStore {
         modifierHotkey = defaults.string(forKey: Keys.modifierHotkey)
             .flatMap(ModifierHotkey.init(rawValue:)) ?? .controlOption
         livePreviewEnabled = (defaults.object(forKey: Keys.livePreviewEnabled) as? Bool) ?? true
+        voiceCommandsEnabled = (defaults.object(forKey: Keys.voiceCommandsEnabled) as? Bool) ?? true
+        appContextEnabled = defaults.bool(forKey: Keys.appContextEnabled)
+        appStyles = defaults.dictionary(forKey: Keys.appStyles) as? [String: String] ?? [:]
     }
 
     var transcriptionLanguage: String? {

@@ -158,6 +158,15 @@ private struct CleanupSettingsTab: View {
     @State private var testResult: String?
     @State private var testing = false
     @State private var newWord = ""
+    @State private var newRuleBundleID = ""
+    @State private var newRulePresetID = AppStyle.presets.first?.id ?? "casual"
+    @State private var runningApps: [RunningApp] = []
+
+    private struct RunningApp: Identifiable {
+        let name: String
+        let bundleID: String
+        var id: String { bundleID }
+    }
 
     private var kind: CleanupProviderKind { settings.cleanupProvider }
 
@@ -238,11 +247,88 @@ private struct CleanupSettingsTab: View {
                     }
                 }
             }
+
+            Section("Voice commands") {
+                Toggle("Edit the last dictation with spoken commands", isOn: $settings.voiceCommandsEnabled)
+                Text("Say “scratch that”, “delete last sentence”, “delete last word”, “make that uppercase”, or an instruction like “make that a bullet list” / “make that more formal” (those need an AI provider). Works within two minutes of the last dictation, in the same app, while the cursor is still right after it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Per-app style") {
+                Toggle("Adjust tone by app", isOn: $settings.appContextEnabled)
+                Text("Opt-in. Adds a one-line style hint to the cleanup prompt based on which app you're dictating into. Only the app's bundle identifier is used — no window titles or screen content.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(settings.appStyles.keys.sorted(), id: \.self) { bundleID in
+                    HStack(alignment: .top) {
+                        Text(bundleID)
+                            .font(.caption)
+                            .frame(width: 170, alignment: .leading)
+                            .lineLimit(2)
+                        TextField("Style", text: styleBinding(for: bundleID), axis: .vertical)
+                            .lineLimit(1...3)
+                        Button {
+                            settings.appStyles[bundleID] = nil
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                HStack {
+                    Picker("App:", selection: $newRuleBundleID) {
+                        Text("Choose…").tag("")
+                        ForEach(runningApps) { app in
+                            Text(app.name).tag(app.bundleID)
+                        }
+                    }
+                    Picker("Style:", selection: $newRulePresetID) {
+                        ForEach(AppStyle.presets) { preset in
+                            Text(preset.name).tag(preset.id)
+                        }
+                    }
+                    Button("Add", action: addRule)
+                        .disabled(newRuleBundleID.isEmpty)
+                }
+                HStack {
+                    Button("Add suggested rules") {
+                        settings.appStyles.merge(AppStyle.suggestedRules) { current, _ in current }
+                    }
+                    Text("Slack, Messages, Mail, Outlook, VS Code, Terminal, Notes…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear {
             apiKey = KeychainHelper.get(kind.keychainAccount) ?? ""
+            refreshRunningApps()
         }
+    }
+
+    private func styleBinding(for bundleID: String) -> Binding<String> {
+        Binding(
+            get: { settings.appStyles[bundleID] ?? "" },
+            set: { settings.appStyles[bundleID] = $0 }
+        )
+    }
+
+    private func addRule() {
+        guard !newRuleBundleID.isEmpty, let preset = AppStyle.preset(newRulePresetID) else { return }
+        settings.appStyles[newRuleBundleID] = preset.text
+        newRuleBundleID = ""
+    }
+
+    private func refreshRunningApps() {
+        runningApps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { app -> RunningApp? in
+                guard let id = app.bundleIdentifier, let name = app.localizedName else { return nil }
+                return RunningApp(name: name, bundleID: id)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private func addWord() {

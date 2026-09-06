@@ -46,6 +46,16 @@ final class DictationController {
     private static let silenceRMSThreshold: Float = 0.003
     private var peakLevel: Float = 0
 
+    /// What a voice command may edit: the most recent insertion, if it went
+    /// into the same app less than `commandWindow` ago.
+    private struct LastInsertion {
+        let text: String
+        let bundleID: String?
+        let date: Date
+    }
+    private var lastInsertion: LastInsertion?
+    private static let commandWindow: TimeInterval = 120
+
     init(
         settings: SettingsStore,
         permissions: PermissionsManager,
@@ -195,12 +205,20 @@ final class DictationController {
                 return
             }
 
+            // Spoken edit commands act on the previous dictation instead of
+            // being inserted. Parsed from the raw transcript, before cleanup.
+            if settings.voiceCommandsEnabled, let command = VoiceCommand.parse(raw) {
+                await runCommand(command, targetApp: targetApp)
+                return
+            }
+
             var cleaned: String?
             if settings.cleanupEnabled, let provider = makeCleanupProvider() {
                 state = .cleaning
                 if let result = try? await provider.cleanup(
                     transcript: raw,
-                    dictionary: settings.customDictionary
+                    dictionary: settings.customDictionary,
+                    appStyle: appStyle(for: targetApp)
                 ), !result.isEmpty {
                     cleaned = result
                 } else {
@@ -226,6 +244,10 @@ final class DictationController {
                 durationSec: duration
             ))
             lastTranscript = finalText
+            // Only text that actually landed in the app can be edited later.
+            lastInsertion = result == .clipboardOnly
+                ? nil
+                : LastInsertion(text: finalText, bundleID: targetApp?.bundleIdentifier, date: Date())
 
             state = .idle
             // Briefly report which path was used — this is also the diagnostic
@@ -239,6 +261,69 @@ final class DictationController {
 
     private func makeCleanupProvider() -> CleanupProvider? {
         CleanupProviderFactory.make(settings: settings)
+    }
+
+    /// Per-app tone hint (opt-in). Only the bundle id is consulted.
+    private func appStyle(for app: NSRunningApplication?) -> String? {
+        guard settings.appContextEnabled else { return nil }
+        return AppStyle.style(for: app?.bundleIdentifier, rules: settings.appStyles)
+    }
+
+    // MARK: - Voice commands
+
+    private func runCommand(_ command: VoiceCommand, targetApp: NSRunningApplication?) async {
+        guard let last = lastInsertion,
+              Date().timeIntervalSince(last.date) < Self.commandWindow,
+              last.bundleID == targetApp?.bundleIdentifier else {
+            state = .idle
+            showTransientMessage("Nothing recent to edit here")
+            return
+        }
+
+        let replacement: String
+        if let edited = command.apply(to: last.text) {
+            replacement = edited
+        } else if case .rewrite(let instruction) = command {
+            guard let provider = makeCleanupProvider() else {
+                state = .idle
+                showTransientMessage("That command needs an AI cleanup provider")
+                return
+            }
+            state = .cleaning
+            guard let rewritten = try? await provider.rewrite(text: last.text, instruction: instruction) else {
+                state = .idle
+                showTransientMessage("Rewrite failed; text left unchanged")
+                return
+            }
+            replacement = rewritten
+        } else {
+            state = .idle
+            return
+        }
+        guard !Task.isCancelled else { return }
+
+        state = .inserting
+        let result = await inserter.replaceLast(
+            last.text,
+            with: replacement,
+            into: targetApp,
+            mode: settings.insertionMode
+        )
+        state = .idle
+
+        switch result {
+        case .none:
+            showTransientMessage("Couldn't find the last dictation to edit")
+        case .some(.clipboardOnly):
+            lastInsertion = nil
+            showTransientMessage("Edited text copied to clipboard — press ⌘V")
+        case .some:
+            lastInsertion = replacement.isEmpty
+                ? nil
+                : LastInsertion(text: replacement, bundleID: last.bundleID, date: Date())
+            if !replacement.isEmpty { lastTranscript = replacement }
+            showTransientMessage(command.confirmationMessage)
+        }
     }
 
     // MARK: - Errors & transient messages

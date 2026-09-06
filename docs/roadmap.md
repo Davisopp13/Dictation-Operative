@@ -8,11 +8,11 @@ Native Swift menu-bar app validating the whole loop: hotkey → record → Whisp
 
 **Exit criteria:** end-to-end dictation feels < ~1.5 s for a short sentence; insertion works in the top 5 daily apps (browser, Slack, VS Code, Notes, Mail — via AX or paste fallback).
 
-## Phase 2 — AI enhancement depth (macOS)
+## Phase 2 — AI enhancement depth (macOS) — complete except history/SQLite
 
 - ~~**Streaming partial transcripts** (WhisperKit LocalAgreement confirmed/hypothesis text) for sub-second perceived latency~~ — shipped as a live preview in the indicator (`LivePreviewState`, 30 s rolling window, confirmed vs pending words). Insertion still happens at stop (type-as-you-speak stays a non-goal).
-- **Command mode:** "delete last sentence", "make that a bullet list" interpreted as edits, not text.
-- **Per-app context:** detect the frontmost app and adjust tone/formatting (casual Slack vs formal Mail). Opt-in only — no screenshots.
+- ~~**Command mode:** "delete last sentence", "make that a bullet list" interpreted as edits, not text~~ — shipped (`VoiceCommand`; edits the last insertion, AX-verified; ADR-0007).
+- ~~**Per-app context:** detect the frontmost app and adjust tone/formatting (casual Slack vs formal Mail). Opt-in only — no screenshots~~ — shipped (`AppStyle` rules by bundle id, opt-in toggle in Settings → Cleanup).
 - ~~Modifier-only / Fn hotkeys~~ — shipped during Phase 1 testing (`ModifierHotkeyMonitor`, NSEvent flagsChanged monitoring: ⌃⌥ chord, right ⌘/⌥, Fn; tap = toggle, hold = talk).
 - **History upgrade** to SQLite (GRDB) with search, replacing the JSON store (see ADR note).
 - ~~**More cleanup providers** behind `CleanupProvider`: OpenAI, Anthropic, local llama.cpp; provider/model picker UI~~ — shipped (`CleanupProviderKind`: Groq, OpenAI, Anthropic, local Ollama/llama.cpp; per-provider model + key; ADR-0005 update).
