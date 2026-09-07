@@ -1,0 +1,19 @@
+{
+  "name": "dictation-operative-sync-relay",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler types && tsc --noEmit",
+    "test": "wrangler deploy --dry-run --outdir .wrangler/test-bundle && node --import tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "wrangler": "4.92.0",
+    "@cloudflare/workers-types": "4.20260515.1",
+    "typescript": "5.9.3",
+    "tsx": "4.23.13",
+    "miniflare": "4.20260515.0"
+  }
+}

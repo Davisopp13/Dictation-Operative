@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
+    @Environment(SyncService.self) private var sync
     @Environment(DictationController.self) private var controller
     @Environment(SettingsStore.self) private var settings
     @Environment(HistoryStore.self) private var history
@@ -29,6 +30,17 @@ struct MenuBarView: View {
             } label: {
                 Text("Copy Last: \(String(last.prefix(40)))\(last.count > 40 ? "…" : "")")
             }
+        }
+
+        Menu("Sync") {
+            Text(sync.status)
+            if let error = sync.error { Text(error) }
+            Button("Send clipboard", action: sync.sendClipboard).disabled(!sync.available)
+            Button("Receive latest", action: sync.receiveLatest).disabled(!sync.available)
+            if let last = controller.lastTranscript {
+                Button("Send last dictation") { sync.sendText(last) }.disabled(!sync.available)
+            }
+            Button(sync.config.paused ? "Resume Sync" : "Pause Sync") { sync.config.paused.toggle(); sync.persist(reset: true) }.disabled(sync.busy)
         }
 
         Menu("Recent History") {

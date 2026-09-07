@@ -13,12 +13,14 @@ final class AppServices {
     let modelManager: ModelManager
     let transcription: TranscriptionService
     let controller: DictationController
+    let sync: SyncService
     let updater: UpdaterService
 
     private(set) var hotkeys: HotkeyManager?
     private var onboardingWindow: OnboardingWindowController?
 
     private init() {
+        sync = SyncService()
         settings = SettingsStore()
         permissions = PermissionsManager()
         history = HistoryStore()
@@ -33,6 +35,7 @@ final class AppServices {
             transcription: transcription,
             history: history
         )
+        controller.onCompletedDictation = { [weak self] text in self?.sync.completedDictation(text) }
         controller.onSetupNeeded = { [weak self] in
             self?.showOnboarding()
         }
@@ -41,6 +44,7 @@ final class AppServices {
     /// Called once from applicationDidFinishLaunching.
     func start() {
         hotkeys = HotkeyManager(controller: controller, modifierHotkey: settings.modifierHotkey)
+        sync.start()
         permissions.refresh()
         preloadModelIfAvailable()
         if !settings.onboardingCompleted {

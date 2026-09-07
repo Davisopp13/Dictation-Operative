@@ -42,6 +42,7 @@ enum PasteInserter {
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        pasteboard.setData(Data(), forType: .init("org.nspasteboard.TransientType"))
         let ourChangeCount = pasteboard.changeCount
 
         try? await Task.sleep(for: settleDelay)
@@ -57,6 +58,8 @@ enum PasteInserter {
         if pasteboard.changeCount == ourChangeCount {
             pasteboard.clearContents()
             if !savedItems.isEmpty {
+                // Restoring a temporary insertion is not a new user copy.
+                savedItems.first?.setData(Data(), forType: .init("org.nspasteboard.TransientType"))
                 pasteboard.writeObjects(savedItems)
             }
         }
