@@ -30,6 +30,9 @@ settings:
     # Sparkle EdDSA public key. Empty in dev/CI builds (the updater stays
     # disabled); the release workflow injects the real key.
     SPARKLE_PUBLIC_ED_KEY: ""
+  configs:
+    Release:
+      CODE_SIGN_INJECT_BASE_ENTITLEMENTS: "NO"
 
 targets:
   Dictation:
@@ -91,5 +94,7 @@ schemes:
       config: Debug
     test:
       config: Debug
+      environmentVariables:
+        DICTATION_TEST_HOST: "1"
       targets:
         - DictationTests

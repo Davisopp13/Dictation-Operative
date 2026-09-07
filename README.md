@@ -45,6 +45,12 @@ open Dictation.xcodeproj
 3. Follow onboarding: grant **Microphone**, grant **Accessibility** (System Settings → Privacy & Security → Accessibility), download a model (`base.en` is a good start, ~80 MB).
 4. Dictate with **⌃⌥ (Control + Option)**: tap it to toggle recording, or hold it to talk and release to insert. Settings → General lets you pick a different modifier key (right ⌘/⌥ or Fn) and optionally record extra key-combo shortcuts for toggle and hold-to-talk (unbound by default).
 
+For daily-use updates, run `macos/scripts/build-release.sh` to build with a valid
+Developer ID Application certificate. Then quit the installed app and run
+`macos/scripts/install-app.sh /path/to/Dictation.app` from the repository root.
+The installer requires certificate signing and refuses identity-changing replacements.
+Keep ad-hoc previews in DerivedData instead of overwriting `/Applications/Dictation.app`.
+
 ### Smoke-test checklist
 
 - [ ] Toggle mode (tap ⌃⌥): tap, speak, tap again → text appears at the cursor
@@ -77,3 +83,10 @@ Push a `vX.Y.Z` tag and `.github/workflows/release.yml` builds a Developer ID-si
 ## Distribution note
 
 The app is deliberately **non-sandboxed** (Accessibility insertion and CGEvent posting require it), so Mac App Store distribution is off the table — same as every app in this category. Ship via notarized Developer ID builds. Details: [docs/permissions-and-distribution.md](docs/permissions-and-distribution.md).
+
+
+## Dictation Operative Sync
+
+The Mac app and [private PWA](https://do-voice-workspace.davisopp.chatgpt.site/) can now pair for end-to-end encrypted text and image clipboard transfers. Open **Settings → Sync** on the Mac or **Sync** in the PWA. Create an invitation on one device, enter it on the other, and approve the requesting device. Select a destination, then **Send clipboard** / **Receive latest**. The Mac menu also offers **Send last dictation**; the PWA thought editor offers **Send to device**.
+
+Automatic clipboard sync and automatic completed-dictation delivery are optional Mac settings, off by default. Both devices need internet access. Browser/iOS actions are user initiated while open. Transfers expire in two minutes. See the [protocol and platform limits](Shared/Sync/README.md) and [validation report](docs/sync-validation.md). Native Windows, Linux, and iOS apps/share extensions remain future work.

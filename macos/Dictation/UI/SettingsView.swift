@@ -13,6 +13,8 @@ struct SettingsView: View {
                 .tabItem { Label("Model", systemImage: "waveform") }
             CleanupSettingsTab()
                 .tabItem { Label("Cleanup", systemImage: "wand.and.stars") }
+            SyncSettingsView()
+                .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
             HistorySettingsTab()
                 .tabItem { Label("History", systemImage: "clock") }
         }

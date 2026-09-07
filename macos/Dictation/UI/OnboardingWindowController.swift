@@ -7,7 +7,7 @@ import SwiftUI
 final class OnboardingWindowController: NSWindowController {
     convenience init(services: AppServices) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 570),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -17,7 +17,12 @@ final class OnboardingWindowController: NSWindowController {
         window.center()
         self.init(window: window)
 
-        let root = OnboardingView(onFinished: { [weak window] in
+        let root = OnboardingView(initialStep: SetupProgress.initialStep(
+            completed: services.settings.onboardingCompleted,
+            microphone: services.permissions.micGranted,
+            accessibility: services.permissions.accessibilityGranted,
+            model: services.modelManager.isDownloaded(services.settings.selectedModelVariant)
+        ), onFinished: { [weak window] in
             window?.close()
         })
         .environment(services.settings)

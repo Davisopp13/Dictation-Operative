@@ -9,6 +9,7 @@ struct DictationApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarView()
+                .environment(services.sync)
                 .environment(services.controller)
                 .environment(services.settings)
                 .environment(services.history)
@@ -19,6 +20,7 @@ struct DictationApp: App {
 
         Settings {
             SettingsView()
+                .environment(services.sync)
                 .environment(services.controller)
                 .environment(services.settings)
                 .environment(services.permissions)

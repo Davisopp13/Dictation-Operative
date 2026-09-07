@@ -9,6 +9,7 @@ import os
 @Observable
 final class DictationController {
     private(set) var state: DictationState = .idle
+    var onCompletedDictation: ((String) -> Void)?
     private(set) var lastTranscript: String?
     /// Latest mic RMS level (0...~1) while recording; drives the indicator meter.
     private(set) var audioLevel: Float = 0
@@ -244,6 +245,7 @@ final class DictationController {
                 durationSec: duration
             ))
             lastTranscript = finalText
+            onCompletedDictation?(finalText)
             // Only text that actually landed in the app can be edited later.
             lastInsertion = result == .clipboardOnly
                 ? nil
