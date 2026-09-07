@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// First-run setup: welcome → microphone → accessibility → model download → try it.
@@ -40,9 +41,11 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(spacing: 14) {
-            Image(systemName: "mic.circle.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(.tint)
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .accessibilityHidden(true)
             Text("Welcome to Dictation").font(.title.bold())
             Text("Press a hotkey anywhere, speak, and cleaned-up text appears at your cursor. Transcription runs entirely on this Mac.")
                 .multilineTextAlignment(.center)

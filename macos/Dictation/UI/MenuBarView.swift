@@ -66,6 +66,11 @@ struct MenuBarView: View {
 
         Divider()
 
+        Button("About Dictation") {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.orderFrontStandardAboutPanel(nil)
+        }
+
         Button("Quit Dictation") {
             NSApp.terminate(nil)
         }
