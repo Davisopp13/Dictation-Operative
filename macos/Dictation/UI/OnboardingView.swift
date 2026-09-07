@@ -17,16 +17,40 @@ struct OnboardingView: View {
         self.onFinished = onFinished
     }
 
+    /// The five steps, in order. Also the step indicator's copy.
+    static let stepTitles = ["Welcome", "Microphone", "Accessibility", "Speech Model", "Try It"]
+
+    private var clampedStep: Int { min(max(step, 0), Self.stepTitles.count - 1) }
+
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: Tokens.Space.lg) {
+            stepIndicator
             content
             Spacer()
             navigation
         }
-        .padding(28)
-        .frame(width: 560, height: 570)
+        .padding(Tokens.Space.lg + Tokens.Space.xxs)
+        .frame(width: Tokens.Size.onboarding.width, height: Tokens.Size.onboarding.height)
         .onAppear { permissions.startPolling() }
         .onDisappear { permissions.stopPolling() }
+    }
+
+    private var stepIndicator: some View {
+        VStack(spacing: Tokens.Space.xs) {
+            HStack(spacing: Tokens.Space.xxs + 2) {
+                ForEach(Array(Self.stepTitles.indices), id: \.self) { index in
+                    Capsule()
+                        .fill(index == clampedStep ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .frame(width: index == clampedStep ? 24 : 8, height: 6)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: clampedStep)
+            Text("Step \(clampedStep + 1) of \(Self.stepTitles.count) · \(Self.stepTitles[clampedStep])")
+                .font(.caption)
+                .foregroundStyle(Tokens.Chrome.secondaryText)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(clampedStep + 1) of \(Self.stepTitles.count), \(Self.stepTitles[clampedStep])")
     }
 
     @ViewBuilder
@@ -47,7 +71,7 @@ struct OnboardingView: View {
                 .scaledToFit()
                 .frame(width: 72, height: 72)
                 .accessibilityHidden(true)
-            Text("Welcome to Dictation").font(.title.bold())
+            Text("Welcome to Dictation").font(.title2.bold())
             Text("Press a hotkey anywhere, speak, and cleaned-up text appears at your cursor. Transcription runs entirely on this Mac.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -95,8 +119,7 @@ struct OnboardingView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .font(.callout)
-                .padding(12)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                .sectionCard()
             }
         }
     }
@@ -151,7 +174,7 @@ struct OnboardingView: View {
                 .font(.body)
                 .frame(height: 110)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
-            Text("Tip: add a Groq API key in Settings → Cleanup for AI-polished output.")
+            Text("Tip: add a Groq API key in Settings → Writing for AI-polished output.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -21,6 +21,10 @@ final class SyncService {
   private(set) var progress = 0.0
   private(set) var state: SyncPairState?
   var invitation = ""
+  private(set) var pairing: SyncPairing?
+  private(set) var pairingState: SyncPairingState?
+  private(set) var pairingVerification = ""
+  private(set) var pairingExpired = false
   private var connectedRoom: String?
   private var latestSeen: String?
   private var lastSent: String?
@@ -75,7 +79,7 @@ final class SyncService {
       defer { busy = false }
       do { try await action() } catch {
         self.error =
-          (error as? SyncFailure)?.message
+          (error as? SyncFailure)?.message ?? (error as? SyncPairingError)?.message
           ?? "Sync could not finish. Check your connection and try again."
       }
     }
@@ -85,28 +89,73 @@ final class SyncService {
       guard !config.device.name.trimmingCharacters(in: .whitespaces).isEmpty else {
         throw SyncFailure("Name this device first.")
       }
-      var bytes = Data(count: 32)
-      let result = bytes.withUnsafeMutableBytes {
-        SecRandomCopyBytes(kSecRandomDefault, 32, $0.baseAddress!)
+      try await clearPairing()
+      let pending = try await SyncPairing.create(device: config.device)
+      pairing = pending
+      pairingState = pending.state
+      pairingExpired = false
+      status = "Scan the QR code or enter the code on your other device."
+    }
+  }
+  private func clearPairing() async throws {
+    if let pairing {
+      do { try await pairing.request("cancel") }
+      catch let e as SyncPairingError where e.status == 410 { /* Already expired. */ }
+    }
+    pairing = nil; pairingState = nil; pairingVerification = ""; pairingExpired = false
+  }
+  func cancelPairing() {
+    perform { [self] in try await clearPairing(); status = "Pairing cancelled." }
+  }
+  private func savePaired(_ record: SyncPairRecord) throws {
+    var next = config
+    next.pairs.removeAll { $0.id == record.id }
+    next.pairs.append(record); next.selected = record.id; next.paused = false
+    try SyncKeychain.save(JSONEncoder().encode(next))
+    config = next
+    persist(reset: true)
+    pairing = nil; pairingState = nil; pairingVerification = ""; pairingExpired = false
+    status = "Connected to \(record.peerName)."
+  }
+  func approvePairing() {
+    guard let pairing else { return }
+    perform { [self] in try savePaired(await pairing.approve()) }
+  }
+  private func pollPairing() async {
+    guard let pending = pairing, !pairingExpired else { return }
+    if Int64(Date().timeIntervalSince1970 * 1000) >= pending.state.expiresAt {
+      pairingExpired = true; status = "Pairing code expired. Create a new code."; return
+    }
+    do {
+      let value = try await pending.request("status")
+      guard !busy, pairing === pending else { return }
+      pairingState = value
+      pairingVerification = value.guest == nil ? "" : try pending.verification()
+      error = nil
+      if value.approved && pending.role == "guest" {
+        let record = try await pending.finish()
+        guard !busy, pairing === pending else { return }
+        try savePaired(record)
+      } else {
+        status = value.guest == nil ? "Waiting for your other device…" : "Compare the confirmation on both devices."
       }
-      guard result == errSecSuccess else {
-        throw SyncFailure("Could not generate secure pairing keys.")
-      }
-      let p = SyncPairRecord(
-        relay: SyncPairRecord.defaultRelay, secret: bytes.syncURL64,
-        auth: SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).syncURL64 },
-        guestAuth: SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).syncURL64 },
-        role: "host", device: config.device, peerName: "New device")
-      try await SyncTransport(pair: p).create()
-      config.pairs.append(p)
-      config.selected = p.id
-      persist(reset: true)
-      invitation = try p.invitation()
-      status = "Invitation expires in 5 minutes. Share it privately."
+    } catch {
+      guard !busy, pairing === pending else { return }
+      self.error = (error as? SyncFailure)?.message ?? (error as? SyncPairingError)?.message
+        ?? "Pairing connection interrupted. Retrying…"
+      if (error as? SyncPairingError)?.status == 410 { pairingExpired = true }
     }
   }
   func join(_ code: String) {
     perform { [self] in
+      if !code.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("dosync1:") {
+        try await clearPairing()
+        let pending = try await SyncPairing.claim(code, device: config.device)
+        pairing = pending; pairingState = pending.state; pairingExpired = false
+        pairingVerification = try pending.verification()
+        status = "Approve this Mac on your other device."
+        return
+      }
       let p = try SyncPairRecord.parse(code, device: config.device)
       guard !config.pairs.contains(where: { $0.id == p.id }) else {
         throw SyncFailure("This device already has that invitation.")
@@ -203,6 +252,7 @@ final class SyncService {
     status = "Copied to this Mac. Paste into another app."
   }
   private func tick() async {
+    if !busy, pairing != nil { await pollPairing(); return }
     guard !busy, let p = pair, !config.paused else {
       if config.paused {
         connectedRoom = nil
@@ -278,7 +328,7 @@ final class SyncService {
       state = nil
       status = "Sync disconnected. Pending content must be received manually after reconnecting."
       self.error =
-        (error as? SyncFailure)?.message
+        (error as? SyncFailure)?.message ?? (error as? SyncPairingError)?.message
         ?? "Check your connection. Sync will reconnect while running."
     }
   }

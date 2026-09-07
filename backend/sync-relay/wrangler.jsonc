@@ -1,14 +1,69 @@
 {
- "$schema":"node_modules/wrangler/config-schema.json",
- "name":"dictation-operative-sync",
- "main":"src/index.ts",
- "account_id":"d262bb3f44e6035f2fe15ea6b2c2404d",
- "compatibility_date":"2026-05-22",
- "compatibility_flags":["nodejs_compat"],
- "workers_dev":true,
- "durable_objects":{"bindings":[{"name":"PAIRS","class_name":"SyncPair"}]},
- "migrations":[{"tag":"v1","new_sqlite_classes":["SyncPair"]}],
- "ratelimits":[{"name":"REQUEST_LIMITER","namespace_id":"1001","simple":{"limit":300,"period":60}},{"name":"PAIR_LIMITER","namespace_id":"1002","simple":{"limit":10,"period":60}}],
- "vars":{"ALLOWED_ORIGINS":"https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"},
- "observability":{"enabled":false}
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dictation-operative-sync",
+  "main": "src/index.ts",
+  "account_id": "d262bb3f44e6035f2fe15ea6b2c2404d",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PAIRS",
+        "class_name": "SyncPair"
+      },
+      {
+        "name": "PAIRING",
+        "class_name": "PairingSession"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SyncPair"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "PairingSession"
+      ]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "REQUEST_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
+    },
+    {
+      "name": "PAIR_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "CODE_LIMITER",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"
+  },
+  "observability": {
+    "enabled": false
+  }
 }

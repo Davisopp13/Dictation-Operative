@@ -23,10 +23,6 @@ extension KeyboardShortcuts.Name {
 
 @MainActor
 final class HotkeyManager {
-    /// A press-and-release shorter than this is treated as a toggle, so a
-    /// quick tap of the PTT key doesn't produce an empty recording.
-    private static let tapThreshold: TimeInterval = 0.3
-
     private weak var controller: DictationController?
     private var pttPressStart: Date?
     private let modifierMonitor: ModifierHotkeyMonitor
@@ -61,7 +57,7 @@ final class HotkeyManager {
                 guard let self, let controller = self.controller,
                       let start = self.pttPressStart else { return }
                 self.pttPressStart = nil
-                if Date().timeIntervalSince(start) >= Self.tapThreshold, controller.state.isRecording {
+                if Date().timeIntervalSince(start) >= ModifierHotkeyMonitor.tapThreshold, controller.state.isRecording {
                     controller.stopAndProcess()
                 }
                 // else: quick tap — stay recording, acting as a toggle.

@@ -5,6 +5,32 @@ import XCTest
 @testable import Dictation
 
 final class SyncTests: XCTestCase {
+  @MainActor func testShortCodePairingMatchesWebCryptoFixture() throws {
+    let fixtureURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Shared/Sync/pairing-fixture.json")
+    struct Fixture: Decodable {
+      let code: String; let hostPrivateKey: String; let guestPrivateKey: String
+      let state: SyncPairingState; let secret: String; let guestAuth: String; let verification: String
+    }
+    let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: fixtureURL))
+    for role in ["host", "guest"] {
+      let raw = role == "host" ? fixture.hostPrivateKey : fixture.guestPrivateKey
+      let device = role == "host" ? fixture.state.host.device : fixture.state.guest!.device
+      let client = SyncPairing(code: fixture.code, role: role, device: device,
+        privateKey: try P256.KeyAgreement.PrivateKey(rawRepresentation: XCTUnwrap(Data(syncBase64: raw))))
+      client.state = fixture.state
+      XCTAssertEqual(try client.derive("content-secret").syncURL64, fixture.secret)
+      XCTAssertEqual(try client.derive("guest-authorization").syncURL64, fixture.guestAuth)
+      XCTAssertEqual(try client.verification(), fixture.verification)
+      XCTAssertEqual(try client.pair().secret, fixture.secret)
+      if role == "guest" { XCTAssertNil(try client.pair().guestAuth) }
+      XCTAssertTrue(client.link.contains("/pair#code=ABC234&key="))
+      XCTAssertFalse(client.link.contains(client.token))
+    }
+    XCTAssertTrue(SyncPairing.validCode("abc 234"))
+    XCTAssertEqual(SyncPairing.normalize("abc-234"), "ABC234")
+    XCTAssertFalse(SyncPairing.validCode("OI01ab"))
+  }
   func testHKDFInteroperabilityAndInvitationDoesNotExposeHostAuthorization() throws {
     let secret = Data(repeating: 0, count: 32).syncURL64
     let host = SyncPairRecord(

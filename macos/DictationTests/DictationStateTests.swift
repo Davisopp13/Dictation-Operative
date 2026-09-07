@@ -19,7 +19,8 @@ final class DictationStateTests: XCTestCase {
 
     func testEverySymbolNameIsNonEmpty() {
         let states: [DictationState] = [
-            .idle, .recording(start: Date()), .transcribing, .cleaning, .inserting, .error("x"),
+            .idle, .recording(start: Date()), .transcribing, .cleaning, .inserting,
+            .needsSetup("Setup"), .error("x"),
         ]
         for state in states {
             XCTAssertFalse(state.symbolName.isEmpty)
@@ -29,5 +30,29 @@ final class DictationStateTests: XCTestCase {
 
     func testErrorLabelCarriesMessage() {
         XCTAssertEqual(DictationState.error("No mic").label, "No mic")
+    }
+
+    func testNeedsSetupIsItsOwnStateAndNotAnError() {
+        let state = DictationState.needsSetup("Needs the microphone")
+        XCTAssertTrue(state.needsSetup)
+        XCTAssertFalse(state.isError)
+        XCTAssertFalse(state.isProcessing)
+        XCTAssertEqual(state.label, "Needs the microphone")
+    }
+
+    func testIndeterminateStates() {
+        XCTAssertTrue(DictationState.transcribing.isIndeterminate)
+        XCTAssertTrue(DictationState.cleaning.isIndeterminate)
+        XCTAssertFalse(DictationState.inserting.isIndeterminate)
+        XCTAssertFalse(DictationState.idle.isIndeterminate)
+    }
+
+    func testUnknownErrorsAreNotShownRaw() {
+        struct Underlying: Error { }
+        XCTAssertEqual(DictationError.displayMessage(for: Underlying()), DictationError.genericMessage)
+        XCTAssertEqual(
+            DictationError.displayMessage(for: DictationError.noAudioInput),
+            DictationError.noAudioInput.message
+        )
     }
 }

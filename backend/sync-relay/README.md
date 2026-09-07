@@ -11,3 +11,5 @@ node --import ./backend/sync-relay/node_modules/tsx/dist/loader.mjs backend/sync
 ```
 
 The live test creates an ephemeral synthetic pair and revokes it in a finally block. It uses a named native test pasteboard, not personal clipboard content. Requires macOS and internet access; it is not a two-physical-device test. See `Shared/Sync/README.md` for protocol/security/retention details and `docs/sync-validation.md` for measured validation and remaining gaps.
+
+Short-code pairing uses POST `/v2/pairing/{create,claim,status,approve,cancel}`. The six-character code stays in the JSON body, with independent Bearer session authorization. The `PAIRING` Durable Object binding and `v2` migration are additive; deploy the relay before the updated clients. `CODE_LIMITER` limits creation/claiming to five attempts per IP per minute. Public-key rendezvous records expire after five minutes and are deleted by alarms. The QR link contains only the short code and host public key in a URL fragment. No ECDH private key or content key reaches the relay. See the shared protocol notes for the required on-device confirmation comparison.

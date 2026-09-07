@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+export { PairingSession } from "./pairing";
 type Role = "host" | "guest";
 type Device = { id: string; name: string };
 type Envelope = {
@@ -175,7 +176,11 @@ export class SyncPair extends DurableObject<Env> {
       this.purge();
       let s = this.state;
       if (action === "create" && request.method === "POST") {
-        if (s) throw new SyncError("Pairing already exists", 409);
+        if (s) {
+          if (!s.revoked && s.hostHash === tokenHash && s.guestHash === data.guestHash && s.host.id === data.device?.id
+            && (s.approved || s.pairExpires > Date.now())) return json({ created: true, expiresAt: s.pairExpires });
+          throw new SyncError("Pairing already exists", 409);
+        }
         if (!/^[a-f0-9]{64}$/.test(data.guestHash)) throw new SyncError("Invalid pairing");
         s = {
           hostHash: tokenHash,
@@ -450,16 +455,29 @@ export default {
       "Access-Control-Max-Age": "600",
     };
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    const match = /^\/v1\/rooms\/([a-f0-9]{64})\/(.+)$/.exec(url.pathname);
-    if (!match) return json({ error: "Not found" }, 404);
     const ip = request.headers.get("CF-Connecting-IP") ?? "local";
-    const limiter = match[2] === "create" ? env.PAIR_LIMITER : env.REQUEST_LIMITER;
-    if (!(await limiter.limit({ key: ip })).success)
-      return new Response(JSON.stringify({ error: "Too many requests. Wait a minute." }), {
-        status: 429,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
-    const response = await env.PAIRS.getByName(match[1]).handle(request, match[1], match[2]);
+    const pairing = /^\/v2\/pairing\/(create|claim|status|approve|cancel)$/.exec(url.pathname);
+    const match = /^\/v1\/rooms\/([a-f0-9]{64})\/(.+)$/.exec(url.pathname);
+    let response: Response;
+    try {
+      if (!pairing && !match) throw new SyncError("Not found", 404);
+      const limiter = pairing && ["claim", "create"].includes(pairing[1])
+        ? env.CODE_LIMITER : match?.[2] === "create" ? env.PAIR_LIMITER : env.REQUEST_LIMITER;
+      if (!(await limiter.limit({ key: ip })).success) throw new SyncError("Too many attempts. Wait a minute and try again.", 429);
+      if (pairing) {
+        if (request.method !== "POST") throw new SyncError("Use POST for pairing.", 405);
+        const data = JSON.parse(new TextDecoder().decode(await bounded(request, 2048)) || "{}");
+        if (!data || typeof data.code !== "string" || !/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(data.code))
+          throw new SyncError("Enter the six-character code shown on your other device.");
+        const token = request.headers.get("Authorization")?.replace(/^Bearer /, "") ?? "";
+        response = await env.PAIRING.getByName(data.code).handle(pairing[1], token, data);
+      } else {
+        response = await env.PAIRS.getByName(match![1]).handle(request, match![1], match![2]);
+      }
+    } catch (error) {
+      response = json({ error: error instanceof SyncError ? error.message : "Pairing request failed." },
+        error instanceof SyncError ? error.status : error instanceof SyntaxError ? 400 : 500);
+    }
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(cors)) headers.set(key, value);
     return new Response(response.body, { status: response.status, headers });

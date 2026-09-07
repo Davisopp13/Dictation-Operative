@@ -17,6 +17,10 @@ struct MenuBarView: View {
             Button("Cancel Recording") { controller.cancel() }
         } else if controller.state.isProcessing {
             Button("Cancel") { controller.cancel() }
+        } else if controller.state.needsSetup {
+            // Setup is offered, never forced open over what you were typing.
+            Button("Open Setup…") { controller.openSetup() }
+            Button("Try Again") { controller.toggle() }
         } else {
             Button("Start Dictation") { controller.toggle() }
         }
@@ -28,7 +32,7 @@ struct MenuBarView: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(last, forType: .string)
             } label: {
-                Text("Copy Last: \(String(last.prefix(40)))\(last.count > 40 ? "…" : "")")
+                Text("Copy Last: \(last.menuTruncated)")
             }
         }
 
@@ -52,7 +56,7 @@ struct MenuBarView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(entry.displayText, forType: .string)
                 } label: {
-                    Text("\(String(entry.displayText.prefix(40)))\(entry.displayText.count > 40 ? "…" : "")")
+                    Text(entry.displayText.menuTruncated)
                 }
             }
         }
@@ -87,5 +91,12 @@ struct MenuBarView: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+}
+
+private extension String {
+    /// Menu items stay on one line: 40 characters, then an ellipsis.
+    var menuTruncated: String {
+        count > 40 ? String(prefix(40)) + "…" : self
     }
 }

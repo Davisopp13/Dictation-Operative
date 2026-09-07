@@ -20,13 +20,14 @@ before(() => {
     scriptPath: ".wrangler/test-bundle/index.js",
     compatibilityDate: "2026-05-22",
     compatibilityFlags: ["nodejs_compat"],
-    durableObjects: { PAIRS: { className: "SyncPair", useSQLite: true } },
+    durableObjects: { PAIRS: { className: "SyncPair", useSQLite: true }, PAIRING: { className: "PairingSession", useSQLite: true } },
     bindings: {
       ALLOWED_ORIGINS: "https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000",
     },
     ratelimits: {
       REQUEST_LIMITER: { simple: { limit: 10000, period: 60 } },
       PAIR_LIMITER: { simple: { limit: 10000, period: 60 } },
+      CODE_LIMITER: { simple: { limit: 10000, period: 60 } },
     },
   });
 });

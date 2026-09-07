@@ -9,14 +9,16 @@ enum DictationError: LocalizedError {
     case cleanupHTTPError(Int)
     case cleanupBadOutput
 
-    var errorDescription: String? {
+    /// Written for a person, short enough for the menu bar status line and the
+    /// Stage. This is the only error text the interface ever shows.
+    var message: String {
         switch self {
         case .noAudioInput:
             return "No audio input device is available."
         case .audioSetupFailed:
             return "Could not set up audio recording."
         case .modelNotDownloaded:
-            return "No transcription model is downloaded. Open Settings → Model."
+            return "No transcription model is downloaded. Open Settings → Dictation."
         case .modelNotLoaded:
             return "The transcription model is not loaded yet."
         case .cleanupNotConfigured:
@@ -26,5 +28,16 @@ enum DictationError: LocalizedError {
         case .cleanupBadOutput:
             return "Cleanup returned an unusable response."
         }
+    }
+
+    var errorDescription: String? { message }
+
+    /// Underlying framework errors (WhisperKit, CoreAudio, URLSession) carry
+    /// text that is meaningless to the person dictating, so it never reaches
+    /// the interface — it is logged instead. See `DictationController.fail`.
+    static let genericMessage = "Dictation hit a problem. Try again."
+
+    static func displayMessage(for error: Error) -> String {
+        (error as? DictationError)?.message ?? genericMessage
     }
 }

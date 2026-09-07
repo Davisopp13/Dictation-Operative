@@ -79,7 +79,10 @@ final class DictationController {
         }
         recorder.onMaxDuration = { [weak self] in
             Task { @MainActor in
-                self?.stopAndProcess()
+                guard let self else { return }
+                self.stopAndProcess()
+                let limitMinutes = AudioRecorder.maxSamples / Int(AudioRecorder.targetSampleRate) / 60
+                self.showTransientMessage("Stopped at the \(limitMinutes)-minute recording limit")
             }
         }
     }
@@ -88,7 +91,7 @@ final class DictationController {
 
     func toggle() {
         switch state {
-        case .idle, .error:
+        case .idle, .error, .needsSetup:
             startRecording()
         case .recording:
             stopAndProcess()
@@ -99,12 +102,14 @@ final class DictationController {
 
     func startRecording() {
         switch state {
-        case .idle, .error: break
+        case .idle, .error, .needsSetup: break
         case .recording, .transcribing, .cleaning, .inserting: return
         }
         permissions.refresh()
-        guard permissions.allGranted, modelManager.isDownloaded(settings.selectedModelVariant) else {
-            onSetupNeeded?()
+        if let missing = missingPrerequisite() {
+            // Never throw the setup window over whatever the user is typing
+            // into. Say what's missing on the Stage and let them choose.
+            reportSetupNeeded(missing)
             return
         }
         do {
@@ -141,6 +146,54 @@ final class DictationController {
         processingTask = nil
         state = .idle
         indicator.hide()
+    }
+
+    // MARK: - Setup prompts
+
+    /// The first unmet prerequisite for dictating, in the order setup asks for
+    /// them. `nil` when everything is ready.
+    private func missingPrerequisite() -> String? {
+        if !permissions.micGranted {
+            return "Dictation needs microphone access before it can listen."
+        }
+        if !permissions.accessibilityGranted {
+            return "Dictation needs accessibility access to type into other apps."
+        }
+        if !modelManager.isDownloaded(settings.selectedModelVariant) {
+            return "No speech model is downloaded yet."
+        }
+        return nil
+    }
+
+    private func reportSetupNeeded(_ message: String) {
+        Log.app.info("Dictation blocked before setup finished: \(message, privacy: .public)")
+        state = .needsSetup(message)
+        indicator.updateVisibility(for: self)
+        errorClearTask?.cancel()
+        errorClearTask = Task { [weak self] in
+            // Longer than an error: this one asks a question and deserves
+            // time to be read and answered.
+            try? await Task.sleep(for: .seconds(12))
+            guard !Task.isCancelled, let self, self.state.needsSetup else { return }
+            self.state = .idle
+            self.indicator.updateVisibility(for: self)
+        }
+    }
+
+    /// The explicit choice from the Stage or the menu: open setup now.
+    func openSetup() {
+        errorClearTask?.cancel()
+        if state.needsSetup || state.isError { state = .idle }
+        indicator.updateVisibility(for: self)
+        onSetupNeeded?()
+    }
+
+    /// Clears a setup prompt or an error the user has read.
+    func dismissStatus() {
+        guard state.needsSetup || state.isError else { return }
+        errorClearTask?.cancel()
+        state = .idle
+        indicator.updateVisibility(for: self)
     }
 
     // MARK: - Live preview
@@ -191,7 +244,7 @@ final class DictationController {
             // Energy gate: don't transcribe silence.
             guard peakLevel >= Self.silenceRMSThreshold else {
                 state = .idle
-                indicator.hide()
+                showTransientMessage("Didn't hear anything — try again")
                 return
             }
 
@@ -202,7 +255,7 @@ final class DictationController {
             guard !Task.isCancelled else { return }
             guard !raw.isEmpty else {
                 state = .idle
-                indicator.hide()
+                showTransientMessage("Nothing to transcribe — try again")
                 return
             }
 
@@ -330,9 +383,12 @@ final class DictationController {
 
     // MARK: - Errors & transient messages
 
+    /// Shows a written message and keeps the real error in the log. Raw
+    /// underlying error text (WhisperKit, CoreAudio, URLSession) is never put
+    /// in front of the user.
     private func fail(_ error: Error) {
-        Log.app.error("Pipeline failed: \(error.localizedDescription)")
-        state = .error(error.localizedDescription)
+        Log.app.error("Pipeline failed: \(String(describing: error)) — \(error.localizedDescription)")
+        state = .error(DictationError.displayMessage(for: error))
         indicator.updateVisibility(for: self)
         errorClearTask?.cancel()
         errorClearTask = Task { [weak self] in
