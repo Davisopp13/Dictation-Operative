@@ -34,6 +34,10 @@ final class PermissionsManager {
         accessibilityGranted = AXIsProcessTrustedWithOptions(options)
     }
 
+    func revealCurrentApp() {
+        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+    }
+
     func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
@@ -50,11 +54,12 @@ final class PermissionsManager {
     /// so onboarding polls while visible.
     func startPolling() {
         guard pollTimer == nil else { return }
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        pollTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refresh()
             }
         }
+        if let pollTimer { RunLoop.main.add(pollTimer, forMode: .common) }
     }
 
     func stopPolling() {

@@ -21,7 +21,7 @@ Every app in this category (Wispr Flow, Spokenly, Superwhisper, VoiceInk) is non
 TCC keys grants to the app's **code signing identity + bundle ID**. Consequences:
 
 - **Ad-hoc signed builds get a new identity every rebuild** → macOS silently drops the Accessibility grant and the paste fallback stops working with no error. This looks like a mysterious bug; it isn't.
-- Fix: select a real team in Xcode's Signing & Capabilities (a free Apple ID's "Sign to Run Locally" certificate works). `project.yml` sets `CODE_SIGN_STYLE: Automatic`.
+- Fix: select an actual Apple Development or Developer ID Application certificate in Xcode's Signing & Capabilities and keep that identity consistent. **“Sign to Run Locally” is ad-hoc signing, not a stable certificate.** `project.yml` sets `CODE_SIGN_STYLE: Automatic`.
 - If insertion stops working after a rebuild, remove and re-add the app in the Accessibility list.
 
 ## Distribution pipeline
@@ -67,3 +67,23 @@ Notes:
 ## CI note
 
 The regular `macOS build` workflow builds with `CODE_SIGNING_ALLOWED=NO` and ad-hoc signs the artifact — it verifies compilation only. TCC behavior can only be exercised on a real Mac.
+
+### Safe local installation
+
+Build daily-use updates with `macos/scripts/build-release.sh`, which selects the
+installed Developer ID Application certificate and derives its team automatically.
+If several certificates are available, pass the intended certificate SHA-1 as its
+first argument. This uses the same signing class as distributed releases.
+Then use `macos/scripts/install-app.sh /path/to/Dictation.app`.
+It refuses ad-hoc candidates, checks the bundle ID and code signature, checks a
+certificate-signed installed app's designated requirement against the candidate,
+and requires quitting the running app before replacement. The old bundle is retained
+in the reported staging directory. A first transition from ad-hoc to certificate
+signing can still need one new permission approval. Do not replace `/Applications/Dictation.app`
+with development previews via `ditto` or `cp`; run previews from DerivedData.
+
+Returning users now start at their missing prerequisite, with instructions to
+remove an obsolete Accessibility entry and select the actual running bundle.
+The app does not reset TCC, write permission databases, or bypass macOS approval.
+
+Reference: https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements

@@ -47,13 +47,14 @@ final class AppServices {
         sync.start()
         permissions.refresh()
         preloadModelIfAvailable()
-        if !settings.onboardingCompleted {
+        if !settings.onboardingCompleted || !permissions.allGranted {
             showOnboarding()
         }
     }
 
     func showOnboarding() {
-        if onboardingWindow == nil {
+        permissions.refresh()
+        if onboardingWindow?.window?.isVisible != true {
             onboardingWindow = OnboardingWindowController(services: self)
         }
         onboardingWindow?.show()

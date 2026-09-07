@@ -45,6 +45,12 @@ open Dictation.xcodeproj
 3. Follow onboarding: grant **Microphone**, grant **Accessibility** (System Settings → Privacy & Security → Accessibility), download a model (`base.en` is a good start, ~80 MB).
 4. Dictate with **⌃⌥ (Control + Option)**: tap it to toggle recording, or hold it to talk and release to insert. Settings → General lets you pick a different modifier key (right ⌘/⌥ or Fn) and optionally record extra key-combo shortcuts for toggle and hold-to-talk (unbound by default).
 
+For daily-use updates, run `macos/scripts/build-release.sh` to build with a valid
+Developer ID Application certificate. Then quit the installed app and run
+`macos/scripts/install-app.sh /path/to/Dictation.app` from the repository root.
+The installer requires certificate signing and refuses identity-changing replacements.
+Keep ad-hoc previews in DerivedData instead of overwriting `/Applications/Dictation.app`.
+
 ### Smoke-test checklist
 
 - [ ] Toggle mode (tap ⌃⌥): tap, speak, tap again → text appears at the cursor

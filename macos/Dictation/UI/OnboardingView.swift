@@ -12,7 +12,8 @@ struct OnboardingView: View {
 
     var onFinished: (() -> Void)?
 
-    init(onFinished: (() -> Void)? = nil) {
+    init(initialStep: Int = 0, onFinished: (() -> Void)? = nil) {
+        _step = State(initialValue: initialStep)
         self.onFinished = onFinished
     }
 
@@ -23,7 +24,7 @@ struct OnboardingView: View {
             navigation
         }
         .padding(28)
-        .frame(width: 520, height: 480)
+        .frame(width: 560, height: 570)
         .onAppear { permissions.startPolling() }
         .onDisappear { permissions.stopPolling() }
     }
@@ -73,17 +74,29 @@ struct OnboardingView: View {
     }
 
     private var accessibility: some View {
-        StepView(
-            symbol: "accessibility",
-            title: "Accessibility Permission",
-            granted: permissions.accessibilityGranted,
-            explanation: "Lets Dictation type into other apps. Enable Dictation in System Settings → Privacy & Security → Accessibility; this screen updates automatically."
-        ) {
-            Button("Request Permission") {
-                permissions.promptForAccessibility()
+        VStack(spacing: 16) {
+            StepView(
+                symbol: "accessibility",
+                title: "Accessibility Permission",
+                granted: permissions.accessibilityGranted,
+                explanation: "Allow Dictation to type into other apps. Enable this copy in System Settings → Privacy & Security → Accessibility."
+            ) {
+                Button("Request Permission") { permissions.promptForAccessibility() }
+                Button("Open System Settings") { permissions.openAccessibilitySettings() }
             }
-            Button("Open System Settings") {
-                permissions.openAccessibilitySettings()
+            if !permissions.accessibilityGranted {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Already enabled after an update?").font(.headline)
+                    Text("Remove the old Dictation entry with the − button, then use + to add the current app shown below. Enable it and approve the macOS authentication prompt. Quit and reopen Dictation if access still isn’t recognized.")
+                    Text(Bundle.main.bundleURL.path).textSelection(.enabled)
+                        .font(.caption.monospaced())
+                    Button("Show This Copy in Finder") { permissions.revealCurrentApp() }
+                    Text("Development builds without a signing certificate may need approval after each rebuild. Consistently certificate-signed updates avoid this identity change.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .font(.callout)
+                .padding(12)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }
@@ -98,9 +111,10 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
-            let variant = ModelCatalog.defaultVariant
+            let variant = settings.selectedModelVariant
+            let entry = ModelCatalog.entry(for: variant)
             if modelManager.isDownloaded(variant) {
-                Label("Base (English) downloaded", systemImage: "checkmark.circle.fill")
+                Label("\(entry?.displayName ?? variant) downloaded", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else if let progress = modelManager.downloadProgress[variant] {
                 ProgressView(value: progress) {
@@ -108,7 +122,7 @@ struct OnboardingView: View {
                 }
                 .frame(width: 260)
             } else {
-                Button("Download Base (English) — ~80 MB") {
+                Button("Download \(entry?.displayName ?? variant) — \(entry?.approxSize ?? "")") {
                     Task {
                         await modelManager.download(variant)
                         if modelManager.isDownloaded(variant) {
@@ -149,7 +163,10 @@ struct OnboardingView: View {
                 Button("Back") { step -= 1 }
             }
             Spacer()
-            if step < 4 {
+            if settings.onboardingCompleted && permissions.allGranted && modelManager.isDownloaded(settings.selectedModelVariant) {
+                Button("Return to Dictation") { onFinished?() }
+                    .buttonStyle(.borderedProminent)
+            } else if step < 4 {
                 Button("Continue") { step += 1 }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canContinue)
@@ -167,7 +184,7 @@ struct OnboardingView: View {
         switch step {
         case 1: return permissions.micGranted
         case 2: return permissions.accessibilityGranted
-        case 3: return modelManager.hasAnyModel
+        case 3: return modelManager.isDownloaded(settings.selectedModelVariant)
         default: return true
         }
     }
