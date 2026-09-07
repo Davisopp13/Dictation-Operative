@@ -94,5 +94,7 @@ schemes:
       config: Debug
     test:
       config: Debug
+      environmentVariables:
+        DICTATION_TEST_HOST: "1"
       targets:
         - DictationTests
