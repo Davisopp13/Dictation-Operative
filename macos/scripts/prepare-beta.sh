@@ -75,7 +75,7 @@ Quit any running Dictation app, then drag Dictation to Applications.
 Open it and grant Microphone and Accessibility access when requested.
 Download a speech model for dictation. Sync does not need a speech model.
 
-Website: https://do-voice-workspace.davisopp.chatgpt.site/
+Website: https://do-voice-workspace.davisopp.workers.dev/
 The website requires sign-in and beta access. Voice/AI features use your own
 Groq key; typed notes and clipboard Sync do not require a provider key.
 

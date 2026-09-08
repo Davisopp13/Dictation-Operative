@@ -61,7 +61,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"
+    "ALLOWED_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev,https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"
   },
   "observability": {
     "enabled": false

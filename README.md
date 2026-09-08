@@ -87,6 +87,6 @@ The app is deliberately **non-sandboxed** (Accessibility insertion and CGEvent p
 
 ## Dictation Operative Sync
 
-The Mac app and [private PWA](https://do-voice-workspace.davisopp.chatgpt.site/) can now pair for end-to-end encrypted text and image clipboard transfers. Open **Settings → Sync** on the Mac or **Sync** in the PWA. Create an invitation on one device, enter it on the other, and approve the requesting device. Select a destination, then **Send clipboard** / **Receive latest**. The Mac menu also offers **Send last dictation**; the PWA thought editor offers **Send to device**.
+The Mac app and [private PWA](https://do-voice-workspace.davisopp.workers.dev/) can now pair for end-to-end encrypted text and image clipboard transfers. Open **Settings → Sync** on the Mac or **Sync** in the PWA. Create an invitation on one device, enter it on the other, and approve the requesting device. Select a destination, then **Send clipboard** / **Receive latest**. The Mac menu also offers **Send last dictation**; the PWA thought editor offers **Send to device**.
 
 Automatic clipboard sync and automatic completed-dictation delivery are optional Mac settings, off by default. Both devices need internet access. Browser/iOS actions are user initiated while open. Transfers expire in two minutes. See the [protocol and platform limits](Shared/Sync/README.md) and [validation report](docs/sync-validation.md). Native Windows, Linux, and iOS apps/share extensions remain future work.

@@ -12,7 +12,7 @@ Start on your Mac. Repeat sections 2–5 on your iPhone afterward.
 
 ### 1. Get ready
 
-- [ ] Open [DO Voice Workspace](https://do-voice-workspace.davisopp.chatgpt.site/).
+- [ ] Open [DO Voice Workspace](https://do-voice-workspace.davisopp.workers.dev/).
 - [ ] Open a blank note in Apple Notes or TextEdit for pasting test results.
 - [ ] If you already have saved thoughts, export your Library backup.
 - [ ] Open **Workspace tools** and choose **Export tools** too. Keep both backup files.

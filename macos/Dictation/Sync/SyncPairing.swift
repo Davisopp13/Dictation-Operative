@@ -25,7 +25,7 @@ private final class PairingRedirectDelegate: NSObject, URLSessionTaskDelegate, @
 /// The relay sees public keys only. Compare the confirmation on both devices before approval.
 @MainActor final class SyncPairing {
   static let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
-  static let site = "https://do-voice-workspace.davisopp.chatgpt.site"
+  static let site = "https://do-voice-workspace.davisopp.workers.dev"
   let code: String
   let role: String
   let device: SyncDevice

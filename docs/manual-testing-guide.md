@@ -2,7 +2,7 @@
 
 Prepared September 7, 2026, for the published PWA V2, native Mac app, and Dictation Operative Sync. This is a test plan, not a claim that these manual checks have passed.
 
-**Start here:** [Open the published workspace](https://do-voice-workspace.davisopp.chatgpt.site/). Test the published site rather than localhost. Use `/Applications/Dictation.app` for Mac tests.
+**Start here:** [Open the published workspace](https://do-voice-workspace.davisopp.workers.dev/). Test the published site rather than localhost. Use `/Applications/Dictation.app` for Mac tests.
 
 ## How to use this guide
 

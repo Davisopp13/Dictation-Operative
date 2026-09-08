@@ -6,8 +6,8 @@ Status: preparing; this document is not approval to announce availability.
 ## Already available
 
 - GitHub: https://github.com/Davisopp13/Dictation-Operative (existing public repository).
-- Website: https://do-voice-workspace.davisopp.chatgpt.site/ (currently owner-only).
-- The website has a separate Sites source repository; no new repository is needed.
+- Website: https://do-voice-workspace.davisopp.workers.dev/ — Cloudflare Worker with D1 + R2; sign-in and the tester allowlist are a Cloudflare Access policy. The former ChatGPT Sites copy stays up only for exporting existing notes.
+- The website source is the separate `pwa/` repository (branch `cloudflare-hosting`).
 - Developer ID Application signing certificate installed on the development Mac.
 - Website typecheck, lint, production build, and 46 tests passed September 8.
 - Sync relay typecheck, dry-run packaging, and 17 tests passed September 8.
