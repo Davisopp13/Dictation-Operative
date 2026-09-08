@@ -7,6 +7,12 @@ struct OnboardingView: View {
     @Environment(PermissionsManager.self) private var permissions
     @Environment(ModelManager.self) private var modelManager
 
+    /// SwiftUI's own way to present the `Settings` scene. Onboarding is a
+    /// SwiftUI view inside a plain AppKit window, so it has this even though
+    /// it is outside the scene — and it is the only thing that actually
+    /// presents Settings from a menu-bar-only app.
+    @Environment(\.openSettings) private var openSettingsAction
+
     @State private var step = 0
     @State private var tryItText = ""
 
@@ -86,7 +92,8 @@ struct OnboardingView: View {
             symbol: "mic.fill",
             title: "Microphone Access",
             granted: permissions.micGranted,
-            explanation: "Needed to hear you. Audio is processed on-device and never uploaded."
+            explanation: "Lets dictation hear you. Audio is processed on-device and never uploaded.",
+            note: "Only dictation uses it. Sync works without a microphone."
         ) {
             Button("Allow Microphone Access") {
                 Task { await permissions.requestMicAccess() }
@@ -103,7 +110,8 @@ struct OnboardingView: View {
                 symbol: "accessibility",
                 title: "Accessibility Permission",
                 granted: permissions.accessibilityGranted,
-                explanation: "Allow Dictation to type into other apps. Enable this copy in System Settings → Privacy & Security → Accessibility."
+                explanation: "Lets dictation type into other apps. Enable this copy in System Settings → Privacy & Security → Accessibility.",
+                note: "Only insertion uses it. Sync works without accessibility access."
             ) {
                 Button("Request Permission") { permissions.promptForAccessibility() }
                 Button("Open System Settings") { permissions.openAccessibilitySettings() }
@@ -186,6 +194,14 @@ struct OnboardingView: View {
                 Button("Back") { step -= 1 }
             }
             Spacer()
+            if SetupProgress.offersSyncEscape(step: clampedStep, canContinue: canContinue) {
+                Button("Set up Sync instead") {
+                    SettingsRouter.shared.openSettings(pane: .sync, using: openSettingsAction)
+                }
+                .controlSize(.small)
+                .help("Sync moves text between this Mac and the web app. It needs none of this setup.")
+                .accessibilityIdentifier("onboarding.syncEscape")
+            }
             if settings.onboardingCompleted && permissions.allGranted && modelManager.isDownloaded(settings.selectedModelVariant) {
                 Button("Return to Dictation") { onFinished?() }
                     .buttonStyle(.borderedProminent)
@@ -193,6 +209,7 @@ struct OnboardingView: View {
                 Button("Continue") { step += 1 }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canContinue)
+                    .accessibilityIdentifier("onboarding.continue")
             } else {
                 Button("Done") {
                     settings.onboardingCompleted = true
@@ -218,6 +235,8 @@ private struct StepView<Actions: View>: View {
     let title: String
     let granted: Bool
     let explanation: String
+    /// One line saying what the permission is *not* needed for.
+    var note: String?
     @ViewBuilder var actions: Actions
 
     var body: some View {
@@ -229,6 +248,12 @@ private struct StepView<Actions: View>: View {
             Text(explanation)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+            if let note {
+                Text(note)
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Tokens.Chrome.secondaryText)
+            }
             if granted {
                 Label("Granted", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)

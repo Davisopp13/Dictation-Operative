@@ -5,20 +5,30 @@ import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
+    /// Shared so other parts of the app can open Settings on a chosen pane.
+    private let router = SettingsRouter.shared
+
     var body: some View {
-        TabView {
+        @Bindable var router = router
+        TabView(selection: $router.pane) {
             GeneralSettingsTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(SettingsPane.general)
             DictationSettingsTab()
                 .tabItem { Label("Dictation", systemImage: "waveform") }
+                .tag(SettingsPane.dictation)
             WritingSettingsTab()
                 .tabItem { Label("Writing", systemImage: "wand.and.stars") }
+                .tag(SettingsPane.writing)
             CommandsSettingsTab()
                 .tabItem { Label("Commands", systemImage: "text.bubble") }
+                .tag(SettingsPane.commands)
             SyncSettingsView()
                 .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
+                .tag(SettingsPane.sync)
             HistorySettingsTab()
                 .tabItem { Label("History", systemImage: "clock") }
+                .tag(SettingsPane.history)
         }
         // Resizable, with a floor rather than a hard frame: these panes hold
         // lists that grow (models, dictionary, per-app rules) and shouldn't be
@@ -29,6 +39,46 @@ struct SettingsView: View {
             minHeight: Tokens.Size.settingsMinimum.height,
             idealHeight: Tokens.Size.settings.height
         )
+        .background(SettingsWindowConfigurator())
+    }
+}
+
+/// Lets the Settings window appear over a full-screen Space.
+///
+/// SwiftUI gives its `Settings` window the collection behavior
+/// `[.auxiliary, .fullScreenNone]`, and `.fullScreenNone` forbids the window
+/// from joining a full-screen Space at all. In an app with a Dock icon that is
+/// merely odd — the Space switches instead. In a menu-bar-only app it means the
+/// window opens on a Space the user is not looking at, with no switch and
+/// nothing on screen: onboarding's "Set up Sync instead" appears to do nothing
+/// whenever the user happens to be in a full-screen app. `DictationUITests`
+/// reproduces exactly that.
+///
+/// `.fullScreenAuxiliary` is the behavior utility windows are supposed to use:
+/// the window is allowed on top of whatever Space is in front.
+private struct SettingsWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        // The view has no window until it is installed, so configure on the
+        // next turn of the run loop.
+        DispatchQueue.main.async { configure(view.window) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { configure(nsView.window) }
+    }
+
+    private func configure(_ window: NSWindow?) {
+        guard let window else { return }
+        var behavior = window.collectionBehavior
+        guard behavior.contains(.fullScreenNone) else { return }
+        behavior.remove(.fullScreenNone)
+        behavior.insert(.fullScreenAuxiliary)
+        window.collectionBehavior = behavior
+        // The window may already have been placed on the wrong Space before the
+        // behavior changed; re-ordering it pulls it to the front where the user is.
+        window.makeKeyAndOrderFront(nil)
     }
 }
 
