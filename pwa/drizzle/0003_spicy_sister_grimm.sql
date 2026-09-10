@@ -1,0 +1,1 @@
+ALTER TABLE `preferences` ADD `model` text DEFAULT 'openai/gpt-oss-120b' NOT NULL;

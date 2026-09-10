@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "do-voice-workspace",
+  "account_id": "d262bb3f44e6035f2fe15ea6b2c2404d",
+  "main": "vinext/server/fetch-handler",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "services": [{ "binding": "SYNC_ACCOUNTS", "service": "dictation-operative-sync", "entrypoint": "AccountAdmin" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "do-voice-images" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "do-voice-workspace",
+      "database_id": "8b594b74-8055-4e7c-aec4-5406915b78da",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  // Sign-in. Cloudflare Access sits in front of the workers.dev hostname and
+  // the app verifies its JWT against these two values (see app/auth.ts).
+  // Both are public identifiers, not secrets; with either empty nobody can sign in.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://floral-dust-91a4.cloudflareaccess.com",
+    "ACCESS_AUD": "e6c6a92c40cb0e2f2b8f95d67ba7394d15d41bf54b6b0d95f84b0f1fbb156f9a"
+  },
+  "observability": { "enabled": true }
+}
