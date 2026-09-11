@@ -41,6 +41,7 @@ import {
 import { Recovery } from './recovery';
 import { CaptureSurface } from './capture';
 import { LibrarySurface } from './library';
+import { DeleteClipboardText } from './delete-clipboard-text';
 import { formatNames, type ComposeFormat } from './compose';
 import { ThemeToggle } from './theme';
 import { MobileMenu } from './mobile-menu';
@@ -433,6 +434,15 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       }
     });
   }
+  function onClipDeleted(id: string) {
+    setEditor((current) => (current?.id === id ? null : current));
+    setSelected((current) => current.filter((c) => c.id !== id));
+    setClips((current) => current.filter((c) => c.id !== id));
+    setRecent((current) => current.filter((c) => c.id !== id));
+    composeId.current = '';
+    refreshLibrary();
+    setMessage('Text deleted from Clipboard.');
+  }
   async function pinClip(item: ClipSummary) {
     await run(async () => {
       const updated = await api<Clip>('clips/' + item.id, {
@@ -743,6 +753,11 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         >
           <Copy />
         </Button>
+        <DeleteClipboardText
+          clip={item}
+          locked={locked}
+          onDelete={onClipDeleted}
+        />
       </div>
     </article>
   );
@@ -1061,12 +1076,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           );
           refreshLibrary();
         }}
-        onDelete={(id) => {
-          setEditor(null);
-          setSelected((current) => current.filter((c) => c.id !== id));
-          refreshLibrary();
-          setMessage('Thought deleted.');
-        }}
+        onDelete={onClipDeleted}
       />
       <Dialog
         open={importOpen}
