@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
   Mic,
-  Library,
   Clipboard,
   Layers,
   Settings,
@@ -59,7 +58,7 @@ import {
 } from '@/lib/domain';
 import { parseBackup } from '@/lib/backup';
 import { installWebTools } from '@/lib/webmcp';
-type View = 'capture' | 'library' | 'clipboard' | 'compose';
+type View = 'capture' | 'clipboard' | 'compose';
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -83,7 +82,6 @@ function subscribeInstalled(callback: () => void) {
 }
 const nav = [
   ['capture', 'Capture', Mic],
-  ['library', 'Library', Library],
   ['clipboard', 'Clipboard', Clipboard],
   ['compose', 'Compose', Layers],
 ] as const;
@@ -110,6 +108,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     [collectionFilter, setCollectionFilter] = useState(''),
     [tagFilter, setTagFilter] = useState('');
   const [syncOpen, setSyncOpen] = useState(false);
+  const [clipboardFilter, setClipboardFilter] = useState<
+    'all' | 'pinned' | 'images'
+  >('all');
   const [view, setActiveView] = useState<View>('capture'),
     [mode, setMode] = useState<ClipKind>('note'),
     [query, setQuery] = useState(''),
@@ -154,10 +155,22 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   }, []);
   const createId = useRef(''),
     composeId = useRef(''),
-    latest = useRef({ query, view, collectionFilter, tagFilter });
+    latest = useRef({
+      query,
+      view,
+      collectionFilter,
+      tagFilter,
+      clipboardFilter,
+    });
   useEffect(() => {
-    latest.current = { query, view, collectionFilter, tagFilter };
-  }, [query, view, collectionFilter, tagFilter]);
+    latest.current = {
+      query,
+      view,
+      collectionFilter,
+      tagFilter,
+      clipboardFilter,
+    };
+  }, [query, view, collectionFilter, tagFilter, clipboardFilter]);
   const locked = busy || recording;
   // Navigation only locks during an active recording: leaving the screen stops
   // capture. A slow export or save must never freeze the whole workspace.
@@ -179,6 +192,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       setTagFilter(saved?.tag ?? '');
       setLoading(true);
       setClips([]);
+      if (next === 'clipboard') setClipboardFilter('all');
       setActiveView(next);
       window.scrollTo({ top: 0, behavior: 'instant' });
     },
@@ -234,12 +248,15 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     };
   }, [setError]);
   useEffect(() => {
+    if (view === 'clipboard' && clipboardFilter === 'images') {
+      return;
+    }
     const abort = new AbortController();
     const timeout = setTimeout(
       () => {
         setLoading(true);
         void api<{ items: ClipSummary[]; hasMore: boolean }>(
-          `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard'}`,
+          `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard' && clipboardFilter === 'pinned'}`,
           { signal: abort.signal },
         )
           .then((result) => {
@@ -259,7 +276,15 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       abort.abort();
       clearTimeout(timeout);
     };
-  }, [query, view, refresh, collectionFilter, tagFilter, setError]);
+  }, [
+    query,
+    view,
+    refresh,
+    collectionFilter,
+    tagFilter,
+    clipboardFilter,
+    setError,
+  ]);
   const visibleClipCount = useRef(0);
   useEffect(() => {
     visibleClipCount.current = clips.length;
@@ -269,7 +294,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       loading ||
       locked ||
       editor ||
-      (view !== 'clipboard' && view !== 'library')
+      view !== 'clipboard' ||
+      clipboardFilter === 'images'
     )
       return;
     return watchClipboard('text', async (signal) => {
@@ -277,7 +303,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         visibleClipCount.current,
         (offset) =>
           api(
-            `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard'}&offset=${offset}`,
+            `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard' && clipboardFilter === 'pinned'}&offset=${offset}`,
             { signal },
           ),
       );
@@ -296,6 +322,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     locked,
     editor,
     watchClipboard,
+    clipboardFilter,
   ]);
   useEffect(() => {
     void api<{ items: ClipSummary[] }>('library')
@@ -539,13 +566,14 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     const expected = { ...latest.current };
     await run(async () => {
       const r = await api<{ items: ClipSummary[]; hasMore: boolean }>(
-        `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard'}&offset=${clips.length}`,
+        `library?q=${encodeURIComponent(query)}&collection=${encodeURIComponent(collectionFilter)}&tag=${encodeURIComponent(tagFilter)}&pinned=${view === 'clipboard' && clipboardFilter === 'pinned'}&offset=${clips.length}`,
       );
       if (
         expected.collectionFilter !== latest.current.collectionFilter ||
         expected.tagFilter !== latest.current.tagFilter ||
         expected.query !== latest.current.query ||
-        expected.view !== latest.current.view
+        expected.view !== latest.current.view ||
+        expected.clipboardFilter !== latest.current.clipboardFilter
       )
         return;
       setClips((current) => [
@@ -597,7 +625,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     () =>
       installWebTools({
         search: async (query) => {
-          toolsState.current.navigate('library');
+          toolsState.current.navigate('clipboard');
+          setClipboardFilter('all');
           setQuery(query);
           const r = await api<{ items: ClipSummary[] }>(
             'library?q=' + encodeURIComponent(query),
@@ -697,11 +726,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           className="icon-control"
           disabled={locked}
           onClick={() => void pinClip(item)}
-          aria-label={
-            item.pinned
-              ? `Remove ${item.title} from Clipboard`
-              : `Pin ${item.title} to Clipboard`
-          }
+          aria-label={item.pinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
         >
           <Pin
             className={item.pinned ? 'text-primary' : ''}
@@ -881,29 +906,23 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             <div className="eyebrow">
               {view === 'capture'
                 ? 'Made for your train of thought'
-                : view === 'library'
-                  ? 'Good words, kept close'
-                  : view === 'clipboard'
-                    ? 'Ready to use again'
-                    : 'Give your thoughts a little shape'}
+                : view === 'clipboard'
+                  ? 'Ready to use again'
+                  : 'Give your thoughts a little shape'}
             </div>
             <h1>
               {view === 'capture'
                 ? 'Say it. Make it useful.'
-                : view === 'library'
-                  ? 'A home for every thought.'
-                  : view === 'clipboard'
-                    ? 'Clipboard'
-                    : 'A few thoughts. One good draft.'}
+                : view === 'clipboard'
+                  ? 'Clipboard'
+                  : 'A few thoughts. One good draft.'}
             </h1>
             <p className="subtle">
               {view === 'capture'
                 ? 'A quick thought, a thoughtful reply, or the start of something bigger.'
-                : view === 'library'
-                  ? 'Search your history. Pin your favorites. Pick up where you left off.'
-                  : view === 'clipboard'
-                    ? 'Your pinned words and saved images, shared across devices signed into your account. Updates appear automatically.'
-                    : 'Choose your clips, put them in order, and decide what to make.'}
+                : view === 'clipboard'
+                  ? 'All your saved words and images. Pin text to keep it handy, or copy an item to use it in another app.'
+                  : 'Choose your clips, put them in order, and decide what to make.'}
             </p>
           </div>
           {view === 'capture' ? (
@@ -944,6 +963,18 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           ) : (
             <LibrarySurface
               view={view}
+              clipboardFilter={clipboardFilter}
+              setClipboardFilter={(filter) => {
+                if (filter === clipboardFilter) return;
+                setClips([]);
+                setHasMore(false);
+                setLoading(filter !== 'images');
+                if (filter === 'images') {
+                  setCollectionFilter('');
+                  setTagFilter('');
+                }
+                setClipboardFilter(filter);
+              }}
               setView={setView}
               collectionFilter={collectionFilter}
               setCollectionFilter={setCollectionFilter}
@@ -972,6 +1003,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               locked={locked}
               accountEmail={email}
               onClipboardSaved={() => {
+                setClipboardFilter('all');
                 setQuery('');
                 setCollectionFilter('');
                 setTagFilter('');
@@ -1052,11 +1084,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         <DialogContent className="settings-dialog">
           <DialogTitle>Bring your words back</DialogTitle>
           <DialogDescription>
-            Choose a DO library export. Originals, versions and pins will be
-            preserved. Existing thoughts are never overwritten.
+            Choose a DO text backup (existing library exports also work).
+            Originals, versions and pins will be preserved. Existing thoughts
+            are never overwritten.
           </DialogDescription>
           <label htmlFor="backup-file" className="field-label">
-            DO library backup (.json)
+            DO text backup (.json)
           </label>
           <Input
             id="backup-file"
@@ -1139,8 +1172,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           )}
           <p className="subtle text-sm">
             After your first online visit, you can capture recordings offline.
-            Reconnect to transcribe, save to your library, and use AI.
-            Recording stops if you leave the app.
+            Reconnect to transcribe, save to Clipboard, and use AI. Recording
+            stops if you leave the app.
           </p>
           <Link
             href="/windows"

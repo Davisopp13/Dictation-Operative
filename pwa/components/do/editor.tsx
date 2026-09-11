@@ -136,7 +136,7 @@ export function ClipEditor({
     if (!clip) return;
     await action(async () => {
       await change({ action: 'edit', content: draft, title });
-      setNotice('Saved to your library.');
+      setNotice('Saved to Clipboard.');
     });
   }
   async function transform(kind: Transform, custom = '') {
@@ -719,7 +719,7 @@ export function ClipEditor({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this thought?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the thought and all its versions from your library.
+              This removes the thought and all its versions from Clipboard, including All and Pinned.
               Export anything you want to keep first.
             </AlertDialogDescription>
           </AlertDialogHeader>

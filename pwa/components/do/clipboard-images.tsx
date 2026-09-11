@@ -1,5 +1,14 @@
 'use client';
 import Image from 'next/image';
+import type { ReactNode } from 'react';
+import type { FeedItem } from '@/lib/clipboard-feed';
+export type ImageFeed = {
+  items: FeedItem<ReactNode>[];
+  loading: boolean;
+  hasMore: boolean;
+  busy: boolean;
+  loadMore: () => Promise<void>;
+};
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ClipboardPaste,
@@ -31,7 +40,9 @@ import type { Payload } from '@/lib/sync/protocol';
 export function ClipboardImages({
   query,
   locked,
+  renderFeed,
 }: {
+  renderFeed?: (feed: ImageFeed) => ReactNode;
   query: string;
   locked: boolean;
 }) {
@@ -219,11 +230,80 @@ export function ClipboardImages({
       announce('Image copied. Paste it into another app.');
     });
 
+  const renderCard = (item: ClipboardImage) => (
+    <article className="clipboard-image-card" key={item.id}>
+      <button
+        className="clipboard-image-preview"
+        onClick={() => setPreview(item)}
+        aria-label={`Preview ${item.name}`}
+      >
+        <Image
+          unoptimized
+          src={`/api/images/${item.id}`}
+          alt={item.name}
+          loading="lazy"
+          width={item.width}
+          height={item.height}
+        />
+      </button>
+      <div className="clipboard-image-details">
+        <strong>{item.name}</strong>
+        <p>
+          {item.width} × {item.height} · {(item.size / 1024 / 1024).toFixed(1)}{' '}
+          MiB
+        </p>
+        <div className="actions">
+          <Button
+            variant="outline"
+            className="control"
+            disabled={locked || busy}
+            onClick={() => void copy(item)}
+          >
+            <Copy /> Copy
+          </Button>
+          <a
+            className="control"
+            href={`/api/images/${item.id}?download=1`}
+            download
+            aria-label={`Download ${item.name}`}
+          >
+            <Download size={16} />
+          </a>
+          <Button
+            variant="ghost"
+            className="control"
+            disabled={locked || busy}
+            onClick={() => setDeleting(item)}
+            aria-label={`Delete ${item.name}`}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+  const loadMore = useCallback(
+    () =>
+      run(async () => {
+        const data = await api<{
+          images: ClipboardImage[];
+          hasMore: boolean;
+        }>(`images?q=${encodeURIComponent(query)}&offset=${images.length}`);
+        if (activeQuery.current !== query) return;
+        setImages((current) => [...current, ...data.images]);
+        setHasMore(data.hasMore);
+      }),
+    [run, query, images.length],
+  );
+
   return (
-    <section className="clipboard-images panel" aria-label="Clipboard images">
+    <section
+      className={renderFeed ? 'clipboard-combined' : 'clipboard-images panel'}
+      aria-label={renderFeed ? 'Saved items' : 'Clipboard images'}
+    >
       <div className="clipboard-images-heading">
         <div>
-          <h2>Images</h2>
+          <h2>{renderFeed ? 'Add images' : 'Images'}</h2>
           <p>
             Paste a screenshot or upload PNG, JPEG, or WebP. Up to 8 MiB per
             image; saved as PNG.
@@ -287,63 +367,24 @@ export function ClipboardImages({
           {error}
         </p>
       )}
-      {loading ? (
+      {renderFeed ? (
+        // The consumer attaches loadMore to a click handler; it never calls it during render.
+        // eslint-disable-next-line react/react-compiler
+        renderFeed({
+          items: images.map((item) => ({
+            id: `image:${item.id}`,
+            time: item.createdAt,
+            content: renderCard(item),
+          })),
+          loading,
+          hasMore,
+          busy,
+          loadMore,
+        })
+      ) : loading ? (
         <output>Loading images…</output>
       ) : images.length ? (
-        <div className="clipboard-image-grid">
-          {images.map((item) => (
-            <article className="clipboard-image-card" key={item.id}>
-              <button
-                className="clipboard-image-preview"
-                onClick={() => setPreview(item)}
-                aria-label={`Preview ${item.name}`}
-              >
-                <Image
-                  unoptimized
-                  src={`/api/images/${item.id}`}
-                  alt={item.name}
-                  loading="lazy"
-                  width={item.width}
-                  height={item.height}
-                />
-              </button>
-              <div className="clipboard-image-details">
-                <strong>{item.name}</strong>
-                <p>
-                  {item.width} × {item.height} ·{' '}
-                  {(item.size / 1024 / 1024).toFixed(1)} MiB
-                </p>
-                <div className="actions">
-                  <Button
-                    variant="outline"
-                    className="control"
-                    disabled={locked || busy}
-                    onClick={() => void copy(item)}
-                  >
-                    <Copy /> Copy
-                  </Button>
-                  <a
-                    className="control"
-                    href={`/api/images/${item.id}?download=1`}
-                    download
-                    aria-label={`Download ${item.name}`}
-                  >
-                    <Download size={16} />
-                  </a>
-                  <Button
-                    variant="ghost"
-                    className="control"
-                    disabled={locked || busy}
-                    onClick={() => setDeleting(item)}
-                    aria-label={`Delete ${item.name}`}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+        <div className="clipboard-image-grid">{images.map(renderCard)}</div>
       ) : (
         <p>
           {query
@@ -351,23 +392,11 @@ export function ClipboardImages({
             : 'Your saved images will appear here. Press ⌘V or Ctrl+V while Clipboard is open to paste.'}
         </p>
       )}
-      {hasMore && !loading && (
+      {!renderFeed && hasMore && !loading && (
         <Button
           variant="outline"
           disabled={locked || busy}
-          onClick={() =>
-            void run(async () => {
-              const data = await api<{
-                images: ClipboardImage[];
-                hasMore: boolean;
-              }>(
-                `images?q=${encodeURIComponent(query)}&offset=${images.length}`,
-              );
-              if (activeQuery.current !== query) return;
-              setImages((current) => [...current, ...data.images]);
-              setHasMore(data.hasMore);
-            })
-          }
+          onClick={() => void loadMore()}
         >
           Load more images
         </Button>

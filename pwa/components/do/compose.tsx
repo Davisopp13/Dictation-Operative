@@ -119,7 +119,7 @@ export function ComposeSurface({
               ) : (
                 <p className="subtle text-sm">
                   Select at least two thoughts below. Their original
-                  versions stay in your library.
+                  versions stay in Clipboard.
                 </p>
               )}
               <span className="field-label mt-5">Turn them into</span>

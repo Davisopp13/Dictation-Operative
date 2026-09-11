@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import {
-  Library,
+  Clipboard,
   Pin,
   Search,
   X,
@@ -30,15 +30,18 @@ import {
   EmptyDescription,
   EmptyContent,
 } from '@/components/ui/empty';
-import { ClipboardImages } from './clipboard-images';
+import { mergeClipboardFeed } from '@/lib/clipboard-feed';
+import { ClipboardImages, type ImageFeed } from './clipboard-images';
 import { ClipboardText } from './clipboard-text';
 import { ClipboardSyncControls } from './clipboard-sync';
 import { ComposeSurface, type ComposeFormat } from './compose';
 import type { ClipSummary } from '@/lib/domain';
 
-type View = 'capture' | 'library' | 'clipboard' | 'compose';
+type View = 'capture' | 'clipboard' | 'compose';
 
 export type LibraryProps = {
+  clipboardFilter: 'all' | 'pinned' | 'images';
+  setClipboardFilter: (filter: 'all' | 'pinned' | 'images') => void;
   accountEmail: string;
   onClipboardSaved: () => void;
   view: View;
@@ -68,10 +71,12 @@ export type LibraryProps = {
   locked: boolean;
 };
 
-/** Shared text list for Library, Clipboard, and Compose. */
+/** Saved Clipboard items and text selection for Compose. */
 export function LibrarySurface({
   view,
   setView,
+  clipboardFilter,
+  setClipboardFilter,
   collectionFilter,
   setCollectionFilter,
   tagFilter,
@@ -129,8 +134,116 @@ export function LibrarySurface({
       </label>
     </div>
   );
+  const renderFeed = (imageFeed?: ImageFeed) => {
+    const items = mergeClipboardFeed(
+      clips.map((item) => ({
+        id: `text:${item.id}`,
+        time: item.updatedAt,
+        content: card(item, true),
+      })),
+      imageFeed?.items ?? [],
+      hasMore,
+      imageFeed?.hasMore ?? false,
+    );
+    const pending = loading || imageFeed?.loading;
+    const filtered = !!(query || collectionFilter || tagFilter);
+    const pinned = view === 'clipboard' && clipboardFilter === 'pinned';
+    return (
+      <>
+        {pending ? (
+          <output className="loading-state">
+            <LoaderCircle className="animate-spin" /> Loading saved items…
+          </output>
+        ) : items.length ? (
+          <div className="thought-list clipboard-feed">
+            {items.map((item) => (
+              <div key={item.id}>{item.content}</div>
+            ))}
+          </div>
+        ) : (
+          <Empty className="panel empty-library">
+            <EmptyHeader>
+              <EmptyMedia variant="icon" className="empty-icon">
+                {pinned ? <Pin /> : <Clipboard />}
+              </EmptyMedia>
+              <EmptyTitle>
+                {filtered
+                  ? 'No items match these filters'
+                  : pinned
+                    ? 'No pinned text yet'
+                    : 'Your saved items will appear here'}
+              </EmptyTitle>
+              <EmptyDescription>
+                {filtered
+                  ? 'Try another search or clear your filters.'
+                  : pinned
+                    ? 'Pin text from All to keep it handy. Unpinning keeps it in All.'
+                    : 'Capture a thought, paste text, or upload an image to get started.'}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                className="control"
+                onClick={() => {
+                  if (filtered) {
+                    setQuery('');
+                    setCollectionFilter('');
+                    setTagFilter('');
+                  } else if (pinned) setClipboardFilter('all');
+                  else setView('capture');
+                }}
+              >
+                {filtered
+                  ? 'Clear filters'
+                  : pinned
+                    ? 'Browse All'
+                    : 'Capture a thought'}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        )}
+        {(hasMore || imageFeed?.hasMore) && !pending && (
+          <Button
+            variant="outline"
+            className="control mt-5 w-full"
+            disabled={locked || imageFeed?.busy}
+            onClick={() => {
+              if (hasMore) void loadMore();
+              if (imageFeed?.hasMore) void imageFeed.loadMore();
+            }}
+          >
+            Load more items
+          </Button>
+        )}
+      </>
+    );
+  };
   return (
     <>
+      {view === 'clipboard' && (
+        <fieldset
+          className="clipboard-filters actions"
+          aria-label="Clipboard filter"
+        >
+          {(['all', 'pinned', 'images'] as const).map((filter) => (
+            <Button
+              key={filter}
+              className="control"
+              variant={clipboardFilter === filter ? 'secondary' : 'ghost'}
+              aria-pressed={clipboardFilter === filter}
+              disabled={locked}
+              onClick={() => setClipboardFilter(filter)}
+            >
+              {filter === 'all'
+                ? 'All'
+                : filter === 'pinned'
+                  ? 'Pinned'
+                  : 'Images'}
+            </Button>
+          ))}
+        </fieldset>
+      )}
       <div className="library-toolbar">
         <div className="search-field">
           <Search size={18} />
@@ -154,14 +267,16 @@ export function LibrarySurface({
             </button>
           )}
         </div>
-        <div className="library-desktop-filters">{filters}</div>
+        {(view !== 'clipboard' || clipboardFilter !== 'images') && (
+          <div className="library-desktop-filters">{filters}</div>
+        )}
         <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
           <SheetTrigger
             render={
               <Button
                 variant="outline"
                 className="control mobile-library-options"
-                aria-label="Filters and library options"
+                aria-label="Filters and Clipboard options"
               />
             }
           >
@@ -173,12 +288,13 @@ export function LibrarySurface({
               <SheetTitle>Filters and options</SheetTitle>
               <SheetDescription>
                 {view === 'clipboard'
-                  ? 'Filter pinned text by collection or tag.'
+                  ? 'Filter saved text by collection or tag. Images have no collection or tags.'
                   : 'Narrow down your thoughts.'}
               </SheetDescription>
             </SheetHeader>
             <div className="mobile-library-fields">
-              {filters}
+              {(view !== 'clipboard' || clipboardFilter !== 'images') &&
+                filters}
               {(collectionFilter || tagFilter) && (
                 <Button
                   variant="ghost"
@@ -251,9 +367,24 @@ export function LibrarySurface({
           <p className="subtle text-sm">
             Shared Clipboard · {accountEmail} · Refreshes every 5 seconds
           </p>
-          <ClipboardSyncControls />
-          <ClipboardText locked={locked} onSaved={onClipboardSaved} />
-          <ClipboardImages query={query} locked={locked} />
+          <ClipboardSyncControls
+            sources={
+              clipboardFilter === 'images'
+                ? ['images']
+                : clipboardFilter === 'pinned' || collectionFilter || tagFilter
+                  ? ['text']
+                  : ['text', 'images']
+            }
+          />
+          <div hidden={clipboardFilter === 'images'}>
+            <ClipboardText locked={locked} onSaved={onClipboardSaved} />
+          </div>
+          {clipboardFilter === 'all' && (collectionFilter || tagFilter) && (
+            <p className="subtle text-sm">
+              Showing text matching your collection or tag. Clear these filters
+              to include images.
+            </p>
+          )}
         </>
       )}
       {view === 'compose' && (
@@ -290,69 +421,19 @@ export function LibrarySurface({
           </Button>
         </div>
       )}
-      {view === 'clipboard' && clips.length > 0 && (
-        <h2 className="mb-4 text-lg font-semibold">Pinned text</h2>
-      )}
-      {loading ? (
-        <output className="loading-state">
-          <LoaderCircle className="animate-spin" />{' '}
-          {view === 'clipboard'
-            ? 'Loading pinned text…'
-            : 'Opening your library…'}
-        </output>
-      ) : clips.length ? (
-        <div className="thought-list">
-          {clips.map((item) => card(item, true))}
-        </div>
+      {view === 'clipboard' && clipboardFilter === 'images' ? (
+        <ClipboardImages query={query} locked={locked} />
+      ) : view === 'clipboard' &&
+        clipboardFilter === 'all' &&
+        !collectionFilter &&
+        !tagFilter ? (
+        <ClipboardImages
+          query={query}
+          locked={locked}
+          renderFeed={renderFeed}
+        />
       ) : (
-        <Empty className="panel empty-library">
-          <EmptyHeader>
-            <EmptyMedia variant="icon" className="empty-icon">
-              {view === 'clipboard' ? <Pin /> : <Library />}
-            </EmptyMedia>
-            <EmptyTitle>
-              {query
-                ? 'No thoughts match that search'
-                : view === 'clipboard'
-                  ? 'Pinned text'
-                  : 'Your library starts with a thought'}
-            </EmptyTitle>
-            <EmptyDescription>
-              {query
-                ? 'Try another word or search your full history.'
-                : view === 'clipboard'
-                  ? 'Pin a thought from Library to keep reusable words here.'
-                  : 'Speak or paste your first thought. It will be waiting here.'}
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button
-              variant="outline"
-              className="control"
-              onClick={() => {
-                if (query) setQuery('');
-                else if (view === 'clipboard') setView('library');
-                else setView('capture');
-              }}
-            >
-              {query
-                ? 'Clear search'
-                : view === 'clipboard'
-                  ? 'Browse Library'
-                  : 'Capture a thought'}
-            </Button>
-          </EmptyContent>
-        </Empty>
-      )}
-      {hasMore && !loading && (
-        <Button
-          variant="outline"
-          className="control mt-5 w-full"
-          disabled={locked}
-          onClick={() => void loadMore()}
-        >
-          Load more thoughts
-        </Button>
+        renderFeed()
       )}
     </>
   );

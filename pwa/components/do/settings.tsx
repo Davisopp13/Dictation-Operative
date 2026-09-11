@@ -139,8 +139,8 @@ export function SettingsDialog({
             </label>
             <p className="subtle text-sm mt-1">
               Recordings and text you ask AI to work on are sent to Groq. Your
-              saved library is private to your signed-in account. Audio is not
-              stored in your library.
+              saved Clipboard is private to your signed-in account. Audio is not
+              stored in Clipboard.
             </p>
           </div>
           <Switch
@@ -189,7 +189,7 @@ export function SettingsDialog({
             Windows setup → Download and test Win + Alt
           </Link>
           DO · Version 2<br />
-          Your library needs a connection. Keep the app open while recording.{' '}
+          Your saved Clipboard needs a connection. Keep the app open while recording.{' '}
           <Link href="/privacy" className="text-link">
             Privacy & storage
           </Link>

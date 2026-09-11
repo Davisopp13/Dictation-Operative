@@ -90,7 +90,7 @@ export function Recovery({
     <section className="panel mb-6" aria-label="Recording recovery">
       <h2>Unfinished recordings on this device</h2>
       <p className="subtle text-sm">
-        Audio is removed after saving to your library. Recovery saves original
+        Audio is removed after saving to Clipboard. Recovery saves original
         words; apply a template afterward. Keep this device’s browser data until
         recovery is complete.
       </p>

@@ -523,7 +523,7 @@ export function Recorder({
         <p className="subtle text-sm">
           {state === 'retry'
             ? 'Saved recordings can be recovered after reopening. Download audio if device storage failed.'
-            : 'Up to 5 minutes. Saved to your library after transcription.'}
+            : 'Up to 5 minutes. Saved to Clipboard after transcription.'}
         </p>
         {error && (
           <Alert variant="destructive" className="error-message" role="alert">

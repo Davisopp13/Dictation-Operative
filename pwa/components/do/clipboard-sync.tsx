@@ -73,9 +73,13 @@ export function useClipboardSync() {
   return value;
 }
 
-export function ClipboardSyncControls() {
+export function ClipboardSyncControls({
+  sources = ['text', 'images'],
+}: {
+  sources?: Name[];
+}) {
   const { states, syncNow } = useClipboardSync();
-  const values = Object.values(states);
+  const values = sources.map((name) => states[name]);
   const syncing = values.some((state) => state.syncing);
   const ready = values.every((state) => state.active);
   const failed = values.some((state) => state.failed);

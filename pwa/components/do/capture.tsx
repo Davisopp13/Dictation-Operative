@@ -21,7 +21,7 @@ import type { ClipKind, ClipSummary } from '@/lib/domain';
 import type { SettingsState } from '@/components/do/settings';
 import type { ReactNode } from 'react';
 
-type View = 'capture' | 'library' | 'clipboard' | 'compose';
+type View = 'capture' | 'clipboard' | 'compose';
 
 export type CaptureProps = {
   settingsLoaded: boolean;
@@ -264,11 +264,11 @@ export function CaptureSurface({
                   className="control"
                   disabled={locked}
                   onClick={() => {
-                    setView('library');
+                    setView('clipboard');
                     setQuery('');
                   }}
                 >
-                  View library <ArrowUpRight />
+                  View Clipboard <ArrowUpRight />
                 </Button>
               </div>
               {recentLoading ? (
@@ -316,7 +316,7 @@ export function CaptureSurface({
                 <div>
                   <strong>Keep the good bits</strong>
                   <p className="subtle">
-                    Pin the words you reach for most to Clipboard.
+                    Find every saved thought in Clipboard. Pin your favorites.
                   </p>
                 </div>
               </div>
