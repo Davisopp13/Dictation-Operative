@@ -364,18 +364,23 @@ export function LibrarySurface({
       </div>
       {view === 'clipboard' && (
         <>
-          <p className="subtle text-sm">
-            Shared Clipboard · {accountEmail} · Refreshes every 5 seconds
-          </p>
-          <ClipboardSyncControls
-            sources={
-              clipboardFilter === 'images'
-                ? ['images']
-                : clipboardFilter === 'pinned' || collectionFilter || tagFilter
-                  ? ['text']
-                  : ['text', 'images']
-            }
-          />
+          <div className="clipboard-sync-bar">
+            <div className="clipboard-sync-summary">
+              <strong>Shared Clipboard</strong>
+              <span>{accountEmail} · Refreshes every 5 seconds</span>
+            </div>
+            <ClipboardSyncControls
+              sources={
+                clipboardFilter === 'images'
+                  ? ['images']
+                  : clipboardFilter === 'pinned' ||
+                      collectionFilter ||
+                      tagFilter
+                    ? ['text']
+                    : ['text', 'images']
+              }
+            />
+          </div>
           <div hidden={clipboardFilter === 'images'}>
             <ClipboardText locked={locked} onSaved={onClipboardSaved} />
           </div>

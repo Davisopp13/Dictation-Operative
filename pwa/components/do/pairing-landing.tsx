@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ArrowRight, Link2 } from 'lucide-react';
+import { EntryPage } from './entry-page';
 import { SyncDialog } from './sync';
 import { parsePairingLink } from '@/lib/sync/pairing';
 
@@ -49,25 +51,29 @@ export function PairingLanding({
     });
   }, [account]);
   return (
-    <main className="pairing-landing">
-      <h1 className="text-2xl font-semibold">Pair your device</h1>
+    <EntryPage
+      title="Connect your devices"
+      description={account
+        ? "Pair this browser with another device to use DO Sync."
+        : "Sign in to connect this browser with your other device."}
+      icon={<Link2 size={24} />}
+    >
       {!account ? (
         <>
-          <p>Sign in to connect this browser with your other device.</p>
           {initialCode && (
-            <p className="subtle">
+            <p className="entry-notice">
               Your scanned code is ready. Keep the other device’s pairing screen
               open.
             </p>
           )}
-          <a className="text-primary underline" href={signInPath} target="_top">
-            Sign in
+          <a className="entry-primary" href={signInPath} target="_top">
+            Sign in <ArrowRight size={18} aria-hidden="true" />
           </a>
         </>
       ) : (
         <>
           <button
-            className="text-primary underline text-left"
+            className="entry-primary"
             onClick={() => setOpen(true)}
           >
             Open device pairing
@@ -81,12 +87,12 @@ export function PairingLanding({
               initialCode={initialCode}
             />
           )}
-          <Link className="text-primary underline" href="/">
+          <Link className="entry-secondary" href="/">
             Back to workspace
           </Link>
         </>
       )}
-      {error && <p role="alert">{error}</p>}
-    </main>
+      {error && <p className="entry-notice" role="alert">{error}</p>}
+    </EntryPage>
   );
 }

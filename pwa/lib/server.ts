@@ -24,12 +24,18 @@ import {
 } from './repository';
 import { encryptCredential, decryptCredential } from './crypto';
 import { verifyCredential, transcribeAudio, transformText } from './provider';
+import { limitSharedAI, positiveLimit, sharedAllowance } from './shared-ai';
 export type Services = {
   db: D1Database;
   images?: ImageStore;
   owner: string;
   encryptionKey: string;
   fetcher?: typeof fetch;
+  sharedGroqKey?: string;
+  sharedGroqOwner?: string;
+  sharedDailyLimit?: number;
+  sharedGlobalDailyLimit?: number;
+  logoutPath?: string;
 };
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -63,13 +69,34 @@ async function aiKey(s: Services) {
       'Allow cloud processing in Settings before using recording or AI.',
       403,
     );
-  if (!pref.encrypted_key)
+  const sharedCredential = s.sharedGroqOwner && !s.sharedGroqKey
+    ? (await getPreferences(s.db, s.sharedGroqOwner)).encrypted_key : null;
+  if (s.sharedGroqOwner && !s.sharedGroqKey && !sharedCredential)
+    throw new AppError('Included AI is temporarily unavailable. Please try again later.', 503);
+  if (!s.sharedGroqKey && !sharedCredential && !pref.encrypted_key)
     throw new AppError(
       'Connect Groq in Settings to use recording and AI.',
       428,
     );
   await limitUsage(s.db, s.owner);
-  return decryptCredential(pref.encrypted_key, s.encryptionKey, s.owner);
+  if (s.sharedGroqKey || sharedCredential) {
+    await limitSharedAI(s.db, s.owner, positiveLimit(s.sharedDailyLimit, 50), positiveLimit(s.sharedGlobalDailyLimit, 1000));
+    return s.sharedGroqKey || decryptCredential(sharedCredential!, s.encryptionKey, s.sharedGroqOwner!);
+  }
+  return decryptCredential(pref.encrypted_key!, s.encryptionKey, s.owner);
+}
+async function settingsState(s: Services) {
+  const p = await getPreferences(s.db, s.owner);
+  const shared = !!s.sharedGroqKey || !!s.sharedGroqOwner;
+  return {
+    connected: shared || !!p.encrypted_key,
+    shared,
+    consent: !!p.consent,
+    secureStorage: !!s.encryptionKey,
+    model: shared ? 'openai/gpt-oss-120b' : p.model,
+    allowance: shared ? await sharedAllowance(s.db, s.owner, positiveLimit(s.sharedDailyLimit, 50)) : null,
+    logoutPath: s.logoutPath ?? '/login',
+  };
 }
 export async function handleAPI(
   request: Request,
@@ -108,13 +135,7 @@ export async function handleAPI(
       });
     }
     if (path === 'settings' && method === 'GET') {
-      const p = await getPreferences(s.db, s.owner);
-      return json({
-        connected: !!p.encrypted_key,
-        consent: !!p.consent,
-        secureStorage: !!s.encryptionKey,
-        model: p.model,
-      });
+      return json(await settingsState(s));
     }
     if (path === 'settings' && method === 'POST') {
       const data = await body(request);
@@ -138,6 +159,7 @@ export async function handleAPI(
           .bind(s.owner, encrypted, model)
           .run();
       } else if (data.action === 'disconnect') {
+        if (s.sharedGroqOwner === s.owner) throw new AppError('This connection supplies included AI. Change the service connection before disconnecting it.', 409);
         await s.db
           .prepare('UPDATE preferences SET encrypted_key=NULL WHERE owner=?')
           .bind(s.owner)
@@ -152,13 +174,7 @@ export async function handleAPI(
           .bind(s.owner, data.consent ? 1 : 0)
           .run();
       } else throw new AppError('Unknown settings action.');
-      const p = await getPreferences(s.db, s.owner);
-      return json({
-        connected: !!p.encrypted_key,
-        consent: !!p.consent,
-        secureStorage: !!s.encryptionKey,
-        model: p.model,
-      });
+      return json(await settingsState(s));
     }
     if (path === 'library' && method === 'GET') {
       const query = text(url.searchParams.get('q') ?? '', 'Search', 200, true);
@@ -253,7 +269,7 @@ export async function handleAPI(
           s.fetcher,
           {
             vocabulary: tools.vocabulary,
-            model: (await getPreferences(s.db, s.owner)).model,
+            model: s.sharedGroqKey || s.sharedGroqOwner ? 'openai/gpt-oss-120b' : (await getPreferences(s.db, s.owner)).model,
             instructions: template?.instructions,
           },
         ),

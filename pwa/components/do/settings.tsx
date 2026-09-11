@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ShieldCheck, ExternalLink, LoaderCircle, Check } from 'lucide-react';
+import { ShieldCheck, ExternalLink, ArrowRight, LoaderCircle, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,10 +14,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { post, errorMessage } from '@/lib/client';
+import { authClient } from '@/lib/auth-client';
 export type SettingsState = {
   connected: boolean;
   consent: boolean;
   secureStorage: boolean;
+  shared?: boolean;
+  logoutPath?: string;
+  allowance?: { dailyLimit: number; remaining: number; resetsAt: number } | null;
 };
 export function SettingsDialog({
   open,
@@ -64,22 +68,23 @@ export function SettingsDialog({
         <DialogHeader>
           <DialogTitle>Make DO yours</DialogTitle>
           <DialogDescription>
-            Connect once to start recording and shaping your words.
+            {settings.shared ? 'Voice and writing tools are included. Choose when to use cloud processing.' : 'Connect once to start recording and shaping your words.'}
           </DialogDescription>
         </DialogHeader>
         <div className="connection-card">
           <ShieldCheck />
           <div>
             <strong>
-              {settings.connected ? 'Groq is connected' : 'Connect Groq'}
+              {settings.shared ? 'AI is included' : settings.connected ? 'Groq is connected' : 'Connect Groq'}
             </strong>
             <p className="subtle text-sm">
-              Fast transcription and writing tools, using your own API key.
+              {settings.shared ? 'Transcription and writing tools are provided by DO. No API key needed.' : 'Fast transcription and writing tools, using your own API key.'}
             </p>
           </div>
           {settings.connected && <Check className="connected-icon" />}
         </div>
-        <form
+        {settings.shared && settings.allowance && <p className="subtle text-sm">{settings.allowance.remaining} of {settings.allowance.dailyLimit} included AI requests remaining today. Resets at midnight UTC. A transcription and an AI edit each count as one request.</p>}
+        {!settings.shared && <form
           onSubmit={(e) => {
             e.preventDefault();
             void change({ action: 'connect', key });
@@ -116,16 +121,16 @@ export function SettingsDialog({
               Save connection
             </Button>
             <a
-              className="text-link"
+              className="navigation-button"
               href="https://console.groq.com/keys"
               target="_blank"
               rel="noreferrer"
             >
-              Get a key <ExternalLink size={14} />
+              Get a key <ExternalLink size={16} aria-hidden="true" />
             </a>
           </div>
-        </form>
-        {!settings.secureStorage && (
+        </form>}
+        {!settings.shared && !settings.secureStorage && (
           <Alert variant="destructive" className="error-message">
             <AlertDescription>
               Secure connection storage is still being configured.
@@ -153,7 +158,7 @@ export function SettingsDialog({
           />
         </div>
         <p className="subtle text-sm">
-          Groq account limits and charges apply. Review the{' '}
+          {settings.shared ? 'Included usage is subject to daily availability. Review the ' : 'Groq account limits and charges apply. Review the '}
           <a
             href="https://groq.com/privacy-policy/"
             target="_blank"
@@ -174,7 +179,7 @@ export function SettingsDialog({
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         )}
-        {settings.connected && (
+        {settings.connected && !settings.shared && (
           <Button
             variant="outline"
             className="control"
@@ -184,9 +189,20 @@ export function SettingsDialog({
             Disconnect Groq
           </Button>
         )}
+        <div className="actions">
+          <Link href="/login" className="text-link">Account sign-in</Link>
+          <Button variant="outline" className="control" disabled={busy} onClick={async () => {
+            setBusy(true); setError('');
+            try {
+              const result = await authClient.signOut();
+              if (result.error) throw new Error(result.error.message || 'Could not sign out.');
+              window.location.assign(settings.logoutPath ?? '/login');
+            } catch (e) { setError(errorMessage(e)); setBusy(false); }
+          }}>Sign out</Button>
+        </div>
         <div className="subtle text-sm border-t pt-4">
-          <Link href="/windows" target="_blank" rel="noopener" className="text-link windows-setup-link">
-            Windows setup → Download and test Win + Alt
+          <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
+            <span>Windows setup · Download and test Win + Alt</span><ArrowRight size={16} aria-hidden="true" />
           </Link>
           DO · Version 2<br />
           Your saved Clipboard needs a connection. Keep the app open while recording.{' '}

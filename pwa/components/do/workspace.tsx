@@ -784,9 +784,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             href="/windows"
             target="_blank"
             rel="noopener"
-            className="text-link windows-setup-link"
+            className="navigation-button windows-setup-link"
           >
-            <Download size={17} /> Windows setup
+            <Download size={16} aria-hidden="true" /> Windows setup
           </Link>
           <span className="mini-label">
             A little room for your next big idea.
@@ -808,9 +808,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       </Sidebar>
       <main className="workspace">
         <header className="topbar">
-          <span className="breadcrumb">
-            {view[0].toUpperCase() + view.slice(1)}
-          </span>
           <span className="brand mobile-brand">
             <Image
               src="/icons/icon-192.png"
@@ -1179,9 +1176,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             href="/windows"
             target="_blank"
             rel="noopener"
-            className="text-link"
+            className="navigation-button"
           >
-            <Download size={16} /> Windows shortcut setup
+            <Download size={16} aria-hidden="true" /> Windows shortcut setup
           </Link>
         </DialogContent>
       </Dialog>

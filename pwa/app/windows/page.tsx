@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Download, Keyboard, Monitor } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, Keyboard, Monitor } from 'lucide-react';
 import { getUser, signInPath } from '@/app/auth';
 import { SignedOut } from '@/app/signed-out';
 import { WINDOWS_VERSION } from '@/lib/windows-release';
@@ -11,7 +11,10 @@ export default async function WindowsSetup() {
   if (!(await getUser())) return <SignedOut signInPath={signInPath('/windows')} />;
   return (
     <main className="windows-setup">
-      <Link href="/" className="text-link"><ArrowLeft size={16} /> Back to DO</Link>
+      <Link href="/" className="navigation-button">
+        <ArrowLeft size={16} aria-hidden="true" />
+        <span>Back to DO</span>
+      </Link>
       <header className="windows-setup-header">
         <span className="windows-setup-eyebrow"><Monitor size={18} /> Windows setup</span>
         <h1>Try Win + Alt on your laptop</h1>
@@ -30,7 +33,7 @@ export default async function WindowsSetup() {
           <details className="windows-help">
             <summary>Have an ARM laptop, or unsure which to choose?</summary>
             <p>Open Windows Settings → System → About and look for <strong>System type</strong>. Choose the main download for an x64-based processor, or the ARM download for an ARM-based processor.</p>
-            <a className="text-link" href="/api/windows-downloads/arm64" download><Download size={16} /> Download for Windows ARM · 48 MB</a>
+            <a className="navigation-button" href="/api/windows-downloads/arm64" download><Download size={16} aria-hidden="true" /> Download for Windows ARM · 48 MB</a>
           </details>
         </div>
       </section>
@@ -73,7 +76,7 @@ export default async function WindowsSetup() {
       <aside className="windows-setup-note">
         <h2>Already installed DO as a web app?</h2>
         <p>Keep using it for your Library, recording, and writing. This Windows test opens separately; installing the web app does not install it automatically.</p>
-        <Link href="/" className="text-link">Return to your workspace <ArrowLeft size={16} className="rotate-180" /></Link>
+        <Link href="/" className="navigation-button"><span>Return to your workspace</span><ArrowRight size={16} aria-hidden="true" /></Link>
       </aside>
     </main>
   );

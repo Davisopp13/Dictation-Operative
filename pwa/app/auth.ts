@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { headers } from 'next/headers';
+import { authReady, createAppAuth, resolveWorkspaceOwner } from '@/lib/app-auth';
 
 export type User = {
   userId: string;
@@ -9,9 +10,8 @@ export type User = {
   fullName: string | null;
 };
 
-/// Cloudflare Access sits in front of the site's hostname. It signs every
-/// request that passed its policy with a JWT in this header; the app trusts
-/// nothing else about who the visitor is.
+/// Legacy beta identity. App sessions take precedence during the migration.
+/// An Access header is accepted only after signature, issuer and audience checks.
 const ACCESS_JWT_HEADER = 'cf-access-jwt-assertion';
 const ACCESS_LOGOUT_PATH = '/cdn-cgi/access/logout';
 
@@ -86,21 +86,29 @@ function devUser(requestHeaders: Headers): User | null {
 export async function getUser(): Promise<User | null> {
   const requestHeaders = await headers();
   const config = accessConfig();
-  if (config) return accessUser(requestHeaders, config);
+  const legacy = config ? await accessUser(requestHeaders, config) : null;
+  if (authReady(env)) {
+    const session = await createAppAuth(env).api.getSession({ headers: requestHeaders });
+    if (session) {
+      const userId = await resolveWorkspaceOwner(env.DB, session.user, legacy);
+      return { userId, email: session.user.email, displayName: session.user.name, fullName: session.user.name };
+    }
+  }
+  if (legacy) return legacy;
+  if (config) return null;
   return devUser(requestHeaders);
 }
 
-/// With Access in front, an unauthenticated visitor never reaches the app, so
-/// "signing in" is simply loading the page again as a top-level navigation.
+/// Public account entry with a same-origin return destination.
 export function signInPath(returnTo: string): string {
-  return safeRelativeReturnPath(returnTo);
+  return `/login?returnTo=${encodeURIComponent(safeRelativeReturnPath(returnTo))}`;
 }
 
 export function signOutPath(): string {
-  return ACCESS_LOGOUT_PATH;
+  return accessConfig() ? ACCESS_LOGOUT_PATH : '/login';
 }
 
-function safeRelativeReturnPath(value: string): string {
+export function safeRelativeReturnPath(value: string): string {
   if (!value.startsWith('/') || value.startsWith('//')) return '/';
 
   let url: URL;

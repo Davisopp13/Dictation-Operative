@@ -478,10 +478,13 @@ void test('authenticated API integration against real D1 SQLite', async (t) => {
         assert.equal(connection.status, 200);
         const settings = (await connection.json()) as Record<string, unknown>;
         assert.deepEqual(Object.keys(settings).sort(), [
+          'allowance',
           'connected',
           'consent',
+          'logoutPath',
           'model',
           'secureStorage',
+          'shared',
         ]);
         const stored = await db
           .prepare('SELECT encrypted_key FROM preferences WHERE owner=?')

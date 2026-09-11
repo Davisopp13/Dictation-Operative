@@ -6,6 +6,7 @@
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "routes": [{ "pattern": "dictationoperative.com", "custom_domain": true }],
   "services": [{ "binding": "SYNC_ACCOUNTS", "service": "dictation-operative-sync", "entrypoint": "AccountAdmin" }],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "do-voice-images" }],
   "d1_databases": [
@@ -16,12 +17,13 @@
       "migrations_dir": "drizzle"
     }
   ],
-  // Sign-in. Cloudflare Access sits in front of the workers.dev hostname and
-  // the app verifies its JWT against these two values (see app/auth.ts).
-  // Both are public identifiers, not secrets; with either empty nobody can sign in.
+  // Production uses application sessions. The legacy Access identifiers are
+  // intentionally omitted after the existing workspace identity was migrated.
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "https://floral-dust-91a4.cloudflareaccess.com",
-    "ACCESS_AUD": "e6c6a92c40cb0e2f2b8f95d67ba7394d15d41bf54b6b0d95f84b0f1fbb156f9a"
+    "BETTER_AUTH_URL": "https://dictationoperative.com",
+    "AUTH_ADDITIONAL_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev",
+    "SHARED_AI_DAILY_LIMIT": "50",
+    "SHARED_AI_GLOBAL_DAILY_LIMIT": "1000"
   },
   "observability": { "enabled": true }
 }

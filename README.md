@@ -68,11 +68,20 @@ Keep ad-hoc previews in DerivedData instead of overwriting `/Applications/Dictat
 macos/      Phase 1 — native Swift/SwiftUI menu-bar app (this is the active code)
 docs/       Architecture, roadmap, ADRs, platform-constraint notes
 ios/        Phase 3 — reserved
-windows/    Phase 4 — reserved
+windows/    Native hotkey/insertion compatibility prototype; full Windows app planned
 backend/    Phase 4 — reserved (shared cleanup/sync "brain", Vercel + Supabase)
 ```
 
 ## CI
+
+### Windows compatibility test
+
+A [small native Windows prototype](windows/README.md) checks standard-user global
+hotkeys and one-shot sample-text insertion before building the full companion.
+It includes portable x64/ARM64 build targets and a Windows CI workflow. Actual
+Windows/Hapag laptop acceptance is still pending; this is not a dictation or Sync client.
+
+### macOS
 
 `.github/workflows/macos-build.yml` regenerates the Xcode project and compiles it on a macOS runner for every push — the project is developed partly from non-Mac environments, so CI is the compile check.
 
@@ -90,3 +99,7 @@ The app is deliberately **non-sandboxed** (Accessibility insertion and CGEvent p
 The Mac app and [private PWA](https://do-voice-workspace.davisopp.workers.dev/) can now pair for end-to-end encrypted text and image clipboard transfers. Open **Settings → Sync** on the Mac or **Sync** in the PWA. Create an invitation on one device, enter it on the other, and approve the requesting device. Select a destination, then **Send clipboard** / **Receive latest**. The Mac menu also offers **Send last dictation**; the PWA thought editor offers **Send to device**.
 
 Automatic clipboard sync and automatic completed-dictation delivery are optional Mac settings, off by default. Both devices need internet access. Browser/iOS actions are user initiated while open. Transfers expire in two minutes. See the [protocol and platform limits](Shared/Sync/README.md) and [validation report](docs/sync-validation.md). Native Windows, Linux, and iOS apps/share extensions remain future work.
+
+### Account sync
+
+The account layer adds trusted-device membership, a shared latest-clipboard view, and optional persistent encrypted Groq key/model/preferences sync. See [setup, trust boundaries, validation, and rollout](docs/account-sync.md). The relay and web app were deployed September 10, 2026, and the signed Mac update was installed locally. Other computers need an updated client and trusted-device enrollment.

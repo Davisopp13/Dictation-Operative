@@ -62,7 +62,7 @@ export function MobileMenu({
             </SheetDescription>
           </SheetHeader>
           <div className="mobile-menu-items">
-            <Link href="/windows" target="_blank" rel="noopener" className="text-link windows-setup-link" onClick={() => setOpen(false)}>
+            <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link" onClick={() => setOpen(false)}>
               Windows setup
             </Link>
             <Button variant="ghost" onClick={() => choose(onSettings)}>

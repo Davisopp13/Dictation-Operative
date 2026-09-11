@@ -96,14 +96,19 @@ export function ClipboardSyncControls({
           ? `Last synced ${new Date(lastSynced).toLocaleTimeString()}`
           : 'Waiting to sync…';
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button variant="outline" onClick={syncNow} disabled={!ready || syncing}>
-        <RefreshCw className={syncing ? 'animate-spin' : ''} />
-        {syncing ? 'Syncing…' : 'Sync now'}
-      </Button>
+    <div className="clipboard-sync-controls">
       <output className="subtle text-sm" aria-live="polite">
         {message}
       </output>
+      <Button
+        variant="outline"
+        className="control"
+        onClick={syncNow}
+        disabled={!ready || syncing}
+      >
+        <RefreshCw className={syncing ? 'animate-spin' : ''} />
+        {syncing ? 'Syncing…' : 'Sync now'}
+      </Button>
     </div>
   );
 }

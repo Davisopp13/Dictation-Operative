@@ -14,6 +14,7 @@ final class SyncService {
     var automatic = false
     var sendDictation = false
   }
+  let accountSync = AccountSyncService()
   var config = Configuration()
   private(set) var status = "Pair a device to get started."
   private(set) var error: String?
@@ -46,6 +47,7 @@ final class SyncService {
     }
   }
   func persist(reset: Bool = false) {
+    accountSync.paused = config.paused
     do {
       try SyncKeychain.save(JSONEncoder().encode(config))
       if reset {
@@ -62,6 +64,8 @@ final class SyncService {
     }
   }
   func start() {
+    accountSync.paused = config.paused
+    accountSync.start()
     guard loop == nil else { return }
     loop = Task { [weak self] in
       while !Task.isCancelled {
@@ -196,6 +200,7 @@ final class SyncService {
         config.pairs[index].device = config.device
       }
       persist()
+      try await accountSync.rename(to: config.device.name)
       status = "Device name saved."
     }
   }

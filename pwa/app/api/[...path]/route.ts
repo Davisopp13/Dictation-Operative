@@ -1,8 +1,9 @@
 import { env } from 'cloudflare:workers';
-import { getUser } from '@/app/auth';
+import { getUser, signOutPath } from '@/app/auth';
 import { checkOrigin } from '@/lib/server';
 import { readBounded } from '@/lib/request';
 import { handleAPI } from '@/lib/server';
+import { positiveLimit } from '@/lib/shared-ai';
 async function handle(request: Request) {
   const user = await getUser();
   const accountRelay = /^\/api\/account-relay\/([a-f0-9]{64})\/(state|register|rename|revoke|settings|clipboard(?:\/[a-zA-Z0-9_-]{8,80})?)$/.exec(new URL(request.url).pathname);
@@ -34,6 +35,11 @@ async function handle(request: Request) {
     images: env.IMAGES,
     owner: user?.userId ?? '',
     encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY ?? '',
+    sharedGroqKey: env.GROQ_API_KEY,
+    sharedGroqOwner: env.SHARED_GROQ_CREDENTIAL_OWNER,
+    sharedDailyLimit: positiveLimit(env.SHARED_AI_DAILY_LIMIT, 50),
+    sharedGlobalDailyLimit: positiveLimit(env.SHARED_AI_GLOBAL_DAILY_LIMIT, 1000),
+    logoutPath: signOutPath(),
   });
 }
 export const GET = handle;

@@ -17,3 +17,6 @@ Package.resolved
 
 # Secrets / local
 *.env
+
+# Separate Sites workspace
+sites-pwa/

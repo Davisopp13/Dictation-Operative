@@ -9,6 +9,7 @@ struct SyncSettingsView: View {
   var body: some View {
     @Bindable var sync = sync
     Form {
+      AccountSettingsView()
       Section("This device") {
         HStack {
           TextField("Name", text: $sync.config.device.name).disabled(sync.pairing != nil).onChange(of: sync.config.device.name) {
@@ -47,7 +48,10 @@ struct SyncSettingsView: View {
           Button("Trust and pair “\(guest.name)”", action: sync.approve).disabled(sync.busy || sync.pairing != nil)
         }
         Toggle("Automatically send and receive clipboard changes", isOn: $sync.config.automatic)
-          .onChange(of: sync.config.automatic) { _, _ in sync.persist(reset: true) }
+          .onChange(of: sync.config.automatic) { _, enabled in
+            if enabled { sync.accountSync.config.automaticClipboard = false; sync.accountSync.saveOptions() }
+            sync.persist(reset: true)
+          }
         Toggle("Send completed dictation to selected device", isOn: $sync.config.sendDictation)
           .onChange(of: sync.config.sendDictation) { _, _ in sync.persist() }
         Text(

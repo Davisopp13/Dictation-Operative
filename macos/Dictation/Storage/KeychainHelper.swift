@@ -32,6 +32,19 @@ enum KeychainHelper {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
+    /// Updates atomically and reports failures; never deletes a working key before replacement.
+    static func setChecked(_ value: String, for key: String) throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: key]
+        let data = Data(value.utf8)
+        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var attrs = query; attrs[kSecValueData as String] = data
+            attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(attrs as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw SyncFailure("Could not save credentials to Keychain.") }
+    }
+
     static func delete(_ key: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

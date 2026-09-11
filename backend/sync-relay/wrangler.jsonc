@@ -17,6 +17,10 @@
       {
         "name": "PAIRING",
         "class_name": "PairingSession"
+      },
+      {
+        "name": "ACCOUNTS",
+        "class_name": "SyncAccount"
       }
     ]
   },
@@ -31,6 +35,12 @@
       "tag": "v2",
       "new_sqlite_classes": [
         "PairingSession"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "SyncAccount"
       ]
     }
   ],
@@ -61,7 +71,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev,https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"
+    "ALLOWED_ORIGINS": "https://dictationoperative.com,https://do-voice-workspace.davisopp.workers.dev,https://do-voice-workspace.davisopp.chatgpt.site,http://localhost:3000"
   },
   "observability": {
     "enabled": false

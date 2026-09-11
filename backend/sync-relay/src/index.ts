@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+export { SyncAccount, AccountAdmin } from "./account";
 export { PairingSession } from "./pairing";
 type Role = "host" | "guest";
 type Device = { id: string; name: string };
@@ -143,6 +144,7 @@ export class SyncPair extends DurableObject<Env> {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS chunks(transfer_id TEXT NOT NULL,idx INTEGER NOT NULL,bytes BLOB NOT NULL,PRIMARY KEY(transfer_id,idx))",
     );
+    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS account_invites(recipient TEXT PRIMARY KEY,expires INTEGER NOT NULL,value TEXT NOT NULL)");
   }
   private purge() {
     this.ctx.storage.sql.exec(
@@ -150,6 +152,7 @@ export class SyncPair extends DurableObject<Env> {
       Date.now(),
     );
     this.ctx.storage.sql.exec("DELETE FROM transfers WHERE expires<=?", Date.now());
+    this.ctx.storage.sql.exec("DELETE FROM account_invites WHERE expires<=?", Date.now());
   }
   private drop(id: string) {
     this.ctx.storage.sql.exec("DELETE FROM chunks WHERE transfer_id=?", id);
@@ -158,7 +161,7 @@ export class SyncPair extends DurableObject<Env> {
   async alarm() {
     this.purge();
     const pending = this.ctx.storage.sql
-      .exec<{ expiry: number }>("SELECT MIN(expires) AS expiry FROM transfers")
+      .exec<{ expiry: number }>("SELECT MIN(expires) AS expiry FROM (SELECT expires FROM transfers UNION ALL SELECT expires FROM account_invites)")
       .toArray()[0]?.expiry;
     if (pending) await this.ctx.storage.setAlarm(pending);
   }
@@ -170,7 +173,7 @@ export class SyncPair extends DurableObject<Env> {
       const tokenHash = await hash(token);
       const data =
         request.method === "POST"
-          ? JSON.parse(new TextDecoder().decode(await bounded(request, 4096)) || "{}")
+          ? JSON.parse(new TextDecoder().decode(await bounded(request, 16384)) || "{}")
           : {};
       const raw = request.method === "PUT" ? await bounded(request, CHUNK) : null;
       this.purge();
@@ -213,6 +216,7 @@ export class SyncPair extends DurableObject<Env> {
         if (s.guest) s.guest.name = "Removed";
         this.ctx.storage.transactionSync(() => {
           this.save(s!);
+          this.ctx.storage.sql.exec("DELETE FROM account_invites");
           this.ctx.storage.sql.exec("DELETE FROM chunks");
           this.ctx.storage.sql.exec("DELETE FROM transfers");
         });
@@ -264,6 +268,24 @@ export class SyncPair extends DurableObject<Env> {
         });
       }
       if (!s.approved) throw new SyncError("Approve this device on the inviting device first", 403);
+      if (action === "account-invite" && request.method === "GET") {
+        const row = this.ctx.storage.sql.exec<{value: string}>("SELECT value FROM account_invites WHERE recipient=?", role).toArray()[0];
+        return json({ invitation: row ? JSON.parse(row.value) : null });
+      }
+      if (action === "account-invite" && request.method === "POST") {
+        if (typeof data.iv !== "string" || !/^[A-Za-z0-9+/]{16}$/.test(data.iv) ||
+          typeof data.ciphertext !== "string" || data.ciphertext.length > 12000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data.ciphertext) ||
+          !Number.isSafeInteger(data.expiresAt) || data.expiresAt <= Date.now() || data.expiresAt > Date.now() + 300000)
+          throw new SyncError("Invalid account invitation");
+        this.ctx.storage.sql.exec("INSERT INTO account_invites VALUES(?,?,?) ON CONFLICT(recipient) DO UPDATE SET expires=excluded.expires,value=excluded.value", other, data.expiresAt, JSON.stringify(data));
+        const alarm = await this.ctx.storage.getAlarm();
+        if (!alarm || alarm > data.expiresAt) await this.ctx.storage.setAlarm(data.expiresAt);
+        return json({ sent: true });
+      }
+      if (action === "account-invite-ack" && request.method === "POST") {
+        this.ctx.storage.sql.exec("DELETE FROM account_invites WHERE recipient=?", role);
+        return json({ removed: true });
+      }
       if (action === "start" && request.method === "POST") {
         const e = envelope(data, room, role);
         if (e.sequence <= s.sequences[role]) {
@@ -457,14 +479,17 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     const ip = request.headers.get("CF-Connecting-IP") ?? "local";
     const pairing = /^\/v2\/pairing\/(create|claim|status|approve|cancel)$/.exec(url.pathname);
+    const account = /^\/v1\/accounts\/([a-f0-9]{64})\/(state|register|rename|revoke|settings|clipboard(?:\/[a-zA-Z0-9_-]{8,80})?)$/.exec(url.pathname);
     const match = /^\/v1\/rooms\/([a-f0-9]{64})\/(.+)$/.exec(url.pathname);
     let response: Response;
     try {
-      if (!pairing && !match) throw new SyncError("Not found", 404);
+      if (!pairing && !match && !account) throw new SyncError("Not found", 404);
       const limiter = pairing && ["claim", "create"].includes(pairing[1])
         ? env.CODE_LIMITER : match?.[2] === "create" ? env.PAIR_LIMITER : env.REQUEST_LIMITER;
       if (!(await limiter.limit({ key: ip })).success) throw new SyncError("Too many attempts. Wait a minute and try again.", 429);
-      if (pairing) {
+      if (account) {
+        response = await env.ACCOUNTS.getByName(account[1]).handle(request, account[1], account[2]);
+      } else if (pairing) {
         if (request.method !== "POST") throw new SyncError("Use POST for pairing.", 405);
         const data = JSON.parse(new TextDecoder().decode(await bounded(request, 2048)) || "{}");
         if (!data || typeof data.code !== "string" || !/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(data.code))

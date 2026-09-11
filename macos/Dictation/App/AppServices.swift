@@ -22,6 +22,7 @@ final class AppServices {
     private init() {
         sync = SyncService()
         settings = SettingsStore()
+        sync.accountSync.settings = settings
         permissions = PermissionsManager()
         history = HistoryStore()
         modelManager = ModelManager()

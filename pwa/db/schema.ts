@@ -5,6 +5,7 @@ import {
   index,
   primaryKey,
 } from 'drizzle-orm/sqlite-core';
+export * from './auth-schema';
 export const clips = sqliteTable(
   'clips',
   {

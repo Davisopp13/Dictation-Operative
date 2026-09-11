@@ -1,13 +1,32 @@
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 export default function Privacy() {
   return (
     <main className="privacy-page">
-      <Link href="/" className="text-link">
-        ← Back to DO
+      <Link href="/" className="navigation-button">
+        <ArrowLeft size={16} aria-hidden="true" /> Back to DO
       </Link>
       <h1>Your words, handled with care.</h1>
       <p>
-        DO PWA V2 is a private voice workspace. Last updated September 8, 2026.
+        DO PWA V2 is a private voice workspace. Last updated September 11, 2026.
+      </p>
+      <h2>Your account</h2>
+      <p>
+        You can create an account with a username, email and password, or use
+        Google when enabled. Passwords are stored as salted hashes. Sign-in
+        sessions use HTTP-only cookies; session records include an IP address,
+        browser information and an expiry time. Google supplies your account
+        identifier, name, email and profile image. DO does not request access to
+        your Gmail, Drive or Calendar. Email password recovery is not yet available.
+      </p>
+      <h2>Included AI</h2>
+      <p>
+        When included AI is enabled, DO uses a service connection stored only on
+        the server. That key is never delivered to your browser or paired devices.
+        Cloud processing still requires your consent. Per-account and overall
+        daily request counts limit usage; attempts may count even when a provider
+        cannot complete them. Allowances reset at midnight UTC. Device-to-device
+        sharing of your own key is a separate, optional feature described below.
       </p>
       <h2>What is saved</h2>
       <p>
@@ -27,7 +46,8 @@ export default function Privacy() {
         When you allow cloud processing, recording audio is sent through DO to
         Groq for transcription. Text and incoming messages are sent to Groq only
         when requested by a writing workflow, including automatic reply and
-        prompt drafting. Your Groq account limits and charges apply. Review{' '}
+        prompt drafting. Included AI uses DO’s service connection and allowances;
+        if you supply your own connection, your provider limits and charges apply. Review{' '}
         <a className="text-link" href="https://groq.com/privacy-policy/">
           Groq’s privacy policy
         </a>{' '}
@@ -116,6 +136,13 @@ export default function Privacy() {
         transcription and writing still require connectivity and consent.
         Preferred spellings and selected template instructions are sent to Groq
         with the relevant request.
+      </p>
+      <h2>Contact</h2>
+      <p>
+        For account, support or privacy questions, contact{' '}
+        <a className="text-link" href="mailto:davisopp@docodelab.com">
+          davisopp@docodelab.com
+        </a>.
       </p>
     </main>
   );

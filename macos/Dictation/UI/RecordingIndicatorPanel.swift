@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The Stage: a floating bar near the bottom of the screen while recording,
+/// The Stage: a floating bar in the upper-right corner while recording,
 /// processing, or reporting something.
 ///
 /// It is a non-activating panel that can never become key, so clicking Stop or
@@ -15,7 +15,7 @@ final class RecordingIndicatorPanel {
     /// Fixed Stage width. The height follows the content and is reported back
     /// from SwiftUI, so the panel is never larger than what it draws — an
     /// oversized transparent frame would swallow clicks meant for the app below.
-    private static let width: CGFloat = 560
+    private static let width: CGFloat = 480
 
     func show(controller: DictationController) {
         let panel = panel ?? makePanel(controller: controller)
@@ -77,12 +77,13 @@ final class RecordingIndicatorPanel {
 }
 
 /// A panel that never takes key or main status, and keeps itself anchored to
-/// the bottom centre of the active screen however its content resizes.
+/// the upper-right corner of the screen however its content resizes, leaving
+/// the bottom-centred text fields common in chat apps unobstructed.
 private final class StagePanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    private static let bottomInset: CGFloat = 80
+    private static let edgeInset: CGFloat = 16
 
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {
         super.setFrame(anchored(frameRect), display: flag)
@@ -104,8 +105,8 @@ private final class StagePanel: NSPanel {
         guard let visible = (screen ?? NSScreen.main)?.visibleFrame else { return rect }
         var anchored = rect
         anchored.origin = NSPoint(
-            x: visible.midX - rect.width / 2,
-            y: visible.minY + Self.bottomInset
+            x: max(visible.minX, visible.maxX - rect.width - Self.edgeInset),
+            y: max(visible.minY, visible.maxY - rect.height - Self.edgeInset)
         )
         return anchored
     }

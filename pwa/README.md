@@ -3,6 +3,9 @@
 Private, installable voice capture and writing workspace. This is a separate web
 application beside the native macOS project; it reuses the DO brand assets.
 
+Public signup and included AI are being rolled out. See [distribution setup](../docs/web-distribution.md)
+for username/password signup, Google OAuth, existing-account migration and server-side shared Groq access.
+
 ## Included
 
 - Tap-to-record notes, replies, and AI prompt ideas. Original transcripts save
@@ -140,11 +143,11 @@ npm run db:migrate   # apply new Drizzle migrations to the remote D1
 npm run deploy       # vinext build, then wrangler deploy
 ```
 
-The one production secret is `CREDENTIAL_ENCRYPTION_KEY`, set with
+The credential-storage secret is `CREDENTIAL_ENCRYPTION_KEY`, set with
 `wrangler secret put CREDENTIAL_ENCRYPTION_KEY`. Never add secrets or a provider
 key to `wrangler.jsonc`, Git config, source, or frontend environment.
 
-### Sign-in and beta access
+### Legacy sign-in and beta access
 
 Cloudflare Access protects the Worker's hostname; its policy is the beta
 allowlist. In the dashboard: Workers & Pages → do-voice-workspace → Access →
@@ -158,6 +161,11 @@ addresses, and copy two public values into `wrangler.jsonc` `vars`:
 `app/auth.ts` verifies the `Cf-Access-Jwt-Assertion` JWT on every request
 against those values and uses the token's `sub` as the account id. With either
 value empty nobody can sign in, and the app never trusts a bare header.
+
+The new application sign-in is enabled with `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
+It takes precedence over the verified legacy Access identity. Keep the Access gate
+until existing users have linked their new login as documented in the rollout guide.
+Do not remove the old Access configuration or gate before that migration.
 
 V2 includes project collections/tags, personal vocabulary, reusable templates,
 persistent recording recovery and offline capture. Native Mac clipboard handoff
