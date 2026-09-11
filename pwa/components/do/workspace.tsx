@@ -795,6 +795,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           ))}
         </nav>
         <div className="side-bottom">
+          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
+            <Download size={16} aria-hidden="true" /> Mac setup
+          </Link>
           <Link
             href="/windows"
             target="_blank"
@@ -1189,6 +1192,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             className="navigation-button"
           >
             <Download size={16} aria-hidden="true" /> Windows shortcut setup
+          </Link>
+          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button">
+            <Download size={16} aria-hidden="true" /> Mac setup · Dictate in any app
           </Link>
         </DialogContent>
       </Dialog>

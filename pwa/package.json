@@ -6,6 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "publish:mac-download": "node --import tsx scripts/publish-mac-download.ts",
     "publish:windows-downloads": "node --import tsx scripts/publish-windows-downloads.ts",
     "dev": "vinext dev",
     "build": "vinext build",

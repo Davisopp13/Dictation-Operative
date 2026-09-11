@@ -201,6 +201,9 @@ export function SettingsDialog({
           }}>Sign out</Button>
         </div>
         <div className="subtle text-sm border-t pt-4">
+          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
+            <span>Mac setup · Install desktop dictation and Sync</span><ArrowRight size={16} aria-hidden="true" />
+          </Link>
           <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
             <span>Windows setup · Download and test Win + Alt</span><ArrowRight size={16} aria-hidden="true" />
           </Link>

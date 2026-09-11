@@ -62,6 +62,9 @@ export function MobileMenu({
             </SheetDescription>
           </SheetHeader>
           <div className="mobile-menu-items">
+            <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link" onClick={() => setOpen(false)}>
+              Mac setup
+            </Link>
             <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link" onClick={() => setOpen(false)}>
               Windows setup
             </Link>

@@ -86,6 +86,7 @@ void test('service worker precaches offline assets, falls back offline, and leav
   for (const [path, method, mode] of [
     ['/api/thoughts', 'GET', 'cors'],
     ['/api/windows-downloads/x64', 'GET', 'navigate'],
+    ['/api/mac-downloads/arm64', 'GET', 'navigate'],
     ['/cdn-cgi/access/logout', 'GET', 'navigate'],
     ['/', 'POST', 'navigate'],
   ]) {

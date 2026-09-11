@@ -1,5 +1,6 @@
 import { readBounded } from './request';
 import { handleWindowsDownload } from './windows-download';
+import { handleMacDownload } from './mac-download';
 import { getTools, saveTools } from './workspace-tools';
 import { handleImages, type ImageStore } from './images';
 import { importClip, importedId } from './backup';
@@ -108,6 +109,8 @@ export async function handleAPI(
     const url = new URL(request.url),
       path = url.pathname.replace(/^\/api\//, '');
     const method = request.method;
+    if (path === 'mac-downloads' || path.startsWith('mac-downloads/'))
+      return await handleMacDownload(request, s, path);
     if (path.startsWith('windows-downloads/'))
       return await handleWindowsDownload(request, s, path);
     if (path === 'images' || path.startsWith('images/'))

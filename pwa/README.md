@@ -109,6 +109,36 @@ check installation and offline relaunch on each target device.
 
 ## Publishing
 
+### Mac installation downloads
+
+`/mac` guides users through downloading the native app, moving it to Applications,
+granting Microphone and Accessibility permissions, downloading a speech model,
+and pairing clipboard Sync. Links are available in the sidebar, mobile menu,
+Settings, and PWA installation help, including when the PWA is already installed.
+The browser downloads the installer; macOS installation and permissions remain
+user actions.
+
+The authenticated `/api/mac-downloads/arm64` endpoint streams the signed,
+notarized 0.2.0 beta 1 DMG for Apple Silicon and macOS 14+. This beta supports
+paired Sync but predates account membership/shared Groq settings. Updates are
+manual; users with a newer installed build should keep it.
+
+`lib/mac-release.ts` pins the verified filename, size, SHA-256, and immutable R2
+key. Publish the matching DMG before deploying the PWA:
+
+```sh
+npm run publish:mac-download -- /path/to/Dictation-0.2.0-beta.1-arm64.dmg --check
+npm run publish:mac-download -- /path/to/Dictation-0.2.0-beta.1-arm64.dmg
+```
+
+The publisher rejects mismatched bytes before any upload. The installer uses the
+existing private R2 bucket under `releases/macos/`, outside the static web asset
+bundle. Missing or size-mismatched packages return 503; unauthenticated requests
+cannot read the bucket. Downloads bypass the service worker's offline shell.
+For a new release, notarize and staple both app and DMG with
+`macos/scripts/prepare-beta.sh`, validate with Gatekeeper, then update the manifest
+and setup page to match that exact release. Never substitute a signed-only build.
+
 ### Windows setup downloads
 
 `/windows` contains the Win + Alt compatibility setup and is linked from the
