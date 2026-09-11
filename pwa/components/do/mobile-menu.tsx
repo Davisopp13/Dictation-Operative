@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import {
   Settings,
   Smartphone,
@@ -62,12 +61,6 @@ export function MobileMenu({
             </SheetDescription>
           </SheetHeader>
           <div className="mobile-menu-items">
-            <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link" onClick={() => setOpen(false)}>
-              Mac setup
-            </Link>
-            <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link" onClick={() => setOpen(false)}>
-              Windows setup
-            </Link>
             <Button variant="ghost" onClick={() => choose(onSettings)}>
               <Settings /> Settings
             </Button>

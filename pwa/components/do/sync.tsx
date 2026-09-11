@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -233,6 +234,11 @@ export function SyncDialog({
                 Save name
               </Button>
             </div>
+            <p className="subtle text-sm">
+              Connecting a Mac?{' '}
+              <Link href="/mac" target="_blank" rel="noopener" className="text-link">Get the Mac app</Link>{' '}
+              and follow the setup guide before pairing.
+            </p>
             <PairingPanel
               key={account}
               device={saved.device}

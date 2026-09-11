@@ -200,13 +200,27 @@ export function SettingsDialog({
             } catch (e) { setError(errorMessage(e)); setBusy(false); }
           }}>Sign out</Button>
         </div>
+        <section className="border-t pt-4 space-y-4" aria-labelledby="desktop-apps-title">
+          <div>
+            <h2 id="desktop-apps-title" className="font-semibold">Desktop apps</h2>
+            <p className="subtle text-sm mt-1">Add desktop features with a separate app. Each guide walks you through downloading, installing, and getting started.</p>
+          </div>
+          <div>
+            <h3 className="font-medium">Mac app</h3>
+            <p className="subtle text-sm">Dictate in any app with a keyboard shortcut.</p>
+            <Link href="/mac" target="_blank" rel="noopener" className="navigation-button min-h-11 gap-2 text-sm" aria-label="Download and setup guide for the Mac app">
+              Download &amp; setup <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+          <div>
+            <h3 className="font-medium">Windows test app</h3>
+            <p className="subtle text-sm">Check keyboard shortcut compatibility on your laptop. Windows dictation and Sync are still to come.</p>
+            <Link href="/windows" target="_blank" rel="noopener" className="navigation-button min-h-11 gap-2 text-sm" aria-label="Download and setup guide for the Windows test app">
+              Download &amp; setup <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
         <div className="subtle text-sm border-t pt-4">
-          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
-            <span>Mac setup · Install desktop dictation and Sync</span><ArrowRight size={16} aria-hidden="true" />
-          </Link>
-          <Link href="/windows" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
-            <span>Windows setup · Download and test Win + Alt</span><ArrowRight size={16} aria-hidden="true" />
-          </Link>
           DO · Version 2<br />
           Your saved Clipboard needs a connection. Keep the app open while recording.{' '}
           <Link href="/privacy" className="text-link">

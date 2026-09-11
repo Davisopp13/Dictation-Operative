@@ -113,8 +113,10 @@ check installation and offline relaunch on each target device.
 
 `/mac` guides users through downloading the native app, moving it to Applications,
 granting Microphone and Accessibility permissions, downloading a speech model,
-and pairing clipboard Sync. Links are available in the sidebar, mobile menu,
-Settings, and PWA installation help, including when the PWA is already installed.
+and pairing clipboard Sync. The main entry is Settings → Desktop apps, with
+contextual links in Sync pairing help and PWA installation help. Settings remains
+available when the PWA is already installed; setup links are absent from the
+sidebar and mobile workspace menu.
 The browser downloads the installer; macOS installation and permissions remain
 user actions.
 
@@ -142,7 +144,7 @@ and setup page to match that exact release. Never substitute a signed-only build
 ### Windows setup downloads
 
 `/windows` contains the Win + Alt compatibility setup and is linked from the
-sidebar, mobile menu, Settings, and installation help. The two downloads stream
+Settings → Desktop apps and installation help. The two downloads stream
 through authenticated `/api/windows-downloads/x64` and `/api/windows-downloads/arm64`
 routes. They are native prototype ZIPs, not automatically installed by the PWA.
 

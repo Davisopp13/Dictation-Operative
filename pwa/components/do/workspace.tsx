@@ -795,17 +795,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           ))}
         </nav>
         <div className="side-bottom">
-          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button windows-setup-link">
-            <Download size={16} aria-hidden="true" /> Mac setup
-          </Link>
-          <Link
-            href="/windows"
-            target="_blank"
-            rel="noopener"
-            className="navigation-button windows-setup-link"
-          >
-            <Download size={16} aria-hidden="true" /> Windows setup
-          </Link>
           <span className="mini-label">
             A little room for your next big idea.
           </span>
@@ -1185,17 +1174,14 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             Reconnect to transcribe, save to Clipboard, and use AI. Recording
             stops if you leave the app.
           </p>
-          <Link
-            href="/windows"
-            target="_blank"
-            rel="noopener"
-            className="navigation-button"
-          >
-            <Download size={16} aria-hidden="true" /> Windows shortcut setup
-          </Link>
-          <Link href="/mac" target="_blank" rel="noopener" className="navigation-button">
-            <Download size={16} aria-hidden="true" /> Mac setup · Dictate in any app
-          </Link>
+          <div className="border-t pt-4 text-sm">
+            <p>Want to dictate outside this window?{' '}
+              <Link href="/mac" target="_blank" rel="noopener" className="text-link">Get the Mac app</Link>.
+            </p>
+            <p className="subtle mt-2">Find downloads and step-by-step instructions in <strong>Settings → Desktop apps</strong>, including the{' '}
+              <Link href="/windows" target="_blank" rel="noopener" className="text-link">Windows test app</Link>.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog
