@@ -61,7 +61,12 @@ import {
 } from '@/lib/domain';
 import { parseBackup } from '@/lib/backup';
 import { installWebTools } from '@/lib/webmcp';
-type View = 'capture' | 'clipboard' | 'compose';
+import {
+  readWorkspaceNavigation,
+  rememberWorkspacePage,
+  saveStartPage,
+  type WorkspacePage as View,
+} from '@/lib/workspace-navigation';
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -88,6 +93,7 @@ const nav = [
   ['clipboard', 'Clipboard', Clipboard],
   ['compose', 'Compose', Layers],
 ] as const;
+const subscribeHydration = () => () => {};
 export default function Home({
   account,
   email,
@@ -95,15 +101,27 @@ export default function Home({
   account: string;
   email: string;
 }) {
+  // Read browser navigation before mounting the workspace so a saved start
+  // page never briefly shows Capture or mounts its recording controls.
+  const hydrated = useSyncExternalStore(
+    subscribeHydration,
+    () => true,
+    () => false,
+  );
   return (
     <WorkspaceToolsProvider account={account}>
       <ClipboardSyncProvider>
-        <HomeContent account={account} email={email} />
+        {hydrated ? (
+          <HomeContent key={account} account={account} email={email} />
+        ) : (
+          <output className="subtle block p-6">Opening workspace…</output>
+        )}
       </ClipboardSyncProvider>
     </WorkspaceToolsProvider>
   );
 }
 function HomeContent({ account, email }: { account: string; email: string }) {
+  const [initialNavigation] = useState(() => readWorkspaceNavigation(account));
   const organization = useWorkspaceTools();
   const { watch: watchClipboard } = useClipboardSync();
   const [toolsOpen, setToolsOpen] = useState(false),
@@ -112,10 +130,11 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     [tagFilter, setTagFilter] = useState('');
   const [syncOpen, setSyncOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [startPage, setStartPage] = useState<View>(initialNavigation.startPage);
   const [clipboardFilter, setClipboardFilter] = useState<
     'all' | 'pinned' | 'images'
   >('all');
-  const [view, setActiveView] = useState<View>('capture'),
+  const [view, setActiveView] = useState<View>(initialNavigation.view),
     [mode, setMode] = useState<ClipKind>('note'),
     [query, setQuery] = useState(''),
     [clips, setClips] = useState<ClipSummary[]>([]),
@@ -179,6 +198,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   // Navigation only locks during an active recording: leaving the screen stops
   // capture. A slow export or save must never freeze the whole workspace.
   const navLocked = recording;
+  useEffect(() => {
+    rememberWorkspacePage(account, initialNavigation.view);
+  }, [account, initialNavigation.view]);
   const viewFilters = useRef<
     Partial<Record<View, { query: string; collection: string; tag: string }>>
   >({});
@@ -198,9 +220,10 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       setClips([]);
       if (next === 'clipboard') setClipboardFilter('all');
       setActiveView(next);
+      rememberWorkspacePage(account, next);
       window.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [view, recording, query, collectionFilter, tagFilter],
+    [account, view, recording, query, collectionFilter, tagFilter],
   );
 
   const online = useSyncExternalStore(
@@ -1062,6 +1085,11 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onSettings={setSettings}
+        startPage={startPage}
+        onStartPageChange={(next) => {
+          saveStartPage(account, next);
+          setStartPage(next);
+        }}
       />
       <ClipEditor
         key={editor?.id ?? 'closed'}

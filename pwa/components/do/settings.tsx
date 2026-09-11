@@ -13,6 +13,12 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { NativeSelect } from '@/components/ui/native-select';
+import {
+  isWorkspacePage,
+  workspacePages,
+  type WorkspacePage,
+} from '@/lib/workspace-navigation';
 import { post, errorMessage } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
 export type SettingsState = {
@@ -28,11 +34,15 @@ export function SettingsDialog({
   onOpenChange,
   settings,
   onSettings,
+  startPage,
+  onStartPageChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: SettingsState;
   onSettings: (s: SettingsState) => void;
+  startPage: WorkspacePage;
+  onStartPageChange: (page: WorkspacePage) => void;
 }) {
   const [key, setKey] = useState(''),
     [busy, setBusy] = useState(false),
@@ -71,6 +81,39 @@ export function SettingsDialog({
             {settings.shared ? 'Voice and writing tools are included. Choose when to use cloud processing.' : 'Connect once to start recording and shaping your words.'}
           </DialogDescription>
         </DialogHeader>
+        <div>
+          <label className="field-label" htmlFor="start-page">
+            Start page
+          </label>
+          <NativeSelect
+            id="start-page"
+            className="field"
+            value={startPage}
+            aria-describedby="start-page-description"
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!isWorkspacePage(next)) return;
+              setError('');
+              setSuccess('');
+              try {
+                onStartPageChange(next);
+                setSuccess('Start page saved.');
+              } catch (e) {
+                setError(errorMessage(e));
+              }
+            }}
+          >
+            {workspacePages.map((page) => (
+              <option key={page.value} value={page.value}>
+                {page.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <p id="start-page-description" className="subtle text-sm mt-2">
+            Choose where DO opens on a fresh visit. Refreshing keeps your current
+            tab. Saved for your account in this browser.
+          </p>
+        </div>
         <div className="connection-card">
           <ShieldCheck />
           <div>

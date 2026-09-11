@@ -20,6 +20,7 @@ for username/password signup, Google OAuth, existing-account migration and serve
 - Searchable history, pinned internal clipboard, naming, edit, copy, share,
   delete, text export, and lossless JSON backup export/import.
 - Mobile layout with a compact workspace menu, three thumb-friendly bottom tabs, per-view search/filter state, compact filter sheets, larger controls, keyboard-friendly text sizes, and safe-area spacing.
+- Settings → Start page chooses Capture (default), Clipboard, or Compose for a fresh visit. Refreshing restores the current workspace tab independently of that choice. The start page is saved per account in this browser; the current tab is remembered separately in each browser tab. This restores navigation, not unsaved drafts or filters. Reopening an app window that is still running keeps its current view.
 - One Clipboard destination on desktop and mobile: All combines saved text and images by most recent activity, Pinned keeps reusable text handy, and Images shows saved pictures. Text keeps its originals, versions, tags, collections, and Compose selection. Unpinning keeps the item in All; deletion removes it. Collection/tag filters apply to text only.
 - Clipboard images: paste screenshots or upload PNG, JPEG, and WebP; private R2 storage with D1 ownership metadata, thumbnails, full-size previews, copy, download, and delete. Images are saved as PNG (8 MiB / 40 MP maximum); text JSON backups exclude image files.
 - Add More with immutable original segments, duplicate-safe recording retries,
