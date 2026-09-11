@@ -17,6 +17,7 @@ import {
   WifiOff,
   Smartphone,
   Copy,
+  BookOpen,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -45,6 +46,7 @@ import { DeleteClipboardText } from './delete-clipboard-text';
 import { formatNames, type ComposeFormat } from './compose';
 import { ThemeToggle } from './theme';
 import { MobileMenu } from './mobile-menu';
+import { QuickStartDialog } from './quick-start';
 import { SettingsDialog, type SettingsState } from '@/components/do/settings';
 import { SyncDialog } from '@/components/do/sync';
 import { ClipEditor } from '@/components/do/editor';
@@ -109,6 +111,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     [collectionFilter, setCollectionFilter] = useState(''),
     [tagFilter, setTagFilter] = useState('');
   const [syncOpen, setSyncOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [clipboardFilter, setClipboardFilter] = useState<
     'all' | 'pinned' | 'images'
   >('all');
@@ -795,6 +798,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           ))}
         </nav>
         <div className="side-bottom">
+          <Button variant="ghost" className="nav-button mb-4" disabled={navLocked} onClick={() => setHelpOpen(true)}>
+            <BookOpen /> Help · Quick start
+          </Button>
           <span className="mini-label">
             A little room for your next big idea.
           </span>
@@ -876,6 +882,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             onSync={() => setSyncOpen(true)}
             onSettings={() => setSettingsOpen(true)}
             onInstall={() => setInstallOpen(true)}
+            onHelp={() => setHelpOpen(true)}
           />
         </header>
         <Recovery
@@ -1037,6 +1044,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           </Button>
         ))}
       </nav>
+      <QuickStartDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <SyncDialog
         open={syncOpen}
         onOpenChange={setSyncOpen}

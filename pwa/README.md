@@ -8,6 +8,13 @@ for username/password signup, Google OAuth, existing-account migration and serve
 
 ## Included
 
+- **Help · Quick start** in the desktop sidebar and mobile workspace menu opens
+  the branded Capture → Refine → Use guide without leaving the current draft.
+  `/help` is the standalone, shareable guide, with a PNG infographic download.
+  Both app themes are supported. Guide copy lives in `lib/quick-start.ts`; run
+  `node --import tsx scripts/generate-quick-start.ts` after copy changes to update
+  the SVG. Set `DO_SHARP_PACKAGE` to an installed Sharp package directory in that
+  command to regenerate the PNG as well. Both exports live in `public/docs/`.
 - Tap-to-record notes, replies, and AI prompt ideas. Original transcripts save
   automatically; text can also be written or deliberately pasted.
 - Searchable history, pinned internal clipboard, naming, edit, copy, share,

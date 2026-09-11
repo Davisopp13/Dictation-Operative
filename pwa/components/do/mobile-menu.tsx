@@ -5,6 +5,7 @@ import {
   SlidersHorizontal,
   ArrowLeftRight,
   MoreHorizontal,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +26,7 @@ export function MobileMenu({
   onSync,
   onSettings,
   onInstall,
+  onHelp,
 }: {
   locked: boolean;
   installed: boolean;
@@ -32,6 +34,7 @@ export function MobileMenu({
   onSync: () => void;
   onSettings: () => void;
   onInstall: () => void;
+  onHelp: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const choose = (action: () => void) => {
@@ -61,6 +64,9 @@ export function MobileMenu({
             </SheetDescription>
           </SheetHeader>
           <div className="mobile-menu-items">
+            <Button variant="ghost" disabled={locked} onClick={() => choose(onHelp)}>
+              <BookOpen /> Help · Quick start
+            </Button>
             <Button variant="ghost" onClick={() => choose(onSettings)}>
               <Settings /> Settings
             </Button>
