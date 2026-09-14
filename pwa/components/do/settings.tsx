@@ -233,7 +233,7 @@ export function SettingsDialog({
           </Button>
         )}
         <div className="actions">
-          <Link href="/login" className="text-link">Account sign-in</Link>
+          <Link href="/account/sign-in" className="text-link">Account sign-in</Link>
           <Button variant="outline" className="control" disabled={busy} onClick={async () => {
             setBusy(true); setError('');
             try {

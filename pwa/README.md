@@ -100,6 +100,22 @@ private API responses or authenticated pages. Unfinished audio is saved in
 IndexedDB and deleted after successful library saving. See [V2 release notes](docs/v2.md)
 for recovery guarantees, device limits, and validation.
 
+### Adding password sign-in to a Google account
+
+Open **Settings → Account sign-in** (`/account/sign-in`) while signed in with
+Google. Confirm Google sign-in again if prompted, then add a password of at
+least 12 characters within 10 minutes. The password is attached to the existing
+user and workspace; Google sign-in stays connected. The login form accepts
+either an email or an existing username. This lets an account use email/password
+on the alternate host without starting a Google callback on the custom domain.
+Set up the password on a device that can complete Google sign-in first.
+
+The setup endpoint requires a verified Google account, a recent authenticated
+session, a same-origin JSON request, and a per-user rate limit. Better Auth hashes
+the password and the database rejects duplicate provider/account records. It
+cannot replace an existing password or choose a user from a supplied email.
+Email password recovery is not configured; keep using Google if needed.
+
 ### PWA installation
 
 Sign in to the HTTPS Cloudflare site, then use **Install DO** in the workspace
@@ -171,6 +187,17 @@ npm run publish:windows-downloads
 
 The upload script checks both local ZIPs before writing anything. Missing or
 size-mismatched remote packages return an error rather than an invalid download.
+
+Workspace APIs enter through `worker.ts` and share `lib/workspace-request.ts`
+with the framework route. This avoids React routing and per-chunk JavaScript
+stream wrappers on R2 downloads. Authentication configuration is reused only
+after initialization completes; session validity is still checked in D1 on
+every request. Login and page rendering continue through vinext.
+
+After `npm run build`, run `npm run test:built-downloads` to exercise the actual
+Worker bundle with isolated local D1/R2, the full Windows x64 ZIP, concurrent
+authenticated/anonymous requests, and session revocation. No production data
+or credentials are used by this check.
 
 ### Workspace deployment
 

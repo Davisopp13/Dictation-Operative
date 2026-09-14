@@ -17,7 +17,9 @@ export function LoginForm({ ready, google, returnTo, oauthError }: { ready: bool
     try {
       const result = signup
         ? await authClient.signUp.email({ email: value('email').trim(), name: username, username, password })
-        : await authClient.signIn.username({ username, password });
+        : username.includes('@')
+          ? await authClient.signIn.email({ email: username, password })
+          : await authClient.signIn.username({ username, password });
       if (result.error) throw new Error(result.error.message || 'Check your details and try again.');
       window.location.assign(returnTo);
     } catch (e) { setError(errorMessage(e)); setBusy(false); }
@@ -31,10 +33,10 @@ export function LoginForm({ ready, google, returnTo, oauthError }: { ready: bool
   }
   if (!ready) return <output>Account signup is being prepared. Please check back soon.</output>;
   return <div className="login-content">
-    {google && <><button className="entry-primary login-google" type="button" disabled={busy} onClick={() => void signInGoogle()}>Continue with Google</button><p className="login-divider">or use your username</p></>}
+    {google && <><button className="entry-primary login-google" type="button" disabled={busy} onClick={() => void signInGoogle()}>Continue with Google</button><p className="login-divider">or use your email or username</p></>}
     <form className="login-form" onSubmit={(e) => void submit(e)}>
-      <label htmlFor="login-username">Username</label>
-      <input id="login-username" name="username" required minLength={3} maxLength={30} autoComplete="username" autoCapitalize="none" spellCheck={false} disabled={busy} placeholder="Your username" />
+      <label htmlFor="login-username">{signup ? 'Username' : 'Email or username'}</label>
+      <input id="login-username" name="username" required minLength={signup ? 3 : 1} maxLength={signup ? 30 : 254} autoComplete="username" autoCapitalize="none" spellCheck={false} disabled={busy} placeholder={signup ? 'Your username' : 'Your email or username'} />
       {signup && <><label htmlFor="login-email">Email</label><input id="login-email" name="email" type="email" required maxLength={254} autoComplete="email" disabled={busy} placeholder="you@example.com" /></>}
       <label htmlFor="login-password">Password</label>
       <input id="login-password" name="password" type="password" required minLength={signup ? 12 : 1} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} disabled={busy} placeholder={signup ? 'At least 12 characters' : 'Your password'} />
@@ -43,6 +45,7 @@ export function LoginForm({ ready, google, returnTo, oauthError }: { ready: bool
       <button className="entry-primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
     </form>
     <button type="button" className="text-link login-switch" disabled={busy} onClick={() => { setSignup(!signup); setError(''); }}>{signup ? 'Already have an account? Sign in' : 'New to DO? Create an account'}</button>
+    {!signup && <p className="subtle text-sm">Usually sign in with Google? Add a password in Settings → Account sign-in while signed in with Google.</p>}
     <p className="subtle text-sm">Your saved words are private to your account.</p>
   </div>;
 }

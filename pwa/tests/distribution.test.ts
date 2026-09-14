@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
-import { createAppAuth, consumeAuthLimit, resolveWorkspaceOwner, authReady, googleReady } from '../lib/app-auth';
+import { createAppAuth, getAppAuth, consumeAuthLimit, resolveWorkspaceOwner, authReady, googleReady } from '../lib/app-auth';
 import { handleAPI, type Services } from '../lib/server';
 import { limitSharedAI } from '../lib/shared-ai';
 import { encryptCredential } from '../lib/crypto';
@@ -24,7 +24,8 @@ void test('real password signup, username login, session revocation and ownershi
     const config = { DB: db, BETTER_AUTH_URL: 'https://do.example', BETTER_AUTH_SECRET: 'synthetic-auth-secret-at-least-32-characters' };
     assert.equal(authReady({ DB: db }), false);
     assert.equal(googleReady(config), false);
-    const auth = createAppAuth(config);
+    const auth = await getAppAuth(config);
+    assert.equal(await getAppAuth({ ...config }), auth);
     const call = (path: string, body?: unknown, cookie = '', origin = 'https://do.example') => auth.handler(new Request(`https://do.example/api/auth/${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: cookie, 'cf-connecting-ip': '192.0.2.1' },
@@ -41,6 +42,18 @@ void test('real password signup, username login, session revocation and ownershi
     assert.equal((await call('get-session', undefined, cookie)).status, 200);
     const active = await (await call('get-session', undefined, cookie)).json() as { user: { id: string } };
     assert.equal(active.user.id, data.user.id);
+    const otherSignup = await call('sign-up/email', { username: 'other', name: 'Other User', email: 'other@example.com', password: 'another-synthetic-password' });
+    assert.equal(otherSignup.status, 200);
+    const otherCookie = otherSignup.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    const other = await otherSignup.json() as { user: { id: string } };
+    // Reuse must isolate overlapping signed-in, anonymous, and invalid requests.
+    const inputs = [cookie, otherCookie, '', cookie.replace('session_token=', 'session_token=tampered')];
+    const sessions = await Promise.all(inputs.map(async (value) =>
+      (await getAppAuth(config)).api.getSession({ headers: new Headers({ Cookie: value }) })));
+    assert.deepEqual(sessions.map((s) => s?.user.id ?? null), [data.user.id, other.user.id, null, null]);
+    const rotated = await getAppAuth({ ...config, BETTER_AUTH_SECRET: 'different-synthetic-secret-at-least-32-characters' });
+    assert.notEqual(rotated, auth);
+    assert.equal(await rotated.api.getSession({ headers: new Headers({ Cookie: cookie }) }), null);
     assert.equal(await resolveWorkspaceOwner(db, data.user, null), data.user.id);
     assert.equal(await resolveWorkspaceOwner(db, data.user, { userId: 'other-owner', email: 'other@example.com' }), data.user.id);
     assert.equal(await resolveWorkspaceOwner(db, data.user, { userId: 'original-access-owner', email: 'test@example.com' }), 'original-access-owner');
@@ -51,6 +64,9 @@ void test('real password signup, username login, session revocation and ownershi
     assert.equal(signedIn.status, 200, await signedIn.clone().text());
     assert.equal((await call('sign-out', {}, cookie)).status, 200);
     assert.equal(await (await call('get-session', undefined, cookie)).json(), null);
+    assert.equal(await (await getAppAuth(config)).api.getSession({ headers: new Headers({ Cookie: cookie }) }), null);
+    await db.prepare('UPDATE auth_session SET expires_at=0 WHERE user_id=?').bind(other.user.id).run();
+    assert.equal(await (await getAppAuth(config)).api.getSession({ headers: new Headers({ Cookie: otherCookie }) }), null);
     const google = createAppAuth({ ...config, GOOGLE_CLIENT_ID: 'synthetic-google-id', GOOGLE_CLIENT_SECRET: 'synthetic-google-secret' });
     const oauth = await google.handler(new Request('https://do.example/api/auth/sign-in/social', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://do.example', 'cf-connecting-ip': '192.0.2.3' },

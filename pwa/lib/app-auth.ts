@@ -36,7 +36,8 @@ export async function consumeAuthLimit(db: D1Database, key: string, rule: { wind
   };
 }
 
-// Construct inside the request: D1 handles must not cross Worker requests.
+// The factory remains useful for isolated tests. Production reuses the completed
+// setup below, but never caches users, sessions, statements, or query results.
 export function createAppAuth(e: AuthConfig) {
   if (!authReady(e)) throw new Error('App sign-in is not configured.');
   const origin = new URL(e.BETTER_AUTH_URL!).origin;
@@ -68,6 +69,33 @@ export function createAppAuth(e: AuthConfig) {
     },
     plugins: [username({ minUsernameLength: 3, maxUsernameLength: 30 })],
   });
+}
+
+let cachedAuth: { config: AuthConfig; auth: ReturnType<typeof createAppAuth> } | undefined;
+
+/** Reuse configuration and endpoint schemas, not request state or pending I/O. */
+export async function getAppAuth(e: AuthConfig) {
+  const previous = cachedAuth;
+  if (previous && previous.config.DB === e.DB &&
+    previous.config.BETTER_AUTH_SECRET === e.BETTER_AUTH_SECRET &&
+    previous.config.BETTER_AUTH_URL === e.BETTER_AUTH_URL &&
+    previous.config.AUTH_ADDITIONAL_ORIGINS === e.AUTH_ADDITIONAL_ORIGINS &&
+    previous.config.GOOGLE_CLIENT_ID === e.GOOGLE_CLIENT_ID &&
+    previous.config.GOOGLE_CLIENT_SECRET === e.GOOGLE_CLIENT_SECRET) return previous.auth;
+  const config: AuthConfig = {
+    DB: e.DB,
+    BETTER_AUTH_SECRET: e.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: e.BETTER_AUTH_URL,
+    AUTH_ADDITIONAL_ORIGINS: e.AUTH_ADDITIONAL_ORIGINS,
+    GOOGLE_CLIENT_ID: e.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: e.GOOGLE_CLIENT_SECRET,
+  };
+  const auth = createAppAuth(config);
+  // An initialization promise owned by an aborted Worker request must never
+  // become a dependency of later requests. Publish only completed setup.
+  await auth.$context;
+  cachedAuth = { config, auth };
+  return auth;
 }
 
 export async function resolveWorkspaceOwner(db: D1Database, appUser: { id: string; email: string }, legacy: { userId: string; email: string } | null) {
