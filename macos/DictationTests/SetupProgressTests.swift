@@ -10,4 +10,12 @@ final class SetupProgressTests: XCTestCase {
         XCTAssertEqual(SetupProgress.initialStep(completed: true, microphone: true, accessibility: true, model: false), 3)
         XCTAssertEqual(SetupProgress.initialStep(completed: true, microphone: true, accessibility: true, model: true), 4)
     }
+    func testBlockingStepsOfferSyncEscape() {
+        for step in 1...3 {
+            XCTAssertTrue(SetupProgress.offersSyncEscape(step: step, canContinue: false))
+            XCTAssertFalse(SetupProgress.offersSyncEscape(step: step, canContinue: true))
+        }
+        XCTAssertFalse(SetupProgress.offersSyncEscape(step: 0, canContinue: false))
+        XCTAssertFalse(SetupProgress.offersSyncEscape(step: 4, canContinue: false))
+    }
 }

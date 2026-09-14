@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#245ce5" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#080f22" media="(prefers-color-scheme: dark)"><title>Dictation Operative · Offline capture</title><style>
+/* The offline shell shares the workspace's tokens, including dark mode, so
+   losing the network never looks like landing in a different product. */
+:root{
+  color-scheme:light dark;
+  --canvas:#f7f8fc;--surface:#ffffff;--ink:#17243c;--muted:#4b5872;
+  --border:#e0e6f0;--input:#d8dfeb;--primary:#245ce5;--primary-ink:#ffffff;
+  --danger:#b8382f;--r-md:13px;--r-xl:22px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --canvas:#080f22;--surface:#101a33;--ink:#e8eefc;--muted:#94a3c4;
+    --border:#1e2b4a;--input:#24345a;--primary:#6ea8ff;--primary-ink:#06122b;
+    --danger:#ef7f78;
+  }
+}
+body{
+  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:var(--canvas);color:var(--ink);margin:0;padding:24px;
+  -webkit-font-smoothing:antialiased;
+}
+main{
+  max-width:600px;margin:8vh auto;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-xl);padding:32px;
+}
+h1{font-size:30px;letter-spacing:-1.1px;line-height:1.15;margin:18px 0 10px}
+button,a{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;padding:0 18px;margin:6px 6px 6px 0;
+  border-radius:var(--r-md);border:1px solid transparent;
+  background:var(--primary);color:var(--primary-ink);font:inherit;font-weight:600;
+  text-decoration:none;cursor:pointer;
+}
+a{background:none;color:var(--primary);border-color:var(--input)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,a:focus-visible{
+  outline:3px solid color-mix(in oklab,var(--primary) 55%,transparent);
+  outline-offset:2px;
+}
+p{line-height:1.6;color:var(--muted)}
+#error{color:var(--danger)}
+.item{padding:16px 0;border-top:1px solid var(--border)}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style></head><body><main><img src="/icons/icon-192.png" width="64" height="64" alt="Dictation Operative"><h1>Your ideas can keep going.</h1><p>Record offline on this device. Reopen the workspace online to transcribe and save your unfinished recordings.</p><p>Stay on this screen while recording. Five minutes maximum. Browser data clearing, private browsing, or storage eviction can erase local audio. Download anything irreplaceable.</p><button id="record" disabled>Start recording</button><p id="status" role="status">Opening device storage…</p><p id="error" role="alert"></p><div id="recordings"></div><a href="/">Open workspace</a></main><script type="module" src="/offline-capture.js"></script></body></html>

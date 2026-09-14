@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "do-voice-workspace",
+  "account_id": "d262bb3f44e6035f2fe15ea6b2c2404d",
+  "main": "worker.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [{ "pattern": "dictationoperative.com", "custom_domain": true }],
+  "services": [{ "binding": "SYNC_ACCOUNTS", "service": "dictation-operative-sync", "entrypoint": "AccountAdmin" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "do-voice-images" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "do-voice-workspace",
+      "database_id": "8b594b74-8055-4e7c-aec4-5406915b78da",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  // Production uses application sessions. The legacy Access identifiers are
+  // intentionally omitted after the existing workspace identity was migrated.
+  "vars": {
+    "BETTER_AUTH_URL": "https://dictationoperative.com",
+    "AUTH_ADDITIONAL_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev",
+    "SHARED_AI_DAILY_LIMIT": "50",
+    "SHARED_AI_GLOBAL_DAILY_LIMIT": "1000"
+  },
+  "observability": { "enabled": true }
+}

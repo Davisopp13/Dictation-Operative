@@ -1,5 +1,11 @@
 # Roadmap
 
+## Universal Clipboard — cross-platform implementation track
+
+The [Universal Clipboard implementation roadmap](universal-clipboard-roadmap.md) defines the proposed path from existing Mac/PWA Sync to macOS, Windows, Linux, iOS, and Android support. It covers platform capabilities, native companions, shared protocol behavior, multi-device delivery, and release acceptance. Clipboard support can ship independently of each platform's dictation engine.
+
+For clipboard Sync, that plan takes precedence over the older shared-backend sequencing below: the encrypted relay already exists under `backend/sync-relay`. The phases below describe the broader dictation roadmap, including older planned work; they are not a current inventory of Sync support.
+
 Sequencing follows the research conclusion: native shells per platform, shared cloud "brain," macOS first.
 
 ## Phase 1 — macOS MVP (current)

@@ -7,7 +7,7 @@ import SwiftUI
 final class OnboardingWindowController: NSWindowController {
     convenience init(services: AppServices) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 570),
+            contentRect: NSRect(origin: .zero, size: Tokens.Size.onboarding),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

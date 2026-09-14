@@ -84,6 +84,23 @@ targets:
       base:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Dictation.app/Contents/MacOS/Dictation
         BUNDLE_LOADER: $(TEST_HOST)
+        GENERATE_INFOPLIST_FILE: "YES"
+
+  # UI tests drive a really launched copy of the app. Some behaviour cannot be
+  # reached from a unit test: an XCTest host never becomes frontmost, and
+  # SwiftUI refuses to present the `Settings` scene while the app is in the
+  # background, so onboarding's "Set up Sync instead" needs a real app.
+  DictationUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - DictationUITests
+    dependencies:
+      - target: Dictation
+    settings:
+      base:
+        TEST_TARGET_NAME: Dictation
+        GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
   Dictation:
@@ -98,3 +115,4 @@ schemes:
         DICTATION_TEST_HOST: "1"
       targets:
         - DictationTests
+        - DictationUITests

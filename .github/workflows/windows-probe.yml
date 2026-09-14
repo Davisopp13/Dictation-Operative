@@ -1,0 +1,37 @@
+name: Windows compatibility probe
+
+on:
+  push:
+    paths: ['windows/**', '.github/workflows/windows-probe.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check cancellation and Unicode input encoding
+        run: dotnet run --project windows/HotkeyProbe.Tests -c Release
+      - name: Publish portable packages
+        shell: pwsh
+        run: |
+          foreach ($rid in @('win-x64', 'win-arm64')) {
+            dotnet publish windows/HotkeyProbe -c Release -r $rid --self-contained true -o windows/dist/$rid
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Copy-Item windows/README.md windows/dist/$rid/README.md
+            Compress-Archive -Path windows/dist/$rid/* -DestinationPath windows/dist/DO-HotkeyProbe-$rid.zip
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DO-Windows-HotkeyProbe
+          path: windows/dist/DO-HotkeyProbe-*.zip
+          if-no-files-found: error

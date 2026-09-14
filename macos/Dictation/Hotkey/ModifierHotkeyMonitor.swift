@@ -52,8 +52,10 @@ enum ModifierHotkey: String, CaseIterable, Identifiable {
 /// Accessibility trust, which the app already needs for insertion.
 @MainActor
 final class ModifierHotkeyMonitor {
-    /// Same tap threshold as HotkeyManager's push-to-talk debounce.
-    private static let tapThreshold: TimeInterval = 0.3
+    /// A press-and-release shorter than this is treated as a toggle, so a
+    /// quick tap doesn't produce an empty recording. Shared with
+    /// `HotkeyManager`'s push-to-talk debounce so both triggers feel the same.
+    static let tapThreshold: TimeInterval = 0.3
 
     private weak var controller: DictationController?
     private var hotkey: ModifierHotkey = .off

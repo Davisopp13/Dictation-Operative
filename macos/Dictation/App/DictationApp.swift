@@ -15,7 +15,16 @@ struct DictationApp: App {
                 .environment(services.history)
                 .environment(services.updater)
         } label: {
-            Image(systemName: services.controller.state.symbolName)
+            // Ready is a plain template symbol, quiet like every other menu bar
+            // extra. Listening, working and needs-setup carry a semantic tint so
+            // the state is readable at a glance. See `Tokens.menuBarImage`.
+            if let image = Tokens.menuBarImage(for: services.controller.state) {
+                Image(nsImage: image)
+                    .renderingMode(image.isTemplate ? .template : .original)
+                    .accessibilityLabel(services.controller.state.label)
+            } else {
+                Image(systemName: services.controller.state.symbolName)
+            }
         }
 
         Settings {

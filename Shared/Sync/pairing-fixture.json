@@ -1,0 +1,26 @@
+{
+  "code": "ABC234",
+  "hostPrivateKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE",
+  "guestPrivateKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI",
+  "state": {
+    "host": {
+      "device": {
+        "id": "host-fixture",
+        "name": "Mac"
+      },
+      "publicKey": "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU"
+    },
+    "guest": {
+      "device": {
+        "id": "guest-fixture",
+        "name": "Phone"
+      },
+      "publicKey": "BHzyexiNA09-ilI4AwS1GsPAiWnid_IbNaYLSPxHZpl4B3dVENuO0EApPZrGn3Qw27p9reY86YIpngS3nSJ4c9E"
+    },
+    "expiresAt": 2000000000000,
+    "approved": false
+  },
+  "secret": "mO5G40iiNAQpy8R0T9k1rkWyTlo1GNpE1ehOnje2mHc",
+  "guestAuth": "CSNFHjRHGNdT3PcKcl3DuXKX5QRqnpk1Gy7bq8rpn0M",
+  "verification": "83EC 179F 7C9B"
+}
