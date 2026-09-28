@@ -1,4 +1,5 @@
-import { AppError, id, text } from './domain';
+import { deleteQueuedImage } from './clipboard-cleanup';
+import { AppError, id, object, text } from './domain';
 import { readBounded } from './request';
 import { IMAGE_LIMIT, validatePayload } from './sync/protocol';
 import type { Services } from './server';
@@ -23,8 +24,14 @@ export type ClipboardImage = {
   width: number;
   height: number;
   createdAt: number;
+  pinned: boolean;
 };
-const columns = 'id,name,size,width,height,created_at AS createdAt';
+const columns = 'id,name,size,width,height,created_at AS createdAt,pinned';
+type ImageRow = Omit<ClipboardImage, 'pinned'> & { pinned: number };
+const decode = (row: ImageRow): ClipboardImage => ({
+  ...row,
+  pinned: !!row.pinned,
+});
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
     status,
@@ -44,12 +51,17 @@ export async function handleImages(
       throw new AppError('Invalid page.');
     const result = await s.db
       .prepare(
-        `SELECT ${columns} FROM clipboard_images WHERE owner=? AND instr(lower(name),lower(?))>0 ORDER BY created_at DESC,id DESC LIMIT 41 OFFSET ?`,
+        `SELECT ${columns} FROM clipboard_images WHERE owner=? AND (?=0 OR pinned=1) AND instr(lower(name),lower(?))>0 ORDER BY created_at DESC,id DESC LIMIT 41 OFFSET ?`,
       )
-      .bind(s.owner, query, offset)
-      .all<ClipboardImage>();
+      .bind(
+        s.owner,
+        url.searchParams.get('pinned') === 'true' ? 1 : 0,
+        query,
+        offset,
+      )
+      .all<ImageRow>();
     return json({
-      images: result.results.slice(0, 40),
+      images: result.results.slice(0, 40).map(decode),
       hasMore: result.results.length > 40,
     });
   }
@@ -83,6 +95,7 @@ export async function handleImages(
       width: view.getUint32(16),
       height: view.getUint32(20),
       createdAt: Date.now(),
+      pinned: false,
     };
     const key = `clipboard/${image.id}.png`;
     await s.images.put(key, bytes, {
@@ -117,8 +130,31 @@ export async function handleImages(
         `SELECT ${columns},object_key AS objectKey FROM clipboard_images WHERE owner=? AND id=?`,
       )
       .bind(s.owner, imageId)
-      .first<ClipboardImage & { objectKey: string }>();
+      .first<ImageRow & { objectKey: string }>();
     if (!image) throw new AppError('Image not found.', 404);
+    if (request.method === 'PATCH') {
+      let data: Record<string, unknown>;
+      try {
+        data = object(
+          JSON.parse(
+            new TextDecoder().decode(await readBounded(request, 1024)),
+          ),
+        );
+      } catch (e) {
+        if (e instanceof AppError) throw e;
+        throw new AppError('The request could not be read.');
+      }
+      if (typeof data.pinned !== 'boolean')
+        throw new AppError('Choose whether to pin this image.');
+      const updated = await s.db
+        .prepare(
+          `UPDATE clipboard_images SET pinned=? WHERE owner=? AND id=? RETURNING ${columns}`,
+        )
+        .bind(data.pinned ? 1 : 0, s.owner, imageId)
+        .first<ImageRow>();
+      if (!updated) throw new AppError('Image not found.', 404);
+      return json(decode(updated));
+    }
     if (request.method === 'GET') {
       const stored = await s.images.get(image.objectKey);
       if (!stored) throw new AppError('Image not found.', 404);
@@ -133,12 +169,17 @@ export async function handleImages(
       });
     }
     if (request.method === 'DELETE') {
-      // Delete bytes first so a failed object deletion remains retryable.
-      await s.images.delete(image.objectKey);
+      // The trigger commits a durable object deletion record with this delete.
       await s.db
         .prepare('DELETE FROM clipboard_images WHERE owner=? AND id=?')
         .bind(s.owner, imageId)
         .run();
+      try {
+        await deleteQueuedImage(s.db, s.images, image.objectKey);
+      } catch {
+        // The item is deleted; a later daily run retries storage cleanup.
+        console.error('Clipboard image file deletion queued for retry');
+      }
       return json({ deleted: true });
     }
   }

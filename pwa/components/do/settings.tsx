@@ -22,6 +22,7 @@ import {
 import { post, errorMessage } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
 export type SettingsState = {
+  clipboardDailyCleanup?: boolean;
   connected: boolean;
   consent: boolean;
   secureStorage: boolean;
@@ -112,6 +113,21 @@ export function SettingsDialog({
           <p id="start-page-description" className="subtle text-sm mt-2">
             Choose where DO opens on a fresh visit. Refreshing keeps your current
             tab. Saved for your account in this browser.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <label htmlFor="clipboard-daily-cleanup" className="font-semibold">Daily Clipboard cleanup</label>
+            <Switch
+              id="clipboard-daily-cleanup"
+              checked={!!settings.clipboardDailyCleanup}
+              disabled={busy}
+              aria-describedby="clipboard-cleanup-description"
+              onCheckedChange={(enabled) => void change({ action: 'clipboard-cleanup', enabled })}
+            />
+          </div>
+          <p id="clipboard-cleanup-description" className="subtle text-sm">
+            Once a day, permanently remove unpinned Clipboard text and images older than 24 hours, even when the app is closed. Pin anything you want to keep. Applies across your account’s devices. Dictation history and text saved before this feature stay saved.
           </p>
         </div>
         <div className="connection-card">

@@ -17,6 +17,7 @@ import {
   ImagePlus,
   LoaderCircle,
   Trash2,
+  Pin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
@@ -41,8 +42,10 @@ export function ClipboardImages({
   query,
   locked,
   renderFeed,
+  pinnedOnly = false,
 }: {
   renderFeed?: (feed: ImageFeed) => ReactNode;
+  pinnedOnly?: boolean;
   query: string;
   locked: boolean;
 }) {
@@ -62,16 +65,17 @@ export function ClipboardImages({
   const [refresh, setRefresh] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const working = useRef(false);
-  const activeQuery = useRef(query);
+  const queryKey = `${query}:${pinnedOnly}`;
+  const activeQuery = useRef(queryKey);
 
   useEffect(() => {
     const controller = new AbortController();
-    activeQuery.current = query;
+    activeQuery.current = queryKey;
     const timeout = setTimeout(
       () => {
         setLoading(true);
         void api<{ images: ClipboardImage[]; hasMore: boolean }>(
-          `images?q=${encodeURIComponent(query)}`,
+          `images?q=${encodeURIComponent(query)}&pinned=${pinnedOnly}`,
           { signal: controller.signal },
         )
           .then((data) => {
@@ -91,7 +95,7 @@ export function ClipboardImages({
       controller.abort();
       clearTimeout(timeout);
     };
-  }, [query, refresh]);
+  }, [query, queryKey, pinnedOnly, refresh]);
 
   const visibleImageCount = useRef(0);
   useEffect(() => {
@@ -106,9 +110,12 @@ export function ClipboardImages({
           const page = await api<{
             images: ClipboardImage[];
             hasMore: boolean;
-          }>(`images?q=${encodeURIComponent(query)}&offset=${offset}`, {
-            signal,
-          });
+          }>(
+            `images?q=${encodeURIComponent(query)}&pinned=${pinnedOnly}&offset=${offset}`,
+            {
+              signal,
+            },
+          );
           return { items: page.images, hasMore: page.hasMore };
         },
       );
@@ -117,7 +124,7 @@ export function ClipboardImages({
         setHasMore(result.hasMore);
       }
     });
-  }, [query, refresh, loading, locked, busy, watchClipboard]);
+  }, [query, pinnedOnly, refresh, loading, locked, busy, watchClipboard]);
 
   const run = useCallback(
     async (task: () => Promise<void>) => {
@@ -188,6 +195,7 @@ export function ClipboardImages({
 
   useEffect(() => {
     const paste = (event: ClipboardEvent) => {
+      if (pinnedOnly) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -206,7 +214,7 @@ export function ClipboardImages({
     };
     document.addEventListener('paste', paste);
     return () => document.removeEventListener('paste', paste);
-  }, [upload, locked]);
+  }, [upload, locked, pinnedOnly]);
 
   const copy = (item: ClipboardImage) =>
     run(async () => {
@@ -261,6 +269,39 @@ export function ClipboardImages({
           >
             <Copy /> Copy
           </Button>
+          <Button
+            variant={item.pinned ? 'secondary' : 'ghost'}
+            className="control"
+            disabled={locked || busy}
+            aria-label={`${item.pinned ? 'Unpin' : 'Pin'} ${item.name}`}
+            aria-pressed={item.pinned}
+            onClick={() =>
+              void run(async () => {
+                const updated = await api<ClipboardImage>(`images/${item.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ pinned: !item.pinned }),
+                });
+                setImages((current) =>
+                  current.flatMap((image) =>
+                    image.id !== updated.id
+                      ? [image]
+                      : pinnedOnly && !updated.pinned
+                        ? []
+                        : [updated],
+                  ),
+                );
+                setRefresh((n) => n + 1);
+                announce(
+                  updated.pinned
+                    ? 'Image pinned. Daily cleanup will keep it.'
+                    : 'Image unpinned.',
+                );
+              })
+            }
+          >
+            <Pin /> {item.pinned ? 'Pinned' : 'Pin'}
+          </Button>
           <a
             className="control"
             href={`/api/images/${item.id}?download=1`}
@@ -288,12 +329,14 @@ export function ClipboardImages({
         const data = await api<{
           images: ClipboardImage[];
           hasMore: boolean;
-        }>(`images?q=${encodeURIComponent(query)}&offset=${images.length}`);
-        if (activeQuery.current !== query) return;
+        }>(
+          `images?q=${encodeURIComponent(query)}&pinned=${pinnedOnly}&offset=${images.length}`,
+        );
+        if (activeQuery.current !== queryKey) return;
         setImages((current) => [...current, ...data.images]);
         setHasMore(data.hasMore);
       }),
-    [run, query, images.length],
+    [run, query, queryKey, pinnedOnly, images.length],
   );
 
   return (
@@ -301,61 +344,63 @@ export function ClipboardImages({
       className={renderFeed ? 'clipboard-combined' : 'clipboard-images panel'}
       aria-label={renderFeed ? 'Saved items' : 'Clipboard images'}
     >
-      <div className="clipboard-images-heading">
-        <div>
-          <h2>{renderFeed ? 'Add images' : 'Images'}</h2>
-          <p>
-            Paste a screenshot or upload PNG, JPEG, or WebP. Up to 8 MiB per
-            image; saved as PNG.
-          </p>
+      {!pinnedOnly && (
+        <div className="clipboard-images-heading">
+          <div>
+            <h2>{renderFeed ? 'Add images' : 'Images'}</h2>
+            <p>
+              Paste a screenshot or upload PNG, JPEG, or WebP. Up to 8 MiB per
+              image; saved as PNG.
+            </p>
+          </div>
+          <div className="actions">
+            <Button
+              variant="outline"
+              className="control"
+              disabled={locked || busy}
+              onClick={() =>
+                void run(async () => {
+                  try {
+                    await save(await readClipboard(), 'Pasted image');
+                  } catch (e) {
+                    if (
+                      e instanceof DOMException &&
+                      ['NotAllowedError', 'SecurityError'].includes(e.name)
+                    )
+                      throw new Error(
+                        'Clipboard access was blocked. Press ⌘V or Ctrl+V while Clipboard is open, or use Upload images.',
+                      );
+                    throw e;
+                  }
+                  announce('Image saved to Clipboard.');
+                })
+              }
+            >
+              <ClipboardPaste /> Paste image
+            </Button>
+            <Button
+              className="control"
+              disabled={locked || busy}
+              onClick={() => input.current?.click()}
+            >
+              <ImagePlus /> Upload images
+            </Button>
+            <input
+              ref={input}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              hidden
+              aria-label="Upload images"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
+                if (files.length) void upload(files);
+              }}
+            />
+          </div>
         </div>
-        <div className="actions">
-          <Button
-            variant="outline"
-            className="control"
-            disabled={locked || busy}
-            onClick={() =>
-              void run(async () => {
-                try {
-                  await save(await readClipboard(), 'Pasted image');
-                } catch (e) {
-                  if (
-                    e instanceof DOMException &&
-                    ['NotAllowedError', 'SecurityError'].includes(e.name)
-                  )
-                    throw new Error(
-                      'Clipboard access was blocked. Press ⌘V or Ctrl+V while Clipboard is open, or use Upload images.',
-                    );
-                  throw e;
-                }
-                announce('Image saved to Clipboard.');
-              })
-            }
-          >
-            <ClipboardPaste /> Paste image
-          </Button>
-          <Button
-            className="control"
-            disabled={locked || busy}
-            onClick={() => input.current?.click()}
-          >
-            <ImagePlus /> Upload images
-          </Button>
-          <input
-            ref={input}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            multiple
-            hidden
-            aria-label="Upload images"
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? []);
-              event.target.value = '';
-              if (files.length) void upload(files);
-            }}
-          />
-        </div>
-      </div>
+      )}
       {busy && (
         <output className="actions">
           <LoaderCircle size={16} className="animate-spin" /> Working…

@@ -1,7 +1,11 @@
 import app from 'vinext/server/fetch-handler';
+import { runClipboardCleanup } from './lib/clipboard-cleanup';
 import { handleWorkspaceRequest } from './lib/workspace-request';
 
 export default {
+  async scheduled(controller, env) {
+    await runClipboardCleanup(env.DB, env.IMAGES, controller.scheduledTime);
+  },
   async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
     // Workspace APIs do not render React or use framework after() callbacks.

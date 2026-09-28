@@ -40,6 +40,7 @@ import type { ClipSummary } from '@/lib/domain';
 type View = 'capture' | 'clipboard' | 'compose';
 
 export type LibraryProps = {
+  dailyCleanup: boolean;
   clipboardFilter: 'all' | 'pinned' | 'images';
   setClipboardFilter: (filter: 'all' | 'pinned' | 'images') => void;
   accountEmail: string;
@@ -74,6 +75,7 @@ export type LibraryProps = {
 /** Saved Clipboard items and text selection for Compose. */
 export function LibrarySurface({
   view,
+  dailyCleanup,
   setView,
   clipboardFilter,
   setClipboardFilter,
@@ -170,14 +172,14 @@ export function LibrarySurface({
                 {filtered
                   ? 'No items match these filters'
                   : pinned
-                    ? 'No pinned text yet'
+                    ? 'No pinned items yet'
                     : 'Your saved items will appear here'}
               </EmptyTitle>
               <EmptyDescription>
                 {filtered
                   ? 'Try another search or clear your filters.'
                   : pinned
-                    ? 'Pin text from All to keep it handy. Unpinning keeps it in All.'
+                    ? 'Pin text or images from All to keep them handy and protect them from daily cleanup.'
                     : 'Capture a thought, paste text, or upload an image to get started.'}
               </EmptyDescription>
             </EmptyHeader>
@@ -373,14 +375,17 @@ export function LibrarySurface({
               sources={
                 clipboardFilter === 'images'
                   ? ['images']
-                  : clipboardFilter === 'pinned' ||
-                      collectionFilter ||
-                      tagFilter
+                  : collectionFilter || tagFilter
                     ? ['text']
                     : ['text', 'images']
               }
             />
           </div>
+          <p className="subtle text-sm">
+            {dailyCleanup
+              ? 'Daily cleanup is on. Unpinned Clipboard text and images older than 24 hours are cleared once a day. Pin anything you want to keep. Dictation history and older saved text stay saved.'
+              : 'Daily cleanup is off. Your saved items stay until you delete them. Pin text or images to keep them handy.'}
+          </p>
           <div hidden={clipboardFilter === 'images'}>
             <ClipboardText locked={locked} onSaved={onClipboardSaved} />
           </div>
@@ -429,13 +434,14 @@ export function LibrarySurface({
       {view === 'clipboard' && clipboardFilter === 'images' ? (
         <ClipboardImages query={query} locked={locked} />
       ) : view === 'clipboard' &&
-        clipboardFilter === 'all' &&
+        (clipboardFilter === 'all' || clipboardFilter === 'pinned') &&
         !collectionFilter &&
         !tagFilter ? (
         <ClipboardImages
           query={query}
           locked={locked}
           renderFeed={renderFeed}
+          pinnedOnly={clipboardFilter === 'pinned'}
         />
       ) : (
         renderFeed()

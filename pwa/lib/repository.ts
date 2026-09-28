@@ -87,10 +87,15 @@ export async function listClips(
   }));
   return { items, hasMore: results.length > 50 };
 }
-export async function insertClip(db: D1Database, owner: string, clip: Clip) {
+export async function insertClip(
+  db: D1Database,
+  owner: string,
+  clip: Clip,
+  clipboardItem = false,
+) {
   await db
     .prepare(
-      'INSERT INTO clips (id,owner,title,kind,content,original,context,segments,versions,collection,tags,pinned,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
+      'INSERT INTO clips (id,owner,title,kind,content,original,context,segments,versions,collection,tags,pinned,revision,created_at,updated_at,clipboard_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
     )
     .bind(
       clip.id,
@@ -108,6 +113,7 @@ export async function insertClip(db: D1Database, owner: string, clip: Clip) {
       1,
       clip.createdAt,
       clip.updatedAt,
+      clipboardItem ? 1 : 0,
     )
     .run();
   return getClip(db, owner, clip.id);
@@ -120,7 +126,7 @@ export async function saveClip(
 ) {
   const result = await db
     .prepare(
-      'UPDATE clips SET title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=? WHERE owner=? AND id=? AND revision=?',
+      'UPDATE clips SET title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=?',
     )
     .bind(
       clip.title,
@@ -133,6 +139,7 @@ export async function saveClip(
       clip.pinned ? 1 : 0,
       clip.revision,
       clip.updatedAt,
+      clip.segments.length > 1 ? 1 : 0,
       owner,
       clip.id,
       previousRevision,
@@ -164,12 +171,20 @@ export async function deleteClip(
 export async function getPreferences(db: D1Database, owner: string) {
   return (
     (await db
-      .prepare('SELECT encrypted_key,consent,model FROM preferences WHERE owner=?')
+      .prepare(
+        'SELECT encrypted_key,consent,model,clipboard_daily_cleanup FROM preferences WHERE owner=?',
+      )
       .bind(owner)
-      .first<{ encrypted_key: string | null; consent: number; model: string }>()) ?? {
+      .first<{
+        encrypted_key: string | null;
+        consent: number;
+        model: string;
+        clipboard_daily_cleanup: number;
+      }>()) ?? {
       encrypted_key: null,
       model: 'openai/gpt-oss-120b',
       consent: 0,
+      clipboard_daily_cleanup: 0,
     }
   );
 }

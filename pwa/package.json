@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:built-downloads": "node scripts/verify-built-downloads.mjs",
+    "test:built-clipboard": "node scripts/verify-built-clipboard.mjs",
     "test:built-auth": "node scripts/verify-built-auth.mjs",
     "typecheck": "tsc --noEmit",
     "db:local": "wrangler d1 migrations apply DB --local",

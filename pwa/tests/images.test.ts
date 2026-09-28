@@ -198,7 +198,7 @@ void test('saved Clipboard images: storage, isolation, limits, search, paginatio
         await db.batch(
           Array.from({ length: 41 }, (_, i) =>
             db
-              .prepare('INSERT INTO clipboard_images VALUES (?,?,?,?,?,?,?,?)')
+              .prepare('INSERT INTO clipboard_images (id,owner,name,object_key,size,width,height,created_at) VALUES (?,?,?,?,?,?,?,?)')
               .bind(
                 `image-page-${i}`,
                 'alice',

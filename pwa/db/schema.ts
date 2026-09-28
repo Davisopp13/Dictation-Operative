@@ -22,6 +22,7 @@ export const clips = sqliteTable(
     tags: text('tags').notNull().default('[]'),
     pinned: integer('pinned').notNull().default(0),
     revision: integer('revision').notNull().default(1),
+    clipboardItem: integer('clipboard_item').notNull().default(0),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -35,6 +36,7 @@ export const preferences = sqliteTable('preferences', {
   encryptedKey: text('encrypted_key'),
   model: text('model').notNull().default('openai/gpt-oss-120b'),
   consent: integer('consent').notNull().default(0),
+  clipboardDailyCleanup: integer('clipboard_daily_cleanup').notNull().default(0),
 });
 export const usage = sqliteTable(
   'usage',
@@ -59,6 +61,7 @@ export const clipboardImages = sqliteTable(
     owner: text('owner').notNull(),
     name: text('name').notNull(),
     objectKey: text('object_key').notNull(),
+    pinned: integer('pinned').notNull().default(0),
     size: integer('size').notNull(),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
@@ -68,3 +71,7 @@ export const clipboardImages = sqliteTable(
     index('clipboard_images_owner_created').on(table.owner, table.createdAt),
   ],
 );
+
+export const clipboardImageDeletionQueue = sqliteTable('clipboard_image_deletion_queue', {
+  objectKey: text('object_key').primaryKey(),
+});

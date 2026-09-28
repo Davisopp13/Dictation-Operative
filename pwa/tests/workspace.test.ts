@@ -479,6 +479,7 @@ void test('authenticated API integration against real D1 SQLite', async (t) => {
         const settings = (await connection.json()) as Record<string, unknown>;
         assert.deepEqual(Object.keys(settings).sort(), [
           'allowance',
+          'clipboardDailyCleanup',
           'connected',
           'consent',
           'logoutPath',

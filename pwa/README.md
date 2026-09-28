@@ -21,7 +21,7 @@ for username/password signup, Google OAuth, existing-account migration and serve
   delete, text export, and lossless JSON backup export/import.
 - Mobile layout with a compact workspace menu, three thumb-friendly bottom tabs, per-view search/filter state, compact filter sheets, larger controls, keyboard-friendly text sizes, and safe-area spacing.
 - Settings → Start page chooses Capture (default), Clipboard, or Compose for a fresh visit. Refreshing restores the current workspace tab independently of that choice. The start page is saved per account in this browser; the current tab is remembered separately in each browser tab. This restores navigation, not unsaved drafts or filters. Reopening an app window that is still running keeps its current view.
-- One Clipboard destination on desktop and mobile: All combines saved text and images by most recent activity, Pinned keeps reusable text handy, and Images shows saved pictures. Text keeps its originals, versions, tags, collections, and Compose selection. Unpinning keeps the item in All; deletion removes it. Collection/tag filters apply to text only.
+- One Clipboard destination on desktop and mobile: All combines saved text and images by most recent activity, Pinned keeps reusable text and images handy, and Images shows saved pictures. Text keeps its originals, versions, tags, collections, and Compose selection. Unpinning keeps the item in All, where optional daily cleanup may remove it; deletion removes it. Collection/tag filters apply to text only.
 - Clipboard images: paste screenshots or upload PNG, JPEG, and WebP; private R2 storage with D1 ownership metadata, thumbnails, full-size previews, copy, download, and delete. Images are saved as PNG (8 MiB / 40 MP maximum); text JSON backups exclude image files.
 - Add More with immutable original segments, duplicate-safe recording retries,
   restore-original and complete version history.
@@ -243,3 +243,23 @@ is available through the separately implemented Dictation Operative Sync.
 Sync now includes an optional account device directory, encrypted shared Groq settings, and latest per-device clipboards. The first browser bootstraps from the verified Access identity; further devices join through approved pairings. Browser account requests use the `SYNC_ACCOUNTS` named service binding. Deploy the relay with `AccountAdmin` and its `v3` migration first, then apply the new D1 model migration before deploying this web build. No provider key is automatically exported from the existing server credential store.
 
 For local multi-worker development, set `DO_SYNC_RELAY_CONFIG` to the sync relay’s `wrangler.jsonc` path before `npm run dev`. This enables the local auxiliary Worker.
+
+## Optional daily Clipboard cleanup
+
+Settings → Daily Clipboard cleanup is off by default and saved per account.
+The daily server job removes unpinned Clipboard text and images older than 24
+hours. Pin images from their cards; Pinned combines pinned text and images.
+Dictation history, imports, and pre-feature text remain saved.
+
+Apply migration `0005_fuzzy_cable.sql` before deploying the new Worker. Its image
+delete trigger queues file deletion atomically; temporary R2 failures retry on
+the next run. The source and built Wrangler configs include a daily trigger at
+08:00 UTC. See [the cleanup design and validation](../docs/clipboard-cleanup.md).
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run test:built-clipboard
+```
