@@ -32,6 +32,7 @@ export function ClipboardText({
         content: text,
         kind: 'note',
         pinned: false,
+        clipboardItem: true,
       });
       setText('');
       attempt.current = { id: '', content: '' };

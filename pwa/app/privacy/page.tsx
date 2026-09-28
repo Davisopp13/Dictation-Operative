@@ -8,7 +8,7 @@ export default function Privacy() {
       </Link>
       <h1>Your words, handled with care.</h1>
       <p>
-        DO PWA V2 is a private voice workspace. Last updated September 11, 2026.
+        DO PWA V2 is a private voice workspace. Last updated September 28, 2026.
       </p>
       <h2>Your account</h2>
       <p>
@@ -40,6 +40,16 @@ export default function Privacy() {
         not sent to AI providers. The web app’s Groq API key is encrypted before storage
         and that server-stored copy is never returned to the browser. Optional
         account sync can deliver a separately shared key as described below.
+      </p>
+      <h2>Daily Clipboard cleanup</h2>
+      <p>
+        Daily cleanup is optional and off by default. When enabled in Settings,
+        a server job runs once a day and permanently removes unpinned Clipboard
+        text and images older than 24 hours, even when the app is closed. Pinned
+        items stay until you delete them. This setting applies to your account
+        across devices. Dictation history, imported text, and text saved before
+        this feature are preserved. Image file deletion retries after temporary
+        storage failures. Infrastructure backups follow their own retention policies.
       </p>
       <h2>Recording and AI</h2>
       <p>

@@ -93,6 +93,7 @@ async function settingsState(s: Services) {
     connected: shared || !!p.encrypted_key,
     shared,
     consent: !!p.consent,
+    clipboardDailyCleanup: !!p.clipboard_daily_cleanup,
     secureStorage: !!s.encryptionKey,
     model: shared ? 'openai/gpt-oss-120b' : p.model,
     allowance: shared ? await sharedAllowance(s.db, s.owner, positiveLimit(s.sharedDailyLimit, 50)) : null,
@@ -161,6 +162,12 @@ export async function handleAPI(
           )
           .bind(s.owner, encrypted, model)
           .run();
+      } else if (data.action === 'clipboard-cleanup') {
+        if (typeof data.enabled !== 'boolean')
+          throw new AppError('Choose whether to enable daily Clipboard cleanup.');
+        await s.db.prepare(
+          'INSERT INTO preferences (owner,clipboard_daily_cleanup) VALUES (?,?) ON CONFLICT(owner) DO UPDATE SET clipboard_daily_cleanup=excluded.clipboard_daily_cleanup',
+        ).bind(s.owner, data.enabled ? 1 : 0).run();
       } else if (data.action === 'disconnect') {
         if (s.sharedGroqOwner === s.owner) throw new AppError('This connection supplies included AI. Change the service connection before disconnecting it.', 409);
         await s.db
@@ -223,8 +230,11 @@ export async function handleAPI(
       return json({ imported: true });
     }
     if (path === 'clips' && method === 'POST') {
+      const data = await body(request);
+      if (data.clipboardItem !== undefined && typeof data.clipboardItem !== 'boolean')
+        throw new AppError('Choose whether this is a Clipboard item.');
       return json(
-        await insertClip(s.db, s.owner, newClip(await body(request))),
+        await insertClip(s.db, s.owner, newClip(data), data.clipboardItem === true),
         201,
       );
     }

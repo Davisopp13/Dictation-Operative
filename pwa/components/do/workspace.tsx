@@ -996,6 +996,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             />
           ) : (
             <LibrarySurface
+              dailyCleanup={!!settings.clipboardDailyCleanup}
               view={view}
               clipboardFilter={clipboardFilter}
               setClipboardFilter={(filter) => {

@@ -25,5 +25,6 @@
     "SHARED_AI_DAILY_LIMIT": "50",
     "SHARED_AI_GLOBAL_DAILY_LIMIT": "1000"
   },
+  "triggers": { "crons": ["0 8 * * *"] },
   "observability": { "enabled": true }
 }

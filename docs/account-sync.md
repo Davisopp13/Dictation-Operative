@@ -71,3 +71,16 @@ The user has now explicitly selected the **Cloudflare deployment** as their depl
 Added Sync now and a combined last-successful-sync status for text and images to both `pwa/` (Cloudflare) and `sites-pwa/` (Sites), as requested. The five-second foreground polling and focus/online refresh remain active. Manual and automatic refresh share the same in-flight request guard; navigation and local editing/saving abort the request. Failed reads preserve existing items and surface a retry message. A combined success timestamp is shown only after both lists have completed a successful refresh.
 
 Validation: Cloudflare source 58 tests; Sites source 50 tests; both typechecks, lint, and builds passed. Cloudflare deployed version `b0f7c243-e27c-461f-b9fb-59af7c73bf4c`. Sites version 17 uses source `86ed755d378d24f5b3ea12b37d04953fc3de3ab8`. Data remains separate between origins; all participating computers must use the same origin/account.
+
+## Optional saved Clipboard cleanup — September 28, 2026
+
+The Cloudflare PWA now implements account-scoped, opt-in daily cleanup, initially
+off. A server schedule removes unpinned saved Clipboard images and newly created
+direct Clipboard text older than 24 hours. Image pins are included in the Pinned
+filter and sync through the existing account library. Dictation history, imports,
+and pre-feature text are preserved. Appending a recording promotes direct
+Clipboard text into preserved history. This supersedes the earlier statement
+that all saved items remain until explicitly deleted when cleanup is enabled.
+The separate two-minute device-transfer lifetime is unchanged.
+
+See [cleanup design, validation and release state](clipboard-cleanup.md).
