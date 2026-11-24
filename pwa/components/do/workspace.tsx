@@ -123,6 +123,11 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   const [clipboardFilter, setClipboardFilter] = useState<
     'all' | 'pinned' | 'images'
   >('all');
+  // Documents mounts on first visit and then stays mounted, hidden, so a
+  // running upload is not cancelled by switching to Clipboard.
+  const [documentsOpened, setDocumentsOpened] = useState(
+    initialNavigation.view === 'content',
+  );
   const [view, setActiveView] = useState<View>(initialNavigation.view),
     [query, setQuery] = useState(''),
     [clips, setClips] = useState<ClipSummary[]>([]),
@@ -190,6 +195,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       setLoading(true);
       setClips([]);
       if (next === 'clipboard') setClipboardFilter('all');
+      if (next === 'content') setDocumentsOpened(true);
       setActiveView(next);
       rememberWorkspacePage(account, next);
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -666,9 +672,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 : 'Files and Google links you deliberately keep handy. Open them from any device signed into this account.'}
             </p>
           </div>
-          {view === 'content' ? (
-            <ContentTray key={account} />
-          ) : (
+          {documentsOpened && (
+            <div hidden={view !== 'content'}>
+              <ContentTray key={account} active={view === 'content'} />
+            </div>
+          )}
+          {view !== 'content' && (
             <LibrarySurface
               dailyCleanup={!!settings.clipboardDailyCleanup}
               clipboardFilter={clipboardFilter}

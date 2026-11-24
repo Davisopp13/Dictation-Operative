@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { toast } from '@/components/ui/toast';
 import { api, errorMessage } from '@/lib/client';
 import { watchVisibleList, refreshPages } from '@/lib/live-list';
 import {
@@ -37,7 +38,12 @@ const fileSize = (n: number) =>
     : n < 1_000_000
       ? `${(n / 1000).toFixed(1)} KB`
       : megabytes(n);
-export function ContentTray() {
+/**
+ * `active` is false while another workspace view is showing. The tray stays
+ * mounted then, so a running upload finishes instead of being aborted, but it
+ * stops polling and reports results through a toast.
+ */
+export function ContentTray({ active = true }: { active?: boolean }) {
   const [page, setPage] = useState<ContentPage | null>(null);
   const [query, setQuery] = useState(''),
     [pinned, setPinned] = useState(false);
@@ -55,7 +61,11 @@ export function ContentTray() {
   const visible = useRef(0),
     working = useRef(false),
     alive = useRef(true),
+    shown = useRef(active),
     operation = useRef<AbortController | null>(null);
+  useEffect(() => {
+    shown.current = active;
+  }, [active]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -67,6 +77,7 @@ export function ContentTray() {
     visible.current = 0;
   }, [query, pinned]);
   useEffect(() => {
+    if (!active) return;
     const initial = new AbortController();
     const reload = async (signal: AbortSignal) => {
       let metadata: ContentPage | undefined;
@@ -108,7 +119,7 @@ export function ContentTray() {
       clearTimeout(timer);
       stop();
     };
-  }, [query, pinned, refresh]);
+  }, [query, pinned, refresh, active]);
 
   const run = useCallback(
     async (label: string, action: (signal: AbortSignal) => Promise<void>) => {
@@ -122,8 +133,11 @@ export function ContentTray() {
       try {
         await action(controller.signal);
       } catch (e) {
-        if (alive.current && !controller.signal.aborted)
+        if (alive.current && !controller.signal.aborted) {
           setError(errorMessage(e));
+          if (!shown.current)
+            toast.add({ title: errorMessage(e), type: 'error' });
+        }
       } finally {
         working.current = false;
         if (alive.current) {
@@ -184,10 +198,11 @@ export function ContentTray() {
         }
         saved++;
       }
-      if (alive.current)
-        setNotice(
-          `${saved} ${saved === 1 ? 'file' : 'files'} added to Documents.`,
-        );
+      if (alive.current) {
+        const summary = `${saved} ${saved === 1 ? 'file' : 'files'} added to Documents.`;
+        setNotice(summary);
+        if (!shown.current) toast.add({ title: summary, type: 'success' });
+      }
     });
   const loadMore = () =>
     void run('Loading more…', async (signal) => {
