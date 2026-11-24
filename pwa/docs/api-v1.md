@@ -6,13 +6,20 @@ working unchanged. The router is `lib/api-v1.ts`.
 
 ## Status
 
-Local only. Migration `0007_workspace_revision.sql` is not applied to
-production.
+Local only. Migrations `0007_workspace_revision.sql` and
+`0008_oauth_provider.sql` are not applied to production.
 
-Authentication is still the browser session: every request needs the session
-cookie, and every non-GET request needs an `Origin` equal to the request's own
-origin. Native bearer tokens are the next piece of work; until then a native
-app cannot call this API.
+## Authentication
+
+Two ways in, never mixed on one request:
+
+- **Bearer token** from [native sign-in](native-sign-in.md):
+  `Authorization: Bearer <access token>`. No `Origin` is needed. This is what
+  native apps use.
+- **Browser session cookie.** Every non-GET request also needs an `Origin`
+  equal to the request's own origin.
+
+A request that carries a bearer token is judged on the token alone.
 
 ## Conventions
 

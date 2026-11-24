@@ -21,6 +21,10 @@ export function LoginForm({ ready, google, returnTo, oauthError }: { ready: bool
           ? await authClient.signIn.email({ email: username, password })
           : await authClient.signIn.username({ username, password });
       if (result.error) throw new Error(result.error.message || 'Check your details and try again.');
+      // When this sign-in continues a native app's request, the server has
+      // already answered with where to go next and the client is navigating
+      // there. Going to returnTo would abandon that request.
+      if ((result.data as { redirect?: boolean } | null)?.redirect) return;
       window.location.assign(returnTo);
     } catch (e) { setError(errorMessage(e)); setBusy(false); }
   }
