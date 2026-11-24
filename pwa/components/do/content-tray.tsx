@@ -239,8 +239,7 @@ export function ContentTray() {
       <p className="subtle content-policy">
         Files are private to your signed-in account and readable by the Catchall Desk
         server. They use saved cloud storage, separate from encrypted device
-        Sync. Google links open the originals with Google’s permissions. Content
-        is not sent to AI.
+        Sync. Google links open the originals with Google’s permissions.
       </p>
       <div className="content-quota">
         <label htmlFor="content-storage">
@@ -325,8 +324,8 @@ export function ContentTray() {
               : 'Keep a few things within reach'}
           </h2>
           <p>
-            Add an MP3, MP4, or another file, or a Google Docs/Sheets link. Open
-            Content on another device using the same account.
+            Add a PDF, an MP3, or another file, or a Google Docs/Sheets link.
+            Open Documents on another device using the same account.
           </p>
         </div>
       )}
