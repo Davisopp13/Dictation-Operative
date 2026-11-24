@@ -11,7 +11,6 @@ import {
   text,
   id,
   revision,
-  transformKind,
   newClip,
   changeClip,
 } from './domain';
@@ -22,22 +21,12 @@ import {
   saveClip,
   deleteClip,
   getPreferences,
-  limitUsage,
 } from './repository';
-import { encryptCredential, decryptCredential } from './crypto';
-import { verifyCredential, transcribeAudio, transformText } from './provider';
-import { limitSharedAI, positiveLimit, sharedAllowance } from './shared-ai';
 export type Services = {
   db: D1Database;
   images?: ImageStore;
   content?: ContentStore;
   owner: string;
-  encryptionKey: string;
-  fetcher?: typeof fetch;
-  sharedGroqKey?: string;
-  sharedGroqOwner?: string;
-  sharedDailyLimit?: number;
-  sharedGlobalDailyLimit?: number;
   logoutPath?: string;
 };
 const json = (data: unknown, status = 200) =>
@@ -52,7 +41,7 @@ export function checkOrigin(request: Request) {
   if (!['GET', 'HEAD'].includes(request.method)) {
     const origin = request.headers.get('Origin');
     if (!origin || origin !== new URL(request.url).origin)
-      throw new AppError('Please make this change from the DO app.', 403);
+      throw new AppError('Please make this change from the app.', 403);
   }
 }
 async function body(request: Request, max = 120000) {
@@ -65,40 +54,10 @@ async function body(request: Request, max = 120000) {
     throw new AppError('The request could not be read.');
   }
 }
-async function aiKey(s: Services) {
-  const pref = await getPreferences(s.db, s.owner);
-  if (!pref.consent)
-    throw new AppError(
-      'Allow cloud processing in Settings before using recording or AI.',
-      403,
-    );
-  const sharedCredential = s.sharedGroqOwner && !s.sharedGroqKey
-    ? (await getPreferences(s.db, s.sharedGroqOwner)).encrypted_key : null;
-  if (s.sharedGroqOwner && !s.sharedGroqKey && !sharedCredential)
-    throw new AppError('Included AI is temporarily unavailable. Please try again later.', 503);
-  if (!s.sharedGroqKey && !sharedCredential && !pref.encrypted_key)
-    throw new AppError(
-      'Connect Groq in Settings to use recording and AI.',
-      428,
-    );
-  await limitUsage(s.db, s.owner);
-  if (s.sharedGroqKey || sharedCredential) {
-    await limitSharedAI(s.db, s.owner, positiveLimit(s.sharedDailyLimit, 50), positiveLimit(s.sharedGlobalDailyLimit, 1000));
-    return s.sharedGroqKey || decryptCredential(sharedCredential!, s.encryptionKey, s.sharedGroqOwner!);
-  }
-  return decryptCredential(pref.encrypted_key!, s.encryptionKey, s.owner);
-}
 async function settingsState(s: Services) {
   const p = await getPreferences(s.db, s.owner);
-  const shared = !!s.sharedGroqKey || !!s.sharedGroqOwner;
   return {
-    connected: shared || !!p.encrypted_key,
-    shared,
-    consent: !!p.consent,
     clipboardDailyCleanup: !!p.clipboard_daily_cleanup,
-    secureStorage: !!s.encryptionKey,
-    model: shared ? 'openai/gpt-oss-120b' : p.model,
-    allowance: shared ? await sharedAllowance(s.db, s.owner, positiveLimit(s.sharedDailyLimit, 50)) : null,
     logoutPath: s.logoutPath ?? '/login',
   };
 }
@@ -147,46 +106,12 @@ export async function handleAPI(
     }
     if (path === 'settings' && method === 'POST') {
       const data = await body(request);
-      if (data.action === 'connect') {
-        const key = text(data.key, 'Groq key', 300);
-        if (!/^gsk_[\w-]{15,}$/.test(key))
-          throw new AppError('Enter a valid Groq API key.');
-        const model = data.model === undefined ? (await getPreferences(s.db, s.owner)).model : text(data.model, 'Groq model', 120);
-        if (!/^[a-zA-Z0-9/_.-]+$/.test(model)) throw new AppError('Enter a valid Groq model.');
-        await limitUsage(s.db, s.owner);
-        await verifyCredential(key, s.fetcher);
-        const encrypted = await encryptCredential(
-          key,
-          s.encryptionKey,
-          s.owner,
-        );
-        await s.db
-          .prepare(
-            'INSERT INTO preferences (owner,encrypted_key,consent,model) VALUES (?,?,0,?) ON CONFLICT(owner) DO UPDATE SET encrypted_key=excluded.encrypted_key,model=excluded.model',
-          )
-          .bind(s.owner, encrypted, model)
-          .run();
-      } else if (data.action === 'clipboard-cleanup') {
+      if (data.action === 'clipboard-cleanup') {
         if (typeof data.enabled !== 'boolean')
           throw new AppError('Choose whether to enable daily Clipboard cleanup.');
         await s.db.prepare(
           'INSERT INTO preferences (owner,clipboard_daily_cleanup) VALUES (?,?) ON CONFLICT(owner) DO UPDATE SET clipboard_daily_cleanup=excluded.clipboard_daily_cleanup',
         ).bind(s.owner, data.enabled ? 1 : 0).run();
-      } else if (data.action === 'disconnect') {
-        if (s.sharedGroqOwner === s.owner) throw new AppError('This connection supplies included AI. Change the service connection before disconnecting it.', 409);
-        await s.db
-          .prepare('UPDATE preferences SET encrypted_key=NULL WHERE owner=?')
-          .bind(s.owner)
-          .run();
-      } else if (data.action === 'consent') {
-        if (typeof data.consent !== 'boolean')
-          throw new AppError('Choose whether to allow cloud processing.');
-        await s.db
-          .prepare(
-            'INSERT INTO preferences (owner,consent) VALUES (?,?) ON CONFLICT(owner) DO UPDATE SET consent=excluded.consent',
-          )
-          .bind(s.owner, data.consent ? 1 : 0)
-          .run();
       } else throw new AppError('Unknown settings action.');
       return json(await settingsState(s));
     }
@@ -261,77 +186,11 @@ export async function handleAPI(
         return json({ deleted: true });
       }
     }
-    if (path === 'transform' && method === 'POST') {
-      const data = await body(request),
-        kind = transformKind(data.kind),
-        source = text(data.text),
-        context = text(data.context ?? '', 'Incoming message', 10000, true);
-      const tools = await getTools(s.db, s.owner);
-      const template = data.templateId
-        ? tools.templates.find((t) => t.id === id(data.templateId))
-        : undefined;
-      if (data.templateId && !template)
-        throw new AppError(
-          'This template was removed. Choose another template.',
-          404,
-        );
-      if (kind === 'reply' && !context)
-        throw new AppError('Paste the incoming message first.');
-      return json({
-        text: await transformText(
-          await aiKey(s),
-          kind,
-          source,
-          context,
-          s.fetcher,
-          {
-            vocabulary: tools.vocabulary,
-            model: s.sharedGroqKey || s.sharedGroqOwner ? 'openai/gpt-oss-120b' : (await getPreferences(s.db, s.owner)).model,
-            instructions: template?.instructions,
-          },
-        ),
-      });
-    }
-    if (path === 'transcribe' && method === 'POST') {
-      const key = await aiKey(s);
-      const bytes = await readBounded(request, 21000000);
-      let form: FormData;
-      try {
-        form = await new Response(bytes, {
-          headers: {
-            'Content-Type': request.headers.get('Content-Type') ?? '',
-          },
-        }).formData();
-      } catch {
-        throw new AppError('The recording could not be read.');
-      }
-      const file = form.get('audio');
-      if (!(file instanceof File) || file.size < 100 || file.size > 20000000)
-        throw new AppError(
-          'Record between a second and five minutes (up to 20 MB).',
-        );
-      if (
-        !/^(audio\/(webm|mp4|mpeg|ogg|wav|x-wav)|video\/(webm|mp4))(;|$)/.test(
-          file.type,
-        )
-      )
-        throw new AppError(
-          'This audio format is not supported. Try Safari or Chrome.',
-        );
-      return json({
-        text: await transcribeAudio(
-          key,
-          file,
-          s.fetcher,
-          (await getTools(s.db, s.owner)).vocabulary,
-        ),
-      });
-    }
     return json({ error: 'Not found.' }, 404);
   } catch (e) {
     if (e instanceof AppError) return json({ error: e.message }, e.status);
     console.error(
-      'DO API failed',
+      'Workspace API failed',
       e instanceof Error ? e.name : 'UnknownError',
     );
     return json(

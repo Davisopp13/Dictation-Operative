@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { NativeSelect } from '@/components/ui/native-select';
 import {
   Dialog,
   DialogContent,
@@ -93,7 +92,6 @@ export function WorkspaceToolsDialog({
           validateTools({
             ...draft,
             collections: draft.collections.filter((v) => v.trim()),
-            vocabulary: draft.vocabulary.filter((v) => v.trim()),
           }),
         ),
       });
@@ -114,13 +112,13 @@ export function WorkspaceToolsDialog({
       }}
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
-        <DialogTitle>Make this workspace yours</DialogTitle>
+        <DialogTitle>Collections</DialogTitle>
         <DialogDescription>
-          Collections, preferred spellings, and reusable voice templates.
+          Suggested collection names for organizing saved text.
         </DialogDescription>
         <fieldset disabled={busy} className="space-y-5">
           <label className="field-label" htmlFor="tools-collections">
-            Project collections
+            Collections
             <Textarea
               id="tools-collections"
               className="field min-h-24"
@@ -132,101 +130,11 @@ export function WorkspaceToolsDialog({
             />
           </label>
           <p className="subtle text-sm">
-            Choose or type a collection in any thought’s editor. Removing a
-            suggestion here keeps existing thoughts and their collection labels.
+            Choose or type a collection when editing saved text. Removing a
+            suggestion here keeps existing items and their collection labels.
           </p>
-          <label className="field-label" htmlFor="tools-vocabulary">
-            Personal vocabulary
-            <Textarea
-              id="tools-vocabulary"
-              className="field min-h-24"
-              value={draft.vocabulary.join('\n')}
-              onChange={(e) =>
-                setDraft({ ...draft, vocabulary: e.target.value.split('\n') })
-              }
-              placeholder={
-                'Preferred spellings, one per line\nDictation Operative\nOppenheimer'
-              }
-            />
-          </label>
-          <p className="subtle text-sm">
-            Up to 60 names or terms, 700 characters total. Used as spelling
-            hints for transcription and writing tools; always review the result.
-          </p>
-          <div className="section-line">
-            <h3>Voice templates</h3>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  templates: [
-                    ...draft.templates,
-                    {
-                      id: crypto.randomUUID(),
-                      name: 'New template',
-                      instructions: '',
-                    },
-                  ],
-                })
-              }
-              disabled={draft.templates.length >= 30}
-            >
-              Add template
-            </Button>
-          </div>
-          {draft.templates.map((t, i) => (
-            <div className="panel space-y-3" key={t.id}>
-              <label className="field-label" htmlFor={`tpl-name-${t.id}`}>
-                Template name
-                <Input
-                  id={`tpl-name-${t.id}`}
-                  className="field"
-                  maxLength={60}
-                  value={t.name}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      templates: draft.templates.map((v, j) =>
-                        j === i ? { ...v, name: e.target.value } : v,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <label className="field-label" htmlFor={`tpl-body-${t.id}`}>
-                How should your words be shaped?
-                <Textarea
-                  id={`tpl-body-${t.id}`}
-                  className="field"
-                  maxLength={2000}
-                  value={t.instructions}
-                  placeholder="Turn my notes into a project brief with Goal, Decisions, and Next steps. Keep my tone."
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      templates: draft.templates.map((v, j) =>
-                        j === i ? { ...v, instructions: e.target.value } : v,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    templates: draft.templates.filter((v) => v.id !== t.id),
-                  })
-                }
-              >
-                Remove template
-              </Button>
-            </div>
-          ))}
           <div className="actions">
-            <Button onClick={() => void save()}>Save workspace tools</Button>
+            <Button onClick={() => void save()}>Save collections</Button>
             <Button
               variant="outline"
               onClick={async () => {
@@ -234,13 +142,13 @@ export function WorkspaceToolsDialog({
                   const saved = await api<WorkspaceTools>('workspace-tools');
                   setDraft(saved);
                   setError('');
-                  setNotice('Reloaded saved tools.');
+                  setNotice('Reloaded saved collections.');
                 } catch (e) {
                   setError(errorMessage(e));
                 }
               }}
             >
-              Reload saved tools
+              Reload saved
             </Button>
             <Button
               variant="outline"
@@ -256,10 +164,10 @@ export function WorkspaceToolsDialog({
                 )
               }
             >
-              Export tools
+              Export
             </Button>
             <label className="control cursor-pointer" htmlFor="tools-import">
-              Import tools
+              Import
               <Input
                 id="tools-import"
                 type="file"
@@ -270,10 +178,10 @@ export function WorkspaceToolsDialog({
                     const f = e.target.files?.[0];
                     if (!f) return;
                     if (f.size > 100000)
-                      throw new Error('Choose a tools export under 100 KB.');
+                      throw new Error('Choose an export under 100 KB.');
                     const v = JSON.parse(await f.text());
                     if (v.app !== 'DO-tools')
-                      throw new Error('Choose a DO workspace tools export.');
+                      throw new Error('Choose a collections export from this workspace.');
                     setDraft({ ...validateTools(v), revision: tools.revision });
                     setNotice('Imported for review. Save to apply.');
                   } catch (e) {
@@ -292,34 +200,5 @@ export function WorkspaceToolsDialog({
         {notice && <output>{notice}</output>}
       </DialogContent>
     </Dialog>
-  );
-}
-export function TemplatePicker({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  const { tools } = useWorkspaceTools();
-  return (
-    <label className="field-label">
-      Voice template
-      <NativeSelect
-        className="field"
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Use the selected writing mode</option>
-        {tools.templates.map((t) => (
-          <option value={t.id} key={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </NativeSelect>
-    </label>
   );
 }

@@ -1,7 +1,6 @@
 import { resolveUser, logoutPath } from './identity';
 import { checkOrigin, handleAPI } from './server';
 import { readBounded } from './request';
-import { positiveLimit } from './shared-ai';
 export async function handleWorkspaceRequest(request: Request, env: Cloudflare.Env) {
   const user = await resolveUser(env, request.headers);
   const accountRelay = /^\/api\/account-relay\/([a-f0-9]{64})\/(state|register|rename|revoke|settings|clipboard(?:\/[a-zA-Z0-9_-]{8,80})?)$/.exec(new URL(request.url).pathname);
@@ -33,11 +32,6 @@ export async function handleWorkspaceRequest(request: Request, env: Cloudflare.E
     images: env.IMAGES,
     content: env.IMAGES,
     owner: user?.userId ?? '',
-    encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY ?? '',
-    sharedGroqKey: env.GROQ_API_KEY,
-    sharedGroqOwner: env.SHARED_GROQ_CREDENTIAL_OWNER,
-    sharedDailyLimit: positiveLimit(env.SHARED_AI_DAILY_LIMIT, 50),
-    sharedGlobalDailyLimit: positiveLimit(env.SHARED_AI_GLOBAL_DAILY_LIMIT, 1000),
     logoutPath: logoutPath(env),
   });
 }

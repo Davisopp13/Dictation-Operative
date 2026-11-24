@@ -1,4 +1,6 @@
-// Device-local unfinished audio only. No credentials or permanent audio history.
+// Read-only access to audio left on this device by the retired recorder.
+// Nothing writes new recordings. The database name and layout are unchanged
+// so recordings made before the recorder was removed remain readable.
 export const RECORDING_DB = 'do-recordings-v2';
 function open() {
   return new Promise((resolve, reject) => {
@@ -36,15 +38,8 @@ async function transaction(stores, mode, run) {
     }
   });
 }
-export const setAccount = (account) =>
-  transaction(['session'], 'readwrite', (tx) =>
-    tx.objectStore('session').put(account, 'account'),
-  );
-export const getAccount = () =>
-  transaction(['session'], 'readonly', (tx, done) => {
-    tx.objectStore('session').get('account').onsuccess = (e) =>
-      done(e.target.result);
-  });
+// The database is shared by every account that used this browser. Each record
+// carries its account, and every operation checks it.
 export const listRecordings = (account) =>
   transaction(['recordings'], 'readonly', (tx, done) => {
     tx.objectStore('recordings').getAll().onsuccess = (e) =>
@@ -54,67 +49,6 @@ export const listRecordings = (account) =>
           .sort((a, b) => b.createdAt - a.createdAt),
       );
   });
-export function beginRecording(account, id, mime, target) {
-  return transaction(['recordings'], 'readwrite', (tx) => {
-    const store = tx.objectStore('recordings');
-    store.getAll().onsuccess = (e) => {
-      const all = e.target.result;
-      if (all.length >= 20 || all.reduce((n, r) => n + r.bytes, 0) > 80000000) {
-        tx.abort();
-        return;
-      }
-      store.add({
-        account,
-        id,
-        mime,
-        target,
-        createdAt: Date.now(),
-        bytes: 0,
-        state: 'recording',
-        transcript: null,
-      });
-    };
-  });
-}
-export function appendChunk(account, id, index, blob) {
-  return transaction(['recordings', 'chunks'], 'readwrite', (tx) => {
-    const store = tx.objectStore('recordings');
-    store.get(id).onsuccess = (e) => {
-      const r = e.target.result;
-      if (!r || r.account !== account) {
-        tx.abort();
-        return;
-      }
-      const chunks = tx.objectStore('chunks');
-      chunks.get([id, index]).onsuccess = (e) => {
-        if (e.target.result) return;
-        if (r.bytes + blob.size > 20000000) {
-          tx.abort();
-          return;
-        }
-        chunks.add({ id, index, blob });
-        store.put({ ...r, bytes: r.bytes + blob.size });
-      };
-    };
-  });
-}
-export function updateRecording(account, id, change) {
-  return transaction(['recordings'], 'readwrite', (tx) => {
-    const store = tx.objectStore('recordings');
-    store.get(id).onsuccess = (e) => {
-      const r = e.target.result;
-      if (!r || r.account !== account) {
-        tx.abort();
-        return;
-      }
-      store.put({
-        ...r,
-        state: change.state ?? r.state,
-        transcript: change.transcript ?? r.transcript,
-      });
-    };
-  });
-}
 export function readAudio(account, id) {
   return transaction(['recordings', 'chunks'], 'readonly', (tx, done) => {
     tx.objectStore('recordings').get(id).onsuccess = (e) => {

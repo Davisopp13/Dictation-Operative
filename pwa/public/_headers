@@ -11,9 +11,3 @@
 
 /offline
   Cache-Control: no-cache
-
-/offline-capture.js
-  Cache-Control: no-cache
-
-/recording-store.js
-  Cache-Control: no-cache

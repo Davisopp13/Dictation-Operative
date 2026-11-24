@@ -68,7 +68,7 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
             get:(...args)=>env.IMAGES.get(...args), head:(...args)=>env.IMAGES.head(...args),
             delete:(...args)=>failure==='delete' ? Promise.reject(new Error('Synthetic R2 outage')) : env.IMAGES.delete(...args),
           };
-          return handleAPI(request,{db:env.DB,owner:user?.userId ?? '',content:store,encryptionKey:''});
+          return handleAPI(request,{db:env.DB,owner:user?.userId ?? '',content:store});
         }
         return handleWorkspaceRequest(request,env);
       },

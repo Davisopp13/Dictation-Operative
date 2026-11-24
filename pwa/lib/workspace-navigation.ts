@@ -1,8 +1,8 @@
+// `content` is the saved value for the Documents view. It predates the
+// Documents name and is kept so stored start pages keep working.
 export const workspacePages = [
-  { value: 'capture', label: 'Capture' },
   { value: 'clipboard', label: 'Clipboard' },
-  { value: 'content', label: 'Content' },
-  { value: 'compose', label: 'Compose' },
+  { value: 'content', label: 'Documents' },
 ] as const;
 
 export type WorkspacePage = (typeof workspacePages)[number]['value'];
@@ -12,6 +12,16 @@ export function isWorkspacePage(value: unknown): value is WorkspacePage {
   return workspacePages.some((page) => page.value === value);
 }
 
+// Capture and Compose were retired with dictation. A device that saved either
+// as its start or current page opens Clipboard instead.
+const retiredPages = new Set(['capture', 'compose']);
+function savedPage(value: unknown): WorkspacePage | null {
+  if (isWorkspacePage(value)) return value;
+  return typeof value === 'string' && retiredPages.has(value)
+    ? 'clipboard'
+    : null;
+}
+
 const startKey = (account: string) => `do-start-page:${account}`;
 const currentKey = (account: string) => `do-current-page:${account}`;
 
@@ -19,10 +29,10 @@ export function readWorkspaceNavigation(
   account: string,
   browser: Browser = window,
 ) {
-  let startPage: WorkspacePage = 'capture';
+  let startPage: WorkspacePage = 'clipboard';
   try {
-    const saved = browser.localStorage.getItem(startKey(account));
-    if (isWorkspacePage(saved)) startPage = saved;
+    startPage =
+      savedPage(browser.localStorage.getItem(startKey(account))) ?? startPage;
   } catch {
     // Browsing still works when storage is unavailable.
   }
@@ -34,8 +44,8 @@ export function readWorkspaceNavigation(
     // A new visit uses the start page, even if the browser copied another
     // tab's session storage. Reload and history restoration keep this tab.
     if (navigation?.type === 'reload' || navigation?.type === 'back_forward') {
-      const saved = browser.sessionStorage.getItem(currentKey(account));
-      if (isWorkspacePage(saved)) view = saved;
+      view =
+        savedPage(browser.sessionStorage.getItem(currentKey(account))) ?? view;
     }
   } catch {
     // Fall back to the chosen start page if session storage is blocked.

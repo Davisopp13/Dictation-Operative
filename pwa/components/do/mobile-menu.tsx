@@ -60,11 +60,11 @@ export function MobileMenu({
           <SheetHeader>
             <SheetTitle>Workspace</SheetTitle>
             <SheetDescription>
-              Settings and tools for your workspace.
+              Settings, sync, and collections for your workspace.
             </SheetDescription>
           </SheetHeader>
           <div className="mobile-menu-items">
-            <Button variant="ghost" disabled={locked} onClick={() => choose(onHelp)}>
+            <Button variant="ghost" onClick={() => choose(onHelp)}>
               <BookOpen /> Help · Quick start
             </Button>
             <Button variant="ghost" onClick={() => choose(onSettings)}>
@@ -78,11 +78,11 @@ export function MobileMenu({
               disabled={locked}
               onClick={() => choose(onTools)}
             >
-              <SlidersHorizontal /> Workspace tools
+              <SlidersHorizontal /> Collections
             </Button>
             {!installed && (
               <Button variant="ghost" onClick={() => choose(onInstall)}>
-                <Smartphone /> Install DO
+                <Smartphone /> Install app
               </Button>
             )}
           </div>

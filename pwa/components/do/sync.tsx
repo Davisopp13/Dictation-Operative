@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,7 +27,6 @@ import {
   readClipboard,
   writeClipboard,
 } from '@/lib/sync/clipboard';
-import type { SettingsState } from '@/components/do/settings';
 import { AccountPanel } from '@/components/do/account';
 import { PairingPanel } from '@/components/do/pairing';
 type Saved = {
@@ -43,14 +41,12 @@ export function SyncDialog({
   account,
   draft,
   initialCode,
-  onSettings,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   account: string;
   draft: string;
   initialCode?: { code: string; publicKey: string };
-  onSettings?: (settings: SettingsState) => void;
 }) {
   const key = `do-sync-v1:${account}`;
   const [saved, setSaved] = useState<Saved | null>(null),
@@ -189,15 +185,14 @@ export function SyncDialog({
     >
       <DialogContent className="sync-dialog">
         <DialogHeader>
-          <DialogTitle>Dictation Operative Sync</DialogTitle>
+          <DialogTitle>Device Sync</DialogTitle>
           <DialogDescription>
-            Pair once. Send text, screenshots, or dictation between your
-            devices.
+            Pair once. Send text and screenshots between your devices.
           </DialogDescription>
         </DialogHeader>
         {saved && (
           <>
-            <AccountPanel key={`account:${account}`} owner={account} onSettings={onSettings} device={saved.device} pair={pair} disabled={busy || pairingActive || saved.paused} />
+            <AccountPanel key={`account:${account}`} owner={account} device={saved.device} pair={pair} disabled={busy || pairingActive || saved.paused} />
             <div className="sync-row">
               <label className="field-label" htmlFor="sync-name">
                 This device
@@ -234,11 +229,6 @@ export function SyncDialog({
                 Save name
               </Button>
             </div>
-            <p className="subtle text-sm">
-              Connecting a Mac?{' '}
-              <Link href="/mac" target="_blank" rel="noopener" className="text-link">Get the Mac app</Link>{' '}
-              and follow the setup guide before pairing.
-            </p>
             <PairingPanel
               key={account}
               device={saved.device}
@@ -293,7 +283,7 @@ export function SyncDialog({
                       );
                     if (p.relay !== DEFAULT_RELAY)
                       throw new Error(
-                        'This version pairs only with the configured Dictation Operative relay.',
+                        'This version pairs only with the configured sync relay.',
                       );
                     await new SyncClient(p).join();
                     save({
@@ -408,7 +398,7 @@ export function SyncDialog({
                         )
                       }
                     >
-                      Send current dictation
+                      Send open text
                     </Button>
                   )}
                 </div>

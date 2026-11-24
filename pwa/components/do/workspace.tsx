@@ -7,9 +7,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import {
-  Mic,
   Clipboard,
-  Layers,
   Settings,
   Pin,
   Download,
@@ -21,13 +19,11 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SidebarProvider, Sidebar } from '@/components/ui/sidebar';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Toaster, toast } from '@/components/ui/toast';
 import {
   Dialog,
@@ -41,11 +37,9 @@ import {
   useWorkspaceTools,
 } from './workspace-tools';
 import { Recovery } from './recovery';
-import { CaptureSurface } from './capture';
 import { ContentTray } from './content-tray';
 import { LibrarySurface } from './library';
 import { DeleteClipboardText } from './delete-clipboard-text';
-import { formatNames, type ComposeFormat } from './compose';
 import { ThemeToggle } from './theme';
 import { MobileMenu } from './mobile-menu';
 import { QuickStartDialog } from './quick-start';
@@ -55,14 +49,8 @@ import { ClipEditor } from '@/components/do/editor';
 import { api, post, errorMessage, download } from '@/lib/client';
 import { refreshPages } from '@/lib/live-list';
 import { ClipboardSyncProvider, useClipboardSync } from './clipboard-sync';
-import {
-  combineTexts,
-  type Clip,
-  type ClipSummary,
-  type ClipKind,
-} from '@/lib/domain';
+import { type Clip, type ClipSummary } from '@/lib/domain';
 import { parseBackup } from '@/lib/backup';
-import { installWebTools } from '@/lib/webmcp';
 import {
   readWorkspaceNavigation,
   rememberWorkspacePage,
@@ -91,10 +79,8 @@ function subscribeInstalled(callback: () => void) {
   };
 }
 const nav = [
-  ['capture', 'Capture', Mic],
   ['clipboard', 'Clipboard', Clipboard],
-  ['content', 'Content', FolderOpen],
-  ['compose', 'Compose', Layers],
+  ['content', 'Documents', FolderOpen],
 ] as const;
 const subscribeHydration = () => () => {};
 export default function Home({
@@ -105,7 +91,7 @@ export default function Home({
   email: string;
 }) {
   // Read browser navigation before mounting the workspace so a saved start
-  // page never briefly shows Capture or mounts its recording controls.
+  // page never briefly shows the other page.
   const hydrated = useSyncExternalStore(
     subscribeHydration,
     () => true,
@@ -128,7 +114,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   const organization = useWorkspaceTools();
   const { watch: watchClipboard } = useClipboardSync();
   const [toolsOpen, setToolsOpen] = useState(false),
-    [templateId, setTemplateId] = useState(''),
     [collectionFilter, setCollectionFilter] = useState(''),
     [tagFilter, setTagFilter] = useState('');
   const [syncOpen, setSyncOpen] = useState(false);
@@ -138,30 +123,16 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     'all' | 'pinned' | 'images'
   >('all');
   const [view, setActiveView] = useState<View>(initialNavigation.view),
-    [mode, setMode] = useState<ClipKind>('note'),
     [query, setQuery] = useState(''),
     [clips, setClips] = useState<ClipSummary[]>([]),
-    [recent, setRecent] = useState<ClipSummary[]>([]),
-    [recentLoading, setRecentLoading] = useState(true),
     [hasMore, setHasMore] = useState(false),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [recording, setRecording] = useState(false),
     [refresh, setRefresh] = useState(0);
-  const [settings, setSettings] = useState<SettingsState>({
-      connected: false,
-      consent: false,
-      secureStorage: true,
-    }),
-    [settingsLoaded, setSettingsLoaded] = useState(false),
+  const [settings, setSettings] = useState<SettingsState>({}),
     [settingsOpen, setSettingsOpen] = useState(false),
     [editor, setEditor] = useState<Clip | null>(null),
     [, setSurfacedMessage] = useState(''),
-    [incoming, setIncoming] = useState(''),
-    [text, setText] = useState(''),
-    [textOpen, setTextOpen] = useState(false),
-    [selected, setSelected] = useState<ClipSummary[]>([]),
-    [format, setFormat] = useState<ComposeFormat>('join'),
     [importOpen, setImportOpen] = useState(false),
     [backup, setBackup] = useState<Clip[]>([]),
     [importError, setImportError] = useState(''),
@@ -179,9 +150,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   const setError = useCallback((text: string) => {
     if (text) toast.add({ title: text, type: 'error' });
   }, []);
-  const createId = useRef(''),
-    composeId = useRef(''),
-    latest = useRef({
+  const latest = useRef({
       query,
       view,
       collectionFilter,
@@ -197,10 +166,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       clipboardFilter,
     };
   }, [query, view, collectionFilter, tagFilter, clipboardFilter]);
-  const locked = busy || recording;
-  // Navigation only locks during an active recording: leaving the screen stops
-  // capture. A slow export or save must never freeze the whole workspace.
-  const navLocked = recording;
+  // Navigation never locks: a slow export or save must not freeze the workspace.
+  const locked = busy;
   useEffect(() => {
     rememberWorkspacePage(account, initialNavigation.view);
   }, [account, initialNavigation.view]);
@@ -209,7 +176,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   >({});
   const setView = useCallback(
     (next: View) => {
-      if (recording || next === view) return;
+      if (next === view) return;
       viewFilters.current[view] = {
         query,
         collection: collectionFilter,
@@ -226,7 +193,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       rememberWorkspacePage(account, next);
       window.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [account, view, recording, query, collectionFilter, tagFilter],
+    [account, view, query, collectionFilter, tagFilter],
   );
 
   const online = useSyncExternalStore(
@@ -243,8 +210,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   useEffect(() => {
     void api<SettingsState>('settings')
       .then(setSettings)
-      .catch((e) => setError(errorMessage(e)))
-      .finally(() => setSettingsLoaded(true));
+      .catch((e) => setError(errorMessage(e)));
     const install = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e as InstallPrompt);
@@ -354,32 +320,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     watchClipboard,
     clipboardFilter,
   ]);
-  useEffect(() => {
-    void api<{ items: ClipSummary[] }>('library')
-      .then((r) => setRecent(r.items.slice(0, 3)))
-      .catch(() => {})
-      .finally(() => setRecentLoading(false));
-  }, [refresh]);
-  useEffect(() => {
-    const protect = (event: BeforeUnloadEvent) => {
-      if (text || incoming) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener('beforeunload', protect);
-    return () => window.removeEventListener('beforeunload', protect);
-  }, [text, incoming]);
-  function ensureCloud() {
-    if (!online) {
-      setError('Connect to the internet to record or use AI.');
-      return false;
-    }
-    if (!settings.connected || !settings.consent) {
-      setSettingsOpen(true);
-      return false;
-    }
-    return true;
-  }
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setError('');
@@ -395,63 +335,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   async function openClip(id: string) {
     await run(async () => setEditor(await api<Clip>('clips/' + id)));
   }
-  async function createCapture(content: string, id: string) {
-    if (mode === 'reply' && !incoming.trim())
-      throw new Error('Paste the incoming message before recording a reply.');
-    let saved = await post<Clip>('clips', {
-      id,
-      content,
-      kind: mode,
-      context: mode === 'reply' ? incoming : '',
-    });
-    refreshLibrary();
-    setText('');
-    setTextOpen(false);
-    createId.current = '';
-    if (
-      (templateId || mode === 'reply' || mode === 'prompt') &&
-      settings.connected &&
-      settings.consent
-    ) {
-      try {
-        const transformed = await post<{ text: string }>('transform', {
-          kind: mode === 'note' ? 'rewrite' : mode,
-          templateId: templateId || undefined,
-          text: saved.content,
-          context: saved.context,
-        });
-        saved = await api<Clip>('clips/' + saved.id, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            action: 'transform',
-            content: transformed.text,
-            versionKind: 'rewritten',
-            revision: saved.revision,
-          }),
-        });
-        refreshLibrary();
-      } catch (e) {
-        setError('Your original was saved. ' + errorMessage(e));
-      }
-    }
-    setEditor(saved);
-    setIncoming('');
-    setMessage(
-      mode === 'note'
-        ? 'Thought saved.'
-        : `Your ${mode === 'reply' ? 'reply' : 'prompt'} is ready to review.`,
-    );
-  }
-  function toggleSelection(clip: ClipSummary) {
-    setSelected((current) =>
-      current.some((c) => c.id === clip.id)
-        ? current.filter((c) => c.id !== clip.id)
-        : current.length < 20
-          ? [...current, clip]
-          : current,
-    );
-    composeId.current = '';
-  }
   async function copyClip(item: ClipSummary) {
     await run(async () => {
       const full = await api<Clip>('clips/' + item.id);
@@ -465,16 +348,13 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   }
   function onClipDeleted(id: string) {
     setEditor((current) => (current?.id === id ? null : current));
-    setSelected((current) => current.filter((c) => c.id !== id));
     setClips((current) => current.filter((c) => c.id !== id));
-    setRecent((current) => current.filter((c) => c.id !== id));
-    composeId.current = '';
     refreshLibrary();
     setMessage('Text deleted from Clipboard.');
   }
   async function pinClip(item: ClipSummary) {
     await run(async () => {
-      const updated = await api<Clip>('clips/' + item.id, {
+      await api<Clip>('clips/' + item.id, {
         method: 'PATCH',
         body: JSON.stringify({
           action: 'pin',
@@ -482,49 +362,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           revision: item.revision,
         }),
       });
-      setSelected((current) =>
-        current.map((c) => (c.id === updated.id ? updated : c)),
-      );
-      refreshLibrary();
-    });
-  }
-  async function compose() {
-    if (format !== 'join' && !ensureCloud()) return;
-    await run(async () => {
-      const full = await Promise.all(
-        selected.map((c) => api<Clip>('clips/' + c.id)),
-      );
-      const source = combineTexts(full);
-      composeId.current ||= crypto.randomUUID();
-      let saved = await post<Clip>('clips', {
-        id: composeId.current,
-        content: source,
-        title: format === 'join' ? 'Combined thoughts' : formatNames[format],
-        kind: 'combined',
-      });
-      refreshLibrary();
-      if (format !== 'join') {
-        try {
-          const result = await post<{ text: string }>('transform', {
-            kind: format,
-            text: source,
-          });
-          saved = await api<Clip>('clips/' + saved.id, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              action: 'transform',
-              content: result.text,
-              versionKind: 'rewritten',
-              revision: saved.revision,
-            }),
-          });
-        } catch (e) {
-          setError('Your combined source was saved. ' + errorMessage(e));
-        }
-      }
-      setEditor(saved);
-      setSelected([]);
-      composeId.current = '';
       refreshLibrary();
     });
   }
@@ -553,14 +390,14 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         if (result.imported) imported++;
       }
       setMessage(
-        `Imported ${imported} thoughts. Existing thoughts were kept unchanged.`,
+        `Imported ${imported} items. Existing items were kept unchanged.`,
       );
       setBackup([]);
       setImportOpen(false);
       refreshLibrary();
     } catch (e) {
       setImportError(
-        `${imported} thoughts restored so far. ${errorMessage(e)} You can retry this backup safely.`,
+        `${imported} items restored so far. ${errorMessage(e)} You can retry this backup safely.`,
       );
       refreshLibrary();
     } finally {
@@ -597,7 +434,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         'application/json',
       );
       setMessage(
-        `Exported ${all.length} thoughts with originals and versions.`,
+        `Exported ${all.length} items with originals and versions.`,
       );
     });
   }
@@ -622,107 +459,10 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       setHasMore(r.hasMore);
     });
   }
-  async function paste() {
-    try {
-      const value = await navigator.clipboard.readText();
-      if (value.length > 20000)
-        throw new Error(
-          'Clipboard text is too long. Paste a smaller selection (up to 20,000 characters).',
-        );
-      setText(value);
-      setTextOpen(true);
-    } catch (e) {
-      setTextOpen(true);
-      setMessage(
-        e instanceof Error && e.message.includes('too long')
-          ? e.message
-          : 'Paste directly into the text field using your keyboard or touch menu.',
-      );
-    }
-  }
-  const toolsState = useRef({
-    clips,
-    selected,
-    locked,
-    editor,
-    text,
-    incoming,
-    navigate: setView,
-  });
-  useEffect(() => {
-    toolsState.current = {
-      clips,
-      selected,
-      locked,
-      editor,
-      text,
-      incoming,
-      navigate: setView,
-    };
-  }, [clips, selected, locked, editor, text, incoming, setView]);
-  useEffect(
-    () =>
-      installWebTools({
-        search: async (query) => {
-          toolsState.current.navigate('clipboard');
-          setClipboardFilter('all');
-          setQuery(query);
-          const r = await api<{ items: ClipSummary[] }>(
-            'library?q=' + encodeURIComponent(query),
-          );
-          setClips(r.items);
-          return r.items.map(({ id, title, kind, pinned }) => ({
-            id,
-            title,
-            kind,
-            pinned,
-          }));
-        },
-        open: async (id) => {
-          if (toolsState.current.locked || toolsState.current.editor)
-            throw new Error(
-              'Finish the current recording or close the editor first.',
-            );
-          const clip = await api<Clip>('clips/' + id);
-          setEditor(clip);
-          return { id: clip.id, title: clip.title };
-        },
-        stage: async (input) => {
-          if (
-            toolsState.current.locked ||
-            toolsState.current.editor ||
-            toolsState.current.text ||
-            toolsState.current.incoming
-          )
-            throw new Error(
-              'Finish your current draft before staging another.',
-            );
-          toolsState.current.navigate('capture');
-          setMode(input.kind);
-          setText(input.text);
-          setIncoming(input.context);
-          setTextOpen(true);
-          return { status: 'staged', saved: false };
-        },
-      }),
-    [],
-  );
   // The whole card stays clickable, but the button no longer wraps the
   // heading and the time — it names the thought and stretches over the card.
-  const card = (item: ClipSummary, selectable = false) => (
+  const card = (item: ClipSummary) => (
     <article className="thought-card" key={item.id}>
-      {selectable && (
-        <Checkbox
-          checked={selected.some((c) => c.id === item.id)}
-          onCheckedChange={() => toggleSelection(item)}
-          disabled={
-            (!selected.some((c) => c.id === item.id) &&
-              selected.length >= 20) ||
-            locked
-          }
-          aria-label={`Select ${item.title}`}
-        />
-      )}
       <div className="thought-main">
         <div className="thought-meta">
           <span>
@@ -797,12 +537,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         <div className="brand">
           <Image
             src="/icons/icon-192.png"
-            alt="DO"
+            alt=""
             width={44}
             height={44}
             unoptimized
           />
-          <span className="brand-label">Voice workspace</span>
+          <span className="brand-label">Catchall Desk</span>
         </div>
         <nav className="side-nav" aria-label="Main navigation">
           {nav.map(([id, label, Icon]) => (
@@ -810,25 +550,21 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               key={id}
               className="nav-button"
               variant={view === id ? 'secondary' : 'ghost'}
-              disabled={navLocked}
               aria-busy={busy || undefined}
               aria-current={view === id ? 'page' : undefined}
               onClick={() => setView(id)}
             >
               <Icon />
               {label}
-              {id === 'compose' && selected.length > 0 && (
-                <span className="count-badge">{selected.length}</span>
-              )}
             </Button>
           ))}
         </nav>
         <div className="side-bottom">
-          <Button variant="ghost" className="nav-button mb-4" disabled={navLocked} onClick={() => setHelpOpen(true)}>
+          <Button variant="ghost" className="nav-button mb-4" onClick={() => setHelpOpen(true)}>
             <BookOpen /> Help · Quick start
           </Button>
           <span className="mini-label">
-            A little room for your next big idea.
+            Paste, upload, or scan in. Copy, share, or print out.
           </span>
           {!installed && (
             <Button
@@ -836,12 +572,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               className="control w-full mt-4"
               onClick={() => setInstallOpen(true)}
             >
-              <Smartphone /> Install DO
+              <Smartphone /> Install app
             </Button>
           )}
           <p className="mt-5">
-            DO · Version 2<br />
-            Your private voice workspace
+            Catchall Desk<br />
+            Your private workspace across devices
           </p>
         </div>
       </Sidebar>
@@ -850,7 +586,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           <span className="brand mobile-brand">
             <Image
               src="/icons/icon-192.png"
-              alt="DO Voice Workspace"
+              alt="Catchall Desk"
               width={44}
               height={44}
               unoptimized
@@ -864,7 +600,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               disabled={locked}
               onClick={() => setToolsOpen(true)}
             >
-              Workspace tools
+              Collections
             </Button>
 
             {!installed && (
@@ -872,7 +608,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 className="control mobile-install"
                 variant="ghost"
                 onClick={() => setInstallOpen(true)}
-                aria-label="Install DO"
+                aria-label="Install Catchall Desk"
               >
                 <Smartphone />
               </Button>
@@ -889,16 +625,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               className="control"
               onClick={() => setSettingsOpen(true)}
             >
-              <span
-                className={`status-dot ${settings.connected && settings.consent ? 'ready' : ''}`}
-                aria-hidden="true"
-              />
               <Settings /> Settings
-              <span className="sr-only">
-                {settings.connected && settings.consent
-                  ? 'Voice and AI connected'
-                  : 'Voice and AI not set up yet'}
-              </span>
             </Button>
           </div>
           <MobileMenu
@@ -913,8 +640,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         </header>
         <Recovery
           disabled={locked}
-          ensureCloud={ensureCloud}
-          onRecovered={(clip) => {
+          onSaved={(clip) => {
             setEditor(clip);
             refreshLibrary();
           }}
@@ -922,17 +648,17 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         <div className="content">
           {!online && (
             <output className="banner">
-              <WifiOff size={18} /> You’re offline. Recordings stay on this
-              device. Reconnect to preserve unsaved words.
+              <WifiOff size={18} /> You’re offline. Reconnect to load, save,
+              or sync your items.
             </output>
           )}
           {updateReady && (
             <div className="banner">
-              A new version of DO is ready.
+              A new version of Catchall Desk is ready.
               <Button
                 variant="outline"
                 className="control"
-                disabled={locked || !!editor || !!text || !!incoming}
+                disabled={locked || !!editor}
                 onClick={() => window.location.reload()}
               >
                 Reload
@@ -941,68 +667,22 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           )}
           <div className="intro">
             <div className="eyebrow">
-              {view === 'capture'
-                ? 'Made for your train of thought'
-                : view === 'clipboard'
-                  ? 'Ready to use again'
-                  : view === 'content' ? 'Within reach, across devices' : 'Give your thoughts a little shape'}
+              {view === 'clipboard'
+                ? 'Ready to use again'
+                : 'Within reach, across devices'}
             </div>
-            <h1>
-              {view === 'capture'
-                ? 'Say it. Make it useful.'
-                : view === 'clipboard'
-                  ? 'Clipboard'
-                  : view === 'content' ? 'Content' : 'A few thoughts. One good draft.'}
-            </h1>
+            <h1>{view === 'clipboard' ? 'Clipboard' : 'Documents'}</h1>
             <p className="subtle">
-              {view === 'capture'
-                ? 'A quick thought, a thoughtful reply, or the start of something bigger.'
-                : view === 'clipboard'
-                  ? 'All your saved words and images. Pin text to keep it handy, or copy an item to use it in another app.'
-                  : view === 'content' ? 'Files and Google links you deliberately keep handy. Open them from any device signed into this account.' : 'Choose your clips, put them in order, and decide what to make.'}
+              {view === 'clipboard'
+                ? 'All your saved text and images. Pin an item to keep it handy, or copy it to use in another app.'
+                : 'Files and Google links you deliberately keep handy. Open them from any device signed into this account.'}
             </p>
           </div>
-          {view === 'capture' ? (
-            <CaptureSurface
-              settingsLoaded={settingsLoaded}
-              settings={settings}
-              setSettingsOpen={setSettingsOpen}
-              locked={locked}
-              busy={busy}
-              mode={mode}
-              setMode={setMode}
-              incoming={incoming}
-              setIncoming={setIncoming}
-              templateId={templateId}
-              setTemplateId={setTemplateId}
-              text={text}
-              setText={setText}
-              textOpen={textOpen}
-              setTextOpen={setTextOpen}
-              setError={setError}
-              setRecording={setRecording}
-              createCapture={createCapture}
-              nextCaptureId={() => {
-                createId.current ||= crypto.randomUUID();
-                return createId.current;
-              }}
-              resetCaptureId={() => {
-                createId.current = '';
-              }}
-              run={run}
-              paste={paste}
-              recent={recent}
-              recentLoading={recentLoading}
-              card={card}
-              setView={setView}
-              setQuery={setQuery}
-            />
-          ) : view === 'content' ? (
+          {view === 'content' ? (
             <ContentTray key={account} />
           ) : (
             <LibrarySurface
               dailyCleanup={!!settings.clipboardDailyCleanup}
-              view={view}
               clipboardFilter={clipboardFilter}
               setClipboardFilter={(filter) => {
                 if (filter === clipboardFilter) return;
@@ -1015,7 +695,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 }
                 setClipboardFilter(filter);
               }}
-              setView={setView}
               collectionFilter={collectionFilter}
               setCollectionFilter={setCollectionFilter}
               tagFilter={tagFilter}
@@ -1028,18 +707,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               loading={loading}
               hasMore={hasMore}
               loadMore={loadMore}
-              selected={selected}
-              setSelected={setSelected}
-              toggleSelection={toggleSelection}
-              format={format}
-              setFormat={setFormat}
-              compose={compose}
-              resetComposeId={() => {
-                composeId.current = '';
-              }}
               setImportOpen={setImportOpen}
               exportLibrary={exportLibrary}
-              busy={busy}
               locked={locked}
               accountEmail={email}
               onClipboardSaved={() => {
@@ -1058,16 +727,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           <Button
             key={id}
             variant={view === id ? 'secondary' : 'ghost'}
-            disabled={navLocked}
             aria-busy={busy || undefined}
             aria-current={view === id ? 'page' : undefined}
             onClick={() => setView(id)}
           >
             <span className="mobile-nav-icon">
               <Icon />
-              {id === 'compose' && selected.length > 0 && (
-                <span className="mobile-nav-count">{selected.length}</span>
-              )}
             </span>
             <span>{label}</span>
           </Button>
@@ -1077,7 +742,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       <SyncDialog
         open={syncOpen}
         onOpenChange={setSyncOpen}
-        onSettings={setSettings}
         account={account}
         draft={editor?.content ?? ''}
       />
@@ -1102,12 +766,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         clip={editor}
         onSync={() => setSyncOpen(true)}
         onClose={() => setEditor(null)}
-        ensureCloud={ensureCloud}
         onUpdate={(updated) => {
           setEditor(updated);
-          setSelected((current) =>
-            current.map((c) => (c.id === updated.id ? updated : c)),
-          );
           refreshLibrary();
         }}
         onDelete={onClipDeleted}
@@ -1123,14 +783,14 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         }}
       >
         <DialogContent className="settings-dialog">
-          <DialogTitle>Bring your words back</DialogTitle>
+          <DialogTitle>Bring your text back</DialogTitle>
           <DialogDescription>
-            Choose a DO text backup (existing library exports also work).
-            Originals, versions and pins will be preserved. Existing thoughts
-            are never overwritten.
+            Choose a text backup exported from this workspace. Originals,
+            versions and pins will be preserved. Existing items are never
+            overwritten.
           </DialogDescription>
           <label htmlFor="backup-file" className="field-label">
-            DO text backup (.json)
+            Text backup (.json)
           </label>
           <Input
             id="backup-file"
@@ -1141,7 +801,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             onChange={(event) => void readBackup(event.target.files?.[0])}
           />
           {backup.length > 0 && (
-            <p>{backup.length} thoughts ready to import.</p>
+            <p>{backup.length} items ready to import.</p>
           )}
           {importError && (
             <Alert variant="destructive" className="error-message" role="alert">
@@ -1163,19 +823,19 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       </Dialog>
       <Dialog open={installOpen} onOpenChange={setInstallOpen}>
         <DialogContent className="settings-dialog">
-          <DialogTitle>Keep DO one tap away</DialogTitle>
+          <DialogTitle>Keep Catchall Desk one tap away</DialogTitle>
           <DialogDescription>
             Add it to your home screen for an app-like workspace.
           </DialogDescription>
           <div className="install-brand">
             <Image
               src="/icons/icon-192.png"
-              alt="DO app icon"
+              alt="Catchall Desk app icon"
               width={70}
               height={70}
               unoptimized
             />
-            <strong>DO · Voice Workspace</strong>
+            <strong>Catchall Desk</strong>
           </div>
           {installPrompt ? (
             <Button
@@ -1189,7 +849,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 })
               }
             >
-              Install DO
+              Install Catchall Desk
             </Button>
           ) : (
             <>
@@ -1212,18 +872,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             </>
           )}
           <p className="subtle text-sm">
-            After your first online visit, you can capture recordings offline.
-            Reconnect to transcribe, save to Clipboard, and use AI. Recording
-            stops if you leave the app.
+            Your saved Clipboard and Documents need a connection. The installed
+            app opens the same private workspace as this site.
           </p>
-          <div className="border-t pt-4 text-sm">
-            <p>Want to dictate outside this window?{' '}
-              <Link href="/mac" target="_blank" rel="noopener" className="text-link">Get the Mac app</Link>.
-            </p>
-            <p className="subtle mt-2">Find downloads and step-by-step instructions in <strong>Settings → Desktop apps</strong>, including the{' '}
-              <Link href="/windows" target="_blank" rel="noopener" className="text-link">Windows test app</Link>.
-            </p>
-          </div>
         </DialogContent>
       </Dialog>
       <Dialog

@@ -42,14 +42,6 @@ export type ClipSummary = Pick<
   | 'createdAt'
   | 'updatedAt'
 >;
-export type Transform =
-  | 'clean'
-  | 'rewrite'
-  | 'reply'
-  | 'prompt'
-  | 'email'
-  | 'update'
-  | 'checklist';
 export class AppError extends Error {
   status: number;
   constructor(message: string, status = 400) {
@@ -90,23 +82,8 @@ export function revision(value: unknown): number {
 }
 export function clipKind(value: unknown): ClipKind {
   if (!['note', 'reply', 'prompt', 'combined'].includes(String(value)))
-    throw new AppError('Unknown capture type.');
+    throw new AppError('Unknown text type.');
   return value as ClipKind;
-}
-export function transformKind(value: unknown): Transform {
-  if (
-    ![
-      'clean',
-      'rewrite',
-      'reply',
-      'prompt',
-      'email',
-      'update',
-      'checklist',
-    ].includes(String(value))
-  )
-    throw new AppError('Unknown writing action.');
-  return value as Transform;
 }
 export function newClip(
   input: Record<string, unknown>,
@@ -152,7 +129,7 @@ export function changeClip(
     if (existing) {
       if (existing.text !== text(input.content))
         throw new AppError(
-          'This recording was already saved with different words.',
+          'This addition was already saved with different text.',
           409,
         );
       return current;
@@ -160,7 +137,7 @@ export function changeClip(
   }
   if (revision(input.revision) !== current.revision)
     throw new AppError(
-      'This thought changed in another tab. Reopen it before saving; your unsaved text is still here.',
+      'This text changed in another tab. Reopen it before saving; your unsaved text is still here.',
       409,
     );
   const next: Clip = {
@@ -178,7 +155,7 @@ export function changeClip(
       break;
     case 'pin':
       if (typeof input.pinned !== 'boolean')
-        throw new AppError('Choose whether to pin this thought.');
+        throw new AppError('Choose whether to pin this text.');
       next.pinned = input.pinned;
       break;
     case 'rename':
@@ -189,12 +166,6 @@ export function changeClip(
       if (input.title !== undefined)
         next.title = text(input.title, 'Title', 120);
       versionKind = 'edited';
-      break;
-    case 'transform':
-      next.content = text(input.content);
-      if (!['cleaned', 'rewritten'].includes(String(input.versionKind)))
-        throw new AppError('Invalid version type.');
-      versionKind = input.versionKind as VersionKind;
       break;
     case 'append': {
       const addition = text(input.content);
@@ -241,7 +212,7 @@ export function changeClip(
   if (versionKind) {
     if (next.versions.length >= 300)
       throw new AppError(
-        'This thought has 300 saved versions. Export it or start a new thought to keep editing.',
+        'This text has 300 saved versions. Export it or save new text to keep editing.',
       );
     next.versions.push({
       id: crypto.randomUUID(),
@@ -252,16 +223,10 @@ export function changeClip(
   }
   if (JSON.stringify(next).length > 850000)
     throw new AppError(
-      'This thought is full. Export it or start a new thought to continue.',
+      'This text is full. Export it or save new text to continue.',
     );
   return next;
 }
-export function combineTexts(clips: Pick<Clip, 'content'>[]): string {
-  if (clips.length < 2 || clips.length > 20)
-    throw new AppError('Choose between 2 and 20 thoughts.');
-  return text(clips.map((c) => c.content).join('\n\n'), 'Combined text');
-}
-
 export function tagList(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 12)
     throw new AppError('Use up to 12 tags.');

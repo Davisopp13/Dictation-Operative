@@ -96,7 +96,7 @@ void test('daily Clipboard retention and image pins on real D1/R2', async (t) =>
           headers: { Origin: origin, 'Content-Type': 'application/json' },
           ...(data === undefined ? {} : { body: JSON.stringify(data) }),
         }),
-        { db, owner, images: store, encryptionKey: '' },
+        { db, owner, images: store},
       );
     const saveText = (
       owner: string,
@@ -125,7 +125,7 @@ void test('daily Clipboard retention and image pins on real D1/R2', async (t) =>
           headers: { Origin: 'https://do.test', 'Content-Type': 'image/png' },
           body: png,
         }),
-        { db, owner, images, encryptionKey: '' },
+        { db, owner, images},
       );
       assert.equal(result.status, 201);
       const image = (await result.json()) as ClipboardImage;
@@ -205,13 +205,26 @@ void test('daily Clipboard retention and image pins on real D1/R2', async (t) =>
           ).clipboardDailyCleanup,
           false,
         );
-        await call('settings', 'POST', { action: 'consent', consent: true });
+        // Consent recorded while dictation existed stays in the row untouched.
+        await db
+          .prepare("UPDATE preferences SET consent=1 WHERE owner='alice'")
+          .run();
+        await call('settings', 'POST', {
+          action: 'clipboard-cleanup',
+          enabled: true,
+        });
         const settings = (await (await call('settings')).json()) as {
           clipboardDailyCleanup: boolean;
-          consent: boolean;
         };
         assert.equal(settings.clipboardDailyCleanup, true);
-        assert.equal(settings.consent, true);
+        assert.equal(
+          (
+            await db
+              .prepare("SELECT consent FROM preferences WHERE owner='alice'")
+              .first<{ consent: number }>()
+          )?.consent,
+          1,
+        );
       },
     );
     await t.test(

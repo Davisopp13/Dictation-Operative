@@ -188,21 +188,3 @@ export async function getPreferences(db: D1Database, owner: string) {
     }
   );
 }
-export async function limitUsage(db: D1Database, owner: string) {
-  const window = Math.floor(Date.now() / 60000);
-  const r = await db
-    .prepare(
-      'INSERT INTO usage (owner,window,count) VALUES (?,?,1) ON CONFLICT(owner,window) DO UPDATE SET count=count+1 RETURNING count',
-    )
-    .bind(owner, window)
-    .first<{ count: number }>();
-  if ((r?.count ?? 99) > 10)
-    throw new AppError(
-      'Please wait a minute before making another AI request.',
-      429,
-    );
-  await db
-    .prepare('DELETE FROM usage WHERE owner=? AND window<?')
-    .bind(owner, window - 2)
-    .run();
-}

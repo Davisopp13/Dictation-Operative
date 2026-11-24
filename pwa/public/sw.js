@@ -1,9 +1,8 @@
-// Private library responses are deliberately never cached.
-const CACHE = 'do-static-v3';
+// Private workspace responses are deliberately never cached.
+// Keep the `do-static-` prefix: activation deletes older caches by it.
+const CACHE = 'do-static-v4';
 const STATIC = [
   '/offline.html',
-  '/offline-capture.js',
-  '/recording-store.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/apple-touch-icon.png',
