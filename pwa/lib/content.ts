@@ -354,14 +354,22 @@ export async function handleContent(
         'Upload the exact reserved file size as binary data.',
         400,
       );
+    // The claim, the publish and the failure cleanup all name the object key
+    // read above. A client-chosen identifier can be deleted and reserved again
+    // at any moment; that replacement has a different key, and this request
+    // must never claim it, mark it ready, or delete it on the strength of
+    // bytes written for the reservation it replaced.
     const claimed = await s.db
       .prepare(
-        "UPDATE content_items SET state='writing' WHERE owner=? AND id=? AND state='uploading' RETURNING id",
+        "UPDATE content_items SET state='writing' WHERE owner=? AND id=? AND object_key=? AND state='uploading' RETURNING id",
       )
-      .bind(s.owner, itemId)
+      .bind(s.owner, itemId, row.object_key)
       .first();
     if (!claimed)
-      throw new AppError('This upload is already in progress.', 409);
+      throw new AppError(
+        'This upload is already in progress or was restarted. Check its status before retrying.',
+        409,
+      );
     const abort = new AbortController();
     const timer = setTimeout(
       () => abort.abort('Upload timed out'),
@@ -399,16 +407,18 @@ export async function handleContent(
         throw new Error('Incomplete upload');
       const ready = await s.db
         .prepare(
-          `UPDATE content_items SET state='ready',expires_at=0 WHERE owner=? AND id=? AND state='writing' RETURNING ${columns}`,
+          `UPDATE content_items SET state='ready',expires_at=0 WHERE owner=? AND id=? AND object_key=? AND state='writing' RETURNING ${columns}`,
         )
-        .bind(s.owner, itemId)
+        .bind(s.owner, itemId, row.object_key)
         .first<Row>();
       if (!ready) throw new Error('Upload reservation disappeared');
       return json(shape(ready));
     } catch {
       await s.db
-        .prepare('DELETE FROM content_items WHERE owner=? AND id=?')
-        .bind(s.owner, itemId)
+        .prepare(
+          'DELETE FROM content_items WHERE owner=? AND id=? AND object_key=?',
+        )
+        .bind(s.owner, itemId, row.object_key)
         .run();
       try {
         await deleteQueuedContent(s.db, store, row.object_key);

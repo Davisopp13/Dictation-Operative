@@ -70,6 +70,24 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           };
           return handleAPI(request,{db:env.DB,owner:user?.userId ?? '',content:store});
         }
+        if(request.headers.has('X-Test-Replace-Before-Claim')) {
+          // Between this upload reading its reservation and claiming it, the
+          // reservation is replaced by one with the same identifier and a new
+          // object key, as a delete followed by a fresh reserve would do.
+          const user=await resolveUser(env,request.headers);
+          const db={
+            batch:(...args)=>env.DB.batch(...args),
+            prepare:(sql)=>{
+              const real=env.DB.prepare(sql);
+              if(!sql.includes("SET state='writing'")) return real;
+              return {bind:(...args)=>({first:async()=>{
+                await env.DB.prepare("UPDATE content_items SET object_key='content/replacement-' || id WHERE id=?").bind(args[1]).run();
+                return real.bind(...args).first();
+              }})};
+            },
+          };
+          return handleAPI(request,{db,owner:user?.userId ?? '',content:env.IMAGES});
+        }
         return handleWorkspaceRequest(request,env);
       },
       async scheduled(controller,env){await runContentCleanup(env.DB,env.IMAGES,controller.scheduledTime);}
@@ -758,6 +776,39 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           200,
         );
         assert.ok(await bucket.head(retriedKey));
+
+        // An upload must not claim a reservation that replaced the one it
+        // read. Otherwise the replacement is marked ready with no file behind
+        // it and every later download fails.
+        const racedId = crypto.randomUUID();
+        const raced = { ...reservation, id: racedId, name: 'raced.pdf' };
+        assert.equal((await call('v1/documents', 'POST', raced)).status, 201);
+        const replacedKey = (await keyOf(racedId))!;
+        const lost = await call(
+          `v1/documents/${racedId}/file`,
+          'PUT',
+          bytes,
+          alice.cookie,
+          { 'X-Test-Replace-Before-Claim': '1' },
+        );
+        assert.equal(lost.status, 409, await lost.clone().text());
+        const replacementKey = (await keyOf(racedId))!;
+        assert.equal(replacementKey, `content/replacement-${racedId}`);
+        assert.equal(await bucket.head(replacedKey), null);
+        assert.equal(await bucket.head(replacementKey), null);
+        // The replacement is untouched and still waiting for its own upload.
+        assert.equal(
+          ((await (await call(`v1/documents/${racedId}`)).json()) as Doc).state,
+          'uploading',
+        );
+        assert.equal(
+          (await call(`v1/documents/${racedId}/file`, 'PUT', bytes)).status,
+          200,
+        );
+        assert.ok(await bucket.head(replacementKey));
+        const racedFile = await call(`v1/documents/${racedId}/file`);
+        assert.equal(racedFile.status, 200);
+        assert.deepEqual(new Uint8Array(await racedFile.arrayBuffer()), bytes);
 
         // Cursor pages stay complete when an earlier item is deleted.
         const linkIds: string[] = [];
