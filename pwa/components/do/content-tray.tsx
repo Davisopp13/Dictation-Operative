@@ -6,6 +6,7 @@ import {
   Pin,
   Trash2,
   Download,
+  Eye,
   Play,
   Search,
   LoaderCircle,
@@ -26,6 +27,8 @@ import {
   CONTENT_FILE_LIMIT,
   CONTENT_ACCOUNT_LIMIT,
   contentPlayback,
+  contentPreview,
+  declaredContentType,
   contentProvider,
   type ContentItem,
   type ContentPage,
@@ -169,13 +172,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
             kind: 'file',
             name: file.name.slice(0, 120),
             filename: file.name.slice(0, 180),
-            mime:
-              file.type ||
-              (/\.mp3$/i.test(file.name)
-                ? 'audio/mpeg'
-                : /\.mp4$/i.test(file.name)
-                  ? 'video/mp4'
-                  : 'application/octet-stream'),
+            mime: declaredContentType(file),
             size: file.size,
           }),
         });
@@ -390,6 +387,15 @@ export function ContentTray({ active = true }: { active?: boolean }) {
                         <Play aria-hidden="true" /> Play
                       </Button>
                     )}
+                    {contentPreview(item.mime) === 'image' && (
+                      <Button
+                        variant="outline"
+                        disabled={!!busy}
+                        onClick={() => setPreview(item)}
+                      >
+                        <Eye aria-hidden="true" /> View
+                      </Button>
+                    )}
                     <a
                       className="text-link content-link"
                       href={`/api/content/${item.id}/file?download=1`}
@@ -511,11 +517,21 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         <DialogContent className="content-dialog">
           <DialogTitle>{preview?.name}</DialogTitle>
           <DialogDescription>
-            Playback depends on your browser and the file’s codec. Download if
-            this format cannot play.
+            {preview && contentPreview(preview.mime) === 'image'
+              ? 'Shown as saved. Download for the original file.'
+              : 'Playback depends on your browser and the file’s codec. Download if this format cannot play.'}
           </DialogDescription>
           {preview &&
-            (contentPlayback(preview.mime) === 'video' ? (
+            (contentPreview(preview.mime) === 'image' ? (
+              // The name is the only description the user gave this image.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={preview.id}
+                className="content-player content-image"
+                alt={preview.name}
+                src={`/api/content/${preview.id}/file`}
+              />
+            ) : contentPlayback(preview.mime) === 'video' ? (
               // User-provided media has no caption track. Do not fabricate one.
               // oxlint-disable-next-line jsx-a11y/media-has-caption
               <video

@@ -120,9 +120,16 @@ Recovering from an uncertain upload: `GET /documents/:id`.
 - 404: the upload failed and the reservation is gone. Reserve again with the
   same `id` and upload.
 
-Limits: 50 MB per file, 2 GB per account, 500 items. Files other than MP3 and
-MP4 are served as `application/octet-stream` attachments under a sandbox
-content security policy.
+Limits: 50 MB per file, 2 GB per account, 500 items.
+
+Media types: an item keeps its real `mime` only when the declared type is one
+of MP3, MP4, PDF, PNG, JPEG, WebP, or GIF and the filename has the matching
+extension. Everything else, including SVG and HTML, is
+`application/octet-stream`. Audio, video, and images are served with an
+`inline` disposition unless `?download` is given; PDFs and opaque files are
+always attachments. Every file response carries `nosniff` and a sandbox
+content security policy, so a native client should fetch the bytes and render
+PDFs and images itself, using `mime` and `filename` from the item.
 
 ## Deployment notes
 

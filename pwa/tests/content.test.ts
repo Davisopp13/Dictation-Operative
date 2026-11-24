@@ -438,13 +438,21 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
       },
     );
     await t.test(
-      'unsafe and mislabeled types always download opaque bytes; MP4 playback uses correct type',
+      'unsafe and mislabeled types always download opaque bytes; known media keep their type',
       async () => {
-        for (const [name, mime, expected] of [
-          ['evil.html', 'text/html', 'application/octet-stream'],
-          ['evil.svg', 'image/svg+xml', 'application/octet-stream'],
-          ['fake.html', 'video/mp4', 'application/octet-stream'],
-          ['movie.mp4', 'video/mp4', 'video/mp4'],
+        for (const [name, mime, expected, disposition] of [
+          ['evil.html', 'text/html', 'application/octet-stream', 'attachment'],
+          ['evil.svg', 'image/svg+xml', 'application/octet-stream', 'attachment'],
+          ['fake.html', 'video/mp4', 'application/octet-stream', 'attachment'],
+          ['fake.html', 'image/png', 'application/octet-stream', 'attachment'],
+          ['fake.png', 'text/html', 'application/octet-stream', 'attachment'],
+          ['page.pdf.html', 'application/pdf', 'application/octet-stream', 'attachment'],
+          ['movie.mp4', 'video/mp4', 'video/mp4', 'inline'],
+          ['photo.PNG', 'image/png', 'image/png', 'inline'],
+          ['photo.jpeg', 'image/jpeg', 'image/jpeg', 'inline'],
+          ['photo.webp', 'image/webp', 'image/webp', 'inline'],
+          // A PDF keeps its type for clients but is never displayed in place.
+          ['scan.pdf', 'application/pdf', 'application/pdf', 'attachment'],
         ] as const) {
           const item = await reserve(name, 16, mime);
           assert.equal(item.mime, expected);
@@ -456,12 +464,18 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           assert.equal(response.headers.get('Content-Type'), expected);
           assert.match(
             response.headers.get('Content-Disposition')!,
-            expected === 'video/mp4' ? /^inline;/ : /^attachment;/,
+            disposition === 'inline' ? /^inline;/ : /^attachment;/,
+            name,
           );
-          assert.match(
-            response.headers.get('Content-Security-Policy')!,
-            /sandbox/,
+          // Asking for a download always gets one.
+          const download = await call(`content/${item.id}/file?download=1`);
+          assert.match(download.headers.get('Content-Disposition')!, /^attachment;/);
+          await download.arrayBuffer();
+          assert.equal(
+            response.headers.get('Content-Security-Policy'),
+            "default-src 'none'; sandbox",
           );
+          assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
           await response.arrayBuffer();
         }
       },

@@ -6,7 +6,8 @@ import {
   CONTENT_ACCOUNT_LIMIT,
   CONTENT_ITEM_LIMIT,
   contentLink,
-  contentPlayback,
+  contentInline,
+  contentType,
   type ContentItem,
 } from './content-model';
 
@@ -252,11 +253,8 @@ export async function handleContent(
       size = Number(data.size);
       if (!Number.isSafeInteger(size) || size <= 0 || size > CONTENT_FILE_LIMIT)
         throw new AppError('Files must be between 1 byte and 50 MB.', 413);
-      // Only MP3 and MP4 are previewable; every other format downloads as opaque bytes.
-      if (data.mime === 'audio/mpeg' && /\.mp3$/i.test(filename))
-        mime = 'audio/mpeg';
-      else if (data.mime === 'video/mp4' && /\.mp4$/i.test(filename))
-        mime = 'video/mp4';
+      // A short list of media types keep their type; all else is opaque bytes.
+      mime = contentType(data.mime, filename);
     }
     const clientId = v1 && data.id !== undefined ? id(data.id) : undefined;
     const existing = async () => {
@@ -451,7 +449,7 @@ export async function handleContent(
     const filename = encodeURIComponent(row.filename).replace(/'/g, '%27');
     headers.set(
       'Content-Disposition',
-      `${!url.searchParams.has('download') && contentPlayback(row.mime) ? 'inline' : 'attachment'}; filename="content-file"; filename*=UTF-8''${filename}`,
+      `${!url.searchParams.has('download') && contentInline(row.mime) ? 'inline' : 'attachment'}; filename="content-file"; filename*=UTF-8''${filename}`,
     );
     let range: { offset: number; length: number } | undefined;
     // If-Range mismatch returns the whole representation, as required by HTTP.
