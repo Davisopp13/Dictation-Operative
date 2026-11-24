@@ -20,7 +20,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
-import { api, errorMessage } from '@/lib/client';
+import { api, errorMessage, workspaceRevision } from '@/lib/client';
 import { watchVisibleList, refreshPages } from '@/lib/live-list';
 import {
   CONTENT_FILE_LIMIT,
@@ -108,12 +108,16 @@ export function ContentTray({ active = true }: { active?: boolean }) {
       },
       query ? 220 : 0,
     );
-    const stop = watchVisibleList(reload, {
-      error: () =>
-        setListError(
-          'Documents could not refresh. Check your connection and choose Refresh.',
-        ),
-    });
+    const stop = watchVisibleList(
+      reload,
+      {
+        error: () =>
+          setListError(
+            'Documents could not refresh. Check your connection and choose Refresh.',
+          ),
+      },
+      workspaceRevision,
+    );
     return () => {
       initial.abort();
       clearTimeout(timer);

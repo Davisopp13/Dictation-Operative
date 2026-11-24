@@ -10,6 +10,7 @@ import {
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { watchVisibleList } from '@/lib/live-list';
+import { workspaceRevision } from '@/lib/client';
 
 type Name = 'text' | 'images';
 type State = {
@@ -40,12 +41,16 @@ export function ClipboardSyncProvider({ children }: { children: ReactNode }) {
   const watch = useCallback<Watch>((name, refresh) => {
     const update = (change: Partial<State>) =>
       setStates((old) => ({ ...old, [name]: { ...old[name], ...change } }));
-    const stop = watchVisibleList(refresh, {
-      start: () => update({ syncing: true }),
-      success: () =>
-        update({ syncing: false, failed: false, lastSynced: Date.now() }),
-      error: () => update({ syncing: false, failed: true }),
-    });
+    const stop = watchVisibleList(
+      refresh,
+      {
+        start: () => update({ syncing: true }),
+        success: () =>
+          update({ syncing: false, failed: false, lastSynced: Date.now() }),
+        error: () => update({ syncing: false, failed: true }),
+      },
+      workspaceRevision,
+    );
     watchers.current.set(name, stop);
     update({ active: true, syncing: false });
     void stop.refresh();

@@ -1,5 +1,6 @@
 import { AppError, id, object, text } from './domain';
 import { readBounded } from './request';
+import { decodeCursor, page, pageLimit } from './cursor';
 import {
   CONTENT_FILE_LIMIT,
   CONTENT_ACCOUNT_LIMIT,
@@ -16,13 +17,17 @@ export type ContentServices = {
   content?: ContentStore;
 };
 const columns =
-  'id,kind,name,filename,mime,size,url,pinned,created_at AS createdAt';
+  'id,kind,name,filename,mime,size,url,pinned,created_at AS createdAt,state';
+
 type Row = Omit<ContentItem, 'pinned'> & {
   pinned: number;
   object_key: string;
   state: string;
   expires_at: number;
 };
+export type ContentState = 'uploading' | 'writing' | 'ready';
+/** The /api/v1 shape: the saved item plus where its upload stands. */
+export type ContentItemState = ContentItem & { state: ContentState };
 const decode = (r: Row): ContentItem => ({
   id: r.id,
   kind: r.kind,
@@ -107,48 +112,97 @@ export async function runContentCleanup(
     .prepare("DELETE FROM content_items WHERE state<>'ready' AND expires_at<?")
     .bind(now)
     .run();
-  const keys = await db
-    .prepare(
-      'SELECT object_key FROM content_deletion_queue ORDER BY object_key LIMIT 500',
-    )
-    .all<{ object_key: string }>();
-  let failed = 0;
-  for (const { object_key: key } of keys.results) {
-    try {
-      await deleteQueuedContent(db, store, key);
-    } catch {
-      failed++;
+  // A cursor moves past keys that failed, so one stuck file cannot block the
+  // rest of the queue. Failures stay queued for the next daily run.
+  let cursor = '',
+    failed = 0,
+    drained = false;
+  for (let page = 0; page < 50; page++) {
+    const keys = await db
+      .prepare(
+        'SELECT object_key FROM content_deletion_queue WHERE object_key>? ORDER BY object_key LIMIT 100',
+      )
+      .bind(cursor)
+      .all<{ object_key: string }>();
+    for (const { object_key: key } of keys.results) {
+      try {
+        await deleteQueuedContent(db, store, key);
+      } catch {
+        failed++;
+      }
+      cursor = key;
+    }
+    if (keys.results.length < 100) {
+      drained = true;
+      break;
     }
   }
-  if (failed) throw new Error('Content file deletion is queued for retry.');
+  if (failed || !drained)
+    throw new Error('Content file deletion is queued for retry.');
 }
 
+/**
+ * `v1` selects the /api/v1 contract on the same storage: responses carry the
+ * upload `state`, a reservation may bring its own identifier and is then an
+ * idempotent create, an item's state can be read, and repeating a finished
+ * upload returns the saved item instead of an error.
+ */
 export async function handleContent(
   request: Request,
   s: ContentServices,
   path: string,
+  v1 = false,
 ) {
   const url = new URL(request.url);
+  const shape = (r: Row): ContentItem | ContentItemState =>
+    v1 ? { ...decode(r), state: r.state as ContentState } : decode(r);
   if (path === 'content' && request.method === 'GET') {
     const q = text(url.searchParams.get('q') ?? '', 'Search', 200, true);
-    const offset = Number(url.searchParams.get('offset') ?? 0);
-    if (
-      !Number.isSafeInteger(offset) ||
-      offset < 0 ||
-      offset > CONTENT_ITEM_LIMIT
-    )
-      throw new AppError('Invalid page.');
-    const result = await s.db
-      .prepare(
-        `SELECT ${columns} FROM content_items WHERE owner=? AND state='ready' AND (?=0 OR pinned=1) AND instr(lower(name || ' ' || filename),lower(?))>0 ORDER BY created_at DESC,id DESC LIMIT 41 OFFSET ?`,
+    const pinnedOnly = url.searchParams.get('pinned') === 'true' ? 1 : 0;
+    const filter = `owner=? AND state='ready' AND (?=0 OR pinned=1) AND instr(lower(name || ' ' || filename),lower(?))>0`;
+    let listing: Record<string, unknown>;
+    if (v1) {
+      const limit = pageLimit(url.searchParams.get('limit'), 40);
+      const cursor = decodeCursor(url.searchParams.get('cursor'));
+      const result = await s.db
+        .prepare(
+          `SELECT ${columns} FROM content_items WHERE ${filter} AND (?=0 OR created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT ?`,
+        )
+        .bind(
+          s.owner,
+          pinnedOnly,
+          q,
+          cursor ? 1 : 0,
+          cursor?.time ?? 0,
+          cursor?.time ?? 0,
+          cursor?.id ?? '',
+          limit + 1,
+        )
+        .all<Row>();
+      const listed = page(result.results, limit, (r) => ({
+        time: r.createdAt,
+        id: r.id,
+      }));
+      listing = { items: listed.items.map(shape), nextCursor: listed.nextCursor };
+    } else {
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      if (
+        !Number.isSafeInteger(offset) ||
+        offset < 0 ||
+        offset > CONTENT_ITEM_LIMIT
       )
-      .bind(
-        s.owner,
-        url.searchParams.get('pinned') === 'true' ? 1 : 0,
-        q,
-        offset,
-      )
-      .all<Row>();
+        throw new AppError('Invalid page.');
+      const result = await s.db
+        .prepare(
+          `SELECT ${columns} FROM content_items WHERE ${filter} ORDER BY created_at DESC,id DESC LIMIT 41 OFFSET ?`,
+        )
+        .bind(s.owner, pinnedOnly, q, offset)
+        .all<Row>();
+      listing = {
+        items: result.results.slice(0, 40).map(decode),
+        hasMore: result.results.length > 40,
+      };
+    }
     const usage = await s.db
       .prepare(
         `SELECT ${usageSQL} AS usedBytes, ((SELECT COALESCE(SUM(size),0) FROM content_deletion_queue WHERE owner=?) + (SELECT COALESCE(SUM(size),0) FROM content_items WHERE owner=? AND state<>'ready')) AS pendingBytes, (SELECT COUNT(*) FROM content_items WHERE owner=?) AS itemCount`,
@@ -156,8 +210,7 @@ export async function handleContent(
       .bind(s.owner, s.owner, s.owner, s.owner, s.owner)
       .first();
     return json({
-      items: result.results.slice(0, 40).map(decode),
-      hasMore: result.results.length > 40,
+      ...listing,
       ...usage,
       fileLimit: CONTENT_FILE_LIMIT,
       accountLimit: CONTENT_ACCOUNT_LIMIT,
@@ -205,14 +258,38 @@ export async function handleContent(
       else if (data.mime === 'video/mp4' && /\.mp4$/i.test(filename))
         mime = 'video/mp4';
     }
-    const itemId = crypto.randomUUID(),
-      key = kind === 'file' ? `content/${itemId}` : '',
+    const clientId = v1 && data.id !== undefined ? id(data.id) : undefined;
+    const existing = async () => {
+      const found = await s.db
+        .prepare(
+          `SELECT ${columns},object_key,expires_at,owner FROM content_items WHERE id=?`,
+        )
+        .bind(clientId)
+        .first<Row & { owner: string }>();
+      if (!found) return null;
+      // Identifiers are global. Another account's identifier is never revealed.
+      if (found.owner !== s.owner)
+        throw new AppError('Choose a new identifier for this item.', 409);
+      return json(shape(found));
+    };
+    if (clientId) {
+      const saved = await existing();
+      if (saved) return saved;
+    }
+    // A client-chosen identifier can be reused after a failed upload, while
+    // the old file may still be waiting in the deletion queue. A fresh object
+    // key keeps that queued deletion from ever touching the new file.
+    const itemId = clientId ?? crypto.randomUUID(),
+      key =
+        kind === 'file'
+          ? `content/${clientId ? crypto.randomUUID() : itemId}`
+          : '',
       now = Date.now();
     // Reservation and quota checks are one atomic SQLite statement. Pending deletions count
     // until their bytes are gone, so parallel uploads/deletes cannot bypass the storage cap.
     const inserted = await s.db
       .prepare(`INSERT INTO content_items(id,owner,kind,name,filename,mime,size,url,object_key,created_at,state,expires_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE ${usageSQL} + ? <= ? AND (SELECT COUNT(*) FROM content_items WHERE owner=?) < ? RETURNING ${columns}`)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE ${usageSQL} + ? <= ? AND (SELECT COUNT(*) FROM content_items WHERE owner=?) < ? ON CONFLICT(id) DO NOTHING RETURNING ${columns}`)
       .bind(
         itemId,
         s.owner,
@@ -234,12 +311,18 @@ export async function handleContent(
         CONTENT_ITEM_LIMIT,
       )
       .first<Row>();
-    if (!inserted)
+    if (!inserted) {
+      // A parallel request with the same identifier may have won.
+      if (clientId) {
+        const saved = await existing();
+        if (saved) return saved;
+      }
       throw new AppError(
         'Content is full (2 GB or 500 items). Delete items and wait for pending file cleanup before retrying.',
         409,
       );
-    return json(decode(inserted), 201);
+    }
+    return json(shape(inserted), 201);
   }
   const match = /^content\/([^/]+)(\/file)?$/.exec(path);
   if (!match) throw new AppError('Not found.', 404);
@@ -251,7 +334,11 @@ export async function handleContent(
     .bind(s.owner, itemId)
     .first<Row>();
   if (!row) throw new AppError('Content not found.', 404);
+  if (v1 && !match[2] && request.method === 'GET') return json(shape(row));
   if (match[2] && request.method === 'PUT') {
+    // A client that lost the response to a finished upload may send it again.
+    if (v1 && row.kind === 'file' && row.state === 'ready')
+      return json(shape(row));
     if (
       row.kind !== 'file' ||
       row.state !== 'uploading' ||
@@ -317,7 +404,7 @@ export async function handleContent(
         .bind(s.owner, itemId)
         .first<Row>();
       if (!ready) throw new Error('Upload reservation disappeared');
-      return json(decode(ready));
+      return json(shape(ready));
     } catch {
       await s.db
         .prepare('DELETE FROM content_items WHERE owner=? AND id=?')
@@ -398,7 +485,7 @@ export async function handleContent(
       .bind(data.pinned ? 1 : 0, s.owner, itemId)
       .first<Row>();
     if (!updated) throw new AppError('Content not found.', 404);
-    return json(decode(updated));
+    return json(shape(updated));
   }
   if (!match[2] && request.method === 'DELETE') {
     // Do not allow deletion to race a live R2 write. Abandoned writes expire after

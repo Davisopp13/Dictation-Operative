@@ -46,3 +46,6 @@ export function download(name: string, text: string, type = 'text/plain') {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
+/** The workspace revision; it moves whenever saved items change anywhere. */
+export const workspaceRevision = (signal: AbortSignal) =>
+  api<{ revision: number }>('v1/revision', { signal }).then((r) => r.revision);

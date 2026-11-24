@@ -1,4 +1,5 @@
 import { handleContent, type ContentStore } from './content';
+import { handleV1 } from './api-v1';
 import { readBounded } from './request';
 import { handleWindowsDownload } from './windows-download';
 import { handleMacDownload } from './mac-download';
@@ -71,6 +72,7 @@ export async function handleAPI(
     const url = new URL(request.url),
       path = url.pathname.replace(/^\/api\//, '');
     const method = request.method;
+    if (path.startsWith('v1/')) return await handleV1(request, s, path.slice(3));
     if (path === 'mac-downloads' || path.startsWith('mac-downloads/'))
       return await handleMacDownload(request, s, path);
     if (path.startsWith('windows-downloads/'))

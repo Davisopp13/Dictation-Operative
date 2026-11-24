@@ -13,14 +13,23 @@ export async function refreshPages<T>(
   return { items, hasMore };
 }
 
-/** Foreground polling; one request at a time, cancelled on navigation/unmount. */
+/**
+ * Foreground polling; one request at a time, cancelled on navigation/unmount.
+ *
+ * With `revision`, each five-second tick reads the workspace revision and
+ * reloads the list only when it has moved. Waking the tab, coming back online,
+ * and the returned `refresh()` always reload. If the revision cannot be read
+ * the list is reloaded anyway, so a revision outage never hides new items.
+ */
 export function watchVisibleList(
   refresh: (signal: AbortSignal) => Promise<void>,
   status: { start?: () => void; success?: () => void; error?: () => void } = {},
+  revision?: (signal: AbortSignal) => Promise<number>,
 ) {
   const controller = new AbortController();
   let running = false;
-  const tick = async () => {
+  let seen: number | null = null;
+  const tick = async (force = true) => {
     if (
       running ||
       controller.signal.aborted ||
@@ -30,7 +39,20 @@ export function watchVisibleList(
     running = true;
     status.start?.();
     try {
-      await refresh(controller.signal);
+      let current: number | null = null;
+      if (revision) {
+        try {
+          current = await revision(controller.signal);
+        } catch {
+          current = null;
+        }
+      }
+      if (force || current === null || current !== seen) {
+        await refresh(controller.signal);
+        // Read before the reload, so a change that raced with it is seen as
+        // new on the next tick.
+        seen = current;
+      }
       if (!controller.signal.aborted) status.success?.();
     } catch {
       if (!controller.signal.aborted) status.error?.();
@@ -39,7 +61,7 @@ export function watchVisibleList(
     }
   };
   const timer = setInterval(() => {
-    void tick();
+    void tick(false);
   }, 5000);
   const wake = () => {
     void tick();
@@ -54,5 +76,5 @@ export function watchVisibleList(
     window.removeEventListener('online', wake);
     document.removeEventListener('visibilitychange', wake);
   };
-  return Object.assign(stop, { refresh: tick });
+  return Object.assign(stop, { refresh: () => tick() });
 }

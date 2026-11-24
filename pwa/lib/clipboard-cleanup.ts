@@ -1,4 +1,5 @@
 import type { ImageStore } from './images';
+import { bumpRevision } from './revision';
 
 export const CLIPBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
@@ -43,7 +44,7 @@ export async function runClipboardCleanup(
         SELECT id FROM clips WHERE clipboard_item=1 AND pinned=0 AND created_at<?
         AND owner IN (SELECT owner FROM preferences WHERE clipboard_daily_cleanup=1)
         LIMIT ?
-      ) RETURNING id`)
+      ) RETURNING owner`)
         .bind(cutoff, PAGE_SIZE),
       db
         .prepare(`DELETE FROM clipboard_images WHERE id IN (
@@ -55,6 +56,15 @@ export async function runClipboardCleanup(
     ]);
     textDeleted += text.results.length;
     imagesDeleted += image.results.length;
+    // Image deletions bump the workspace revision through a trigger. Text
+    // deletions are bumped here so other devices notice the cleanup.
+    const owners = [
+      ...new Set(
+        (text.results as { owner: string }[]).map((row) => row.owner),
+      ),
+    ];
+    if (owners.length)
+      await db.batch(owners.map((owner) => bumpRevision(db, owner, now)));
     if (text.results.length < PAGE_SIZE && image.results.length < PAGE_SIZE) {
       complete = true;
       break;

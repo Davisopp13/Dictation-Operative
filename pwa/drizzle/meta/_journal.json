@@ -50,6 +50,13 @@
       "when": 1790966627054,
       "tag": "0006_content_tray",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795556921676,
+      "tag": "0007_workspace_revision",
+      "breakpoints": true
     }
   ]
 }

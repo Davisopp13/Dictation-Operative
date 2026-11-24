@@ -103,3 +103,12 @@ export const contentDeletionQueue = sqliteTable('content_deletion_queue', {
   owner: text('owner').notNull(),
   size: integer('size').notNull(),
 }, (table) => [index('content_deletion_queue_owner').on(table.owner)]);
+
+// One counter per workspace. Triggers in migration 0007 bump it on every
+// change to saved text, images, or documents, including scheduled cleanup, so
+// clients can poll one row instead of refetching lists.
+export const workspaceRevision = sqliteTable('workspace_revision', {
+  owner: text('owner').primaryKey(),
+  revision: integer('revision').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+});
