@@ -1,6 +1,7 @@
 export const workspacePages = [
   { value: 'capture', label: 'Capture' },
   { value: 'clipboard', label: 'Clipboard' },
+  { value: 'content', label: 'Content' },
   { value: 'compose', label: 'Compose' },
 ] as const;
 

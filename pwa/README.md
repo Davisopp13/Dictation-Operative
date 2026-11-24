@@ -263,3 +263,12 @@ npm test
 npm run build
 npm run test:built-clipboard
 ```
+
+## Content tray (local, not yet deployed)
+
+Content sits beside Clipboard for explicitly added MP3/MP4/other files and Google
+Docs/Sheets shortcuts. Defaults: 50 MB/file, 2 GB/account, 500 items. Content stays
+until explicit deletion; Clipboard cleanup does not apply. Files use the existing
+private R2 binding and are readable by the DO server, separately from encrypted
+Sync. Google originals retain Google's permissions. No Drive integration or
+native Mac file tray is added. See [implementation and production setup](docs/content-tray.md).

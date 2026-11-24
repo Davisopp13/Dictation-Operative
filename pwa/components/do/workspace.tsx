@@ -18,6 +18,7 @@ import {
   Smartphone,
   Copy,
   BookOpen,
+  FolderOpen,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -41,6 +42,7 @@ import {
 } from './workspace-tools';
 import { Recovery } from './recovery';
 import { CaptureSurface } from './capture';
+import { ContentTray } from './content-tray';
 import { LibrarySurface } from './library';
 import { DeleteClipboardText } from './delete-clipboard-text';
 import { formatNames, type ComposeFormat } from './compose';
@@ -91,6 +93,7 @@ function subscribeInstalled(callback: () => void) {
 const nav = [
   ['capture', 'Capture', Mic],
   ['clipboard', 'Clipboard', Clipboard],
+  ['content', 'Content', FolderOpen],
   ['compose', 'Compose', Layers],
 ] as const;
 const subscribeHydration = () => () => {};
@@ -275,7 +278,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     };
   }, [setError]);
   useEffect(() => {
-    if (view === 'clipboard' && clipboardFilter === 'images') {
+    if (view === 'content' || (view === 'clipboard' && clipboardFilter === 'images')) {
       return;
     }
     const abort = new AbortController();
@@ -942,21 +945,21 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 ? 'Made for your train of thought'
                 : view === 'clipboard'
                   ? 'Ready to use again'
-                  : 'Give your thoughts a little shape'}
+                  : view === 'content' ? 'Within reach, across devices' : 'Give your thoughts a little shape'}
             </div>
             <h1>
               {view === 'capture'
                 ? 'Say it. Make it useful.'
                 : view === 'clipboard'
                   ? 'Clipboard'
-                  : 'A few thoughts. One good draft.'}
+                  : view === 'content' ? 'Content' : 'A few thoughts. One good draft.'}
             </h1>
             <p className="subtle">
               {view === 'capture'
                 ? 'A quick thought, a thoughtful reply, or the start of something bigger.'
                 : view === 'clipboard'
                   ? 'All your saved words and images. Pin text to keep it handy, or copy an item to use it in another app.'
-                  : 'Choose your clips, put them in order, and decide what to make.'}
+                  : view === 'content' ? 'Files and Google links you deliberately keep handy. Open them from any device signed into this account.' : 'Choose your clips, put them in order, and decide what to make.'}
             </p>
           </div>
           {view === 'capture' ? (
@@ -994,6 +997,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               setView={setView}
               setQuery={setQuery}
             />
+          ) : view === 'content' ? (
+            <ContentTray key={account} />
           ) : (
             <LibrarySurface
               dailyCleanup={!!settings.clipboardDailyCleanup}

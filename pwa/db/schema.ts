@@ -4,7 +4,9 @@ import {
   integer,
   index,
   primaryKey,
+  check,
 } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 export * from './auth-schema';
 export const clips = sqliteTable(
   'clips',
@@ -75,3 +77,29 @@ export const clipboardImages = sqliteTable(
 export const clipboardImageDeletionQueue = sqliteTable('clipboard_image_deletion_queue', {
   objectKey: text('object_key').primaryKey(),
 });
+
+export const contentItems = sqliteTable('content_items', {
+  id: text('id').primaryKey(),
+  owner: text('owner').notNull(),
+  kind: text('kind').notNull(),
+  name: text('name').notNull(),
+  filename: text('filename').notNull().default(''),
+  mime: text('mime').notNull().default('application/octet-stream'),
+  size: integer('size').notNull().default(0),
+  url: text('url').notNull().default(''),
+  objectKey: text('object_key').notNull().default(''),
+  pinned: integer('pinned').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  state: text('state').notNull(),
+  expiresAt: integer('expires_at').notNull().default(0),
+}, (table) => [
+  index('content_items_owner_created').on(table.owner,table.createdAt),
+  check('content_items_kind',sql`${table.kind} IN ('file','link')`),
+  check('content_items_state',sql`${table.state} IN ('uploading','writing','ready')`),
+  check('content_items_size',sql`${table.size}>=0 AND ${table.size}<=50000000`),
+]);
+export const contentDeletionQueue = sqliteTable('content_deletion_queue', {
+  objectKey: text('object_key').primaryKey(),
+  owner: text('owner').notNull(),
+  size: integer('size').notNull(),
+}, (table) => [index('content_deletion_queue_owner').on(table.owner)]);

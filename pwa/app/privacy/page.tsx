@@ -8,7 +8,7 @@ export default function Privacy() {
       </Link>
       <h1>Your words, handled with care.</h1>
       <p>
-        DO PWA V2 is a private voice workspace. Last updated September 28, 2026.
+        DO PWA V2 is a private voice workspace. Last updated October 2, 2026.
       </p>
       <h2>Your account</h2>
       <p>
@@ -40,6 +40,24 @@ export default function Privacy() {
         not sent to AI providers. The web app’s Groq API key is encrypted before storage
         and that server-stored copy is never returned to the browser. Optional
         account sync can deliver a separately shared key as described below.
+      </p>
+      <h2>Content files and Google links</h2>
+      <p>
+        Content saves only files and Google Docs/Sheets links you explicitly add.
+        Files use private server object storage and account-owned database records.
+        They are readable by the DO server; unlike device Sync transfers, they are
+        not end-to-end encrypted. Files are not sent to AI providers. Content stays
+        until explicit deletion, including unpinned items. Daily Clipboard cleanup
+        does not apply. File deletion retries after temporary storage failures.
+        Abandoned upload reservations expire; they do not become saved files.
+        Limits are 50 MB per file, 2 GB per account, and 500 Content items.
+        Pending uploads and file deletions count toward the storage limit.
+      </p>
+      <p>
+        Google links save shortcuts, without reading, copying, or changing the
+        original document. Google’s existing permissions determine who can open it.
+        Content files are downloaded separately and excluded from text JSON backups.
+        Access requires internet and the same signed-in account on each device.
       </p>
       <h2>Daily Clipboard cleanup</h2>
       <p>

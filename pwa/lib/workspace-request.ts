@@ -31,6 +31,7 @@ export async function handleWorkspaceRequest(request: Request, env: Cloudflare.E
   return handleAPI(request, {
     db: env.DB,
     images: env.IMAGES,
+    content: env.IMAGES,
     owner: user?.userId ?? '',
     encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY ?? '',
     sharedGroqKey: env.GROQ_API_KEY,

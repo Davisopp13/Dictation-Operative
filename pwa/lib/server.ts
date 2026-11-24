@@ -1,3 +1,4 @@
+import { handleContent, type ContentStore } from './content';
 import { readBounded } from './request';
 import { handleWindowsDownload } from './windows-download';
 import { handleMacDownload } from './mac-download';
@@ -29,6 +30,7 @@ import { limitSharedAI, positiveLimit, sharedAllowance } from './shared-ai';
 export type Services = {
   db: D1Database;
   images?: ImageStore;
+  content?: ContentStore;
   owner: string;
   encryptionKey: string;
   fetcher?: typeof fetch;
@@ -114,6 +116,8 @@ export async function handleAPI(
       return await handleMacDownload(request, s, path);
     if (path.startsWith('windows-downloads/'))
       return await handleWindowsDownload(request, s, path);
+    if (path === 'content' || path.startsWith('content/'))
+      return await handleContent(request, s, path);
     if (path === 'images' || path.startsWith('images/'))
       return await handleImages(request, s, path);
     if (path === 'workspace-tools' && method === 'GET')
