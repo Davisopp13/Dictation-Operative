@@ -21,9 +21,7 @@
   // intentionally omitted after the existing workspace identity was migrated.
   "vars": {
     "BETTER_AUTH_URL": "https://dictationoperative.com",
-    "AUTH_ADDITIONAL_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev",
-    "SHARED_AI_DAILY_LIMIT": "50",
-    "SHARED_AI_GLOBAL_DAILY_LIMIT": "1000"
+    "AUTH_ADDITIONAL_ORIGINS": "https://do-voice-workspace.davisopp.workers.dev"
   },
   "triggers": { "crons": ["0 8 * * *"] },
   "observability": { "enabled": true }

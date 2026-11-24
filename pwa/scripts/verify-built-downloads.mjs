@@ -27,9 +27,6 @@ const mf = new Miniflare({
   bindings: {
     BETTER_AUTH_URL: 'http://localhost',
     BETTER_AUTH_SECRET: 'local-test-only-secret-with-at-least-32-characters',
-    CREDENTIAL_ENCRYPTION_KEY: '',
-    SHARED_AI_DAILY_LIMIT: '50',
-    SHARED_AI_GLOBAL_DAILY_LIMIT: '1000',
   },
 });
 try {

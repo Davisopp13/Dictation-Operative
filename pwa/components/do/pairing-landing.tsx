@@ -54,7 +54,7 @@ export function PairingLanding({
     <EntryPage
       title="Connect your devices"
       description={account
-        ? "Pair this browser with another device to use DO Sync."
+        ? "Pair this browser with another device to use device Sync."
         : "Sign in to connect this browser with your other device."}
       icon={<Link2 size={24} />}
     >

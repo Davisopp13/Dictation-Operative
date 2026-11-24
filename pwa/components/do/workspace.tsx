@@ -19,6 +19,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import Image from 'next/image';
+import { Wordmark } from './wordmark';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
@@ -535,14 +536,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       <Toaster />
       <Sidebar collapsible="none" className="app-sidebar">
         <div className="brand">
-          <Image
-            src="/icons/icon-192.png"
-            alt=""
-            width={44}
-            height={44}
-            unoptimized
-          />
-          <span className="brand-label">Catchall Desk</span>
+          <Wordmark />
         </div>
         <nav className="side-nav" aria-label="Main navigation">
           {nav.map(([id, label, Icon]) => (
@@ -584,13 +578,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       <main className="workspace">
         <header className="topbar">
           <span className="brand mobile-brand">
-            <Image
-              src="/icons/icon-192.png"
-              alt="Catchall Desk"
-              width={44}
-              height={44}
-              unoptimized
-            />
+            <Wordmark />
           </span>
           <div className="actions m-0 desktop-header-actions">
             <ThemeToggle />

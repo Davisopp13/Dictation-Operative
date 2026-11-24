@@ -1,5 +1,10 @@
 # Content tray — local implementation, October 2, 2026
 
+> **Status, November 24, 2026:** the view is now labelled **Documents** in the
+> app. Its stored page value (`content`), API path (`/api/content`), tables
+> (`content_items`, `content_deletion_queue`), and R2 key prefix (`content/`)
+> are unchanged. `npm run test:built-content` runs the built check below.
+
 Content is a small cross-device tray beside Clipboard, not a Google Drive archive.
 Use the same Cloudflare PWA and signed-in account on each device. Explicitly add
 files or Google Docs/Sheets links; search titles/filenames, pin, play MP3/MP4,

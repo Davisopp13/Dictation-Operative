@@ -1,5 +1,8 @@
 # Account sync and persistent Groq settings
 
+> **Status, November 24, 2026:** this document predates the Catchall Desk
+> restructuring. Web identity is now a Better Auth session rather than Cloudflare Access, and the web app no longer reads, publishes, or applies shared Groq settings. The Mac app can still publish them; the relay protocol is unchanged. See [`pwa/README.md`](../pwa/README.md) for the current web app.
+
 Implemented and deployed September 10, 2026. The Developer ID-signed Mac build was installed at `/Applications/Dictation.app` and relaunched.
 
 ## Using it

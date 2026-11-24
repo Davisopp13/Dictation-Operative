@@ -5,14 +5,14 @@ import { SignedOut } from '@/app/signed-out';
 import { MAC_VERSION, macRelease } from '@/lib/mac-release';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Mac setup — DO' };
+export const metadata = { title: 'Legacy Mac app — Catchall Desk' };
 
 export default async function MacSetup() {
   if (!(await getUser())) return <SignedOut signInPath={signInPath('/mac')} />;
   return (
     <main className="windows-setup">
       <Link href="/" className="navigation-button">
-        <ArrowLeft size={16} aria-hidden="true" /><span>Back to DO</span>
+        <ArrowLeft size={16} aria-hidden="true" /><span>Back to Catchall Desk</span>
       </Link>
       <header className="windows-setup-header">
         <span className="windows-setup-eyebrow"><Laptop size={18} aria-hidden="true" /> Mac setup</span>
@@ -79,7 +79,7 @@ export default async function MacSetup() {
 
       <aside className="windows-setup-note">
         <h2>Your web workspace stays with you</h2>
-        <p>Keep using the PWA for saved text, images, and writing. The Mac app adds dictation across your desktop. Installing the PWA alone does not enable Mac shortcuts or grant native permissions.</p>
+        <p>Keep using the web app for saved text, images, and documents. The earlier Dictation Mac app adds dictation across your desktop and is no longer linked from the workspace. Installing the PWA alone does not enable Mac shortcuts or grant native permissions.</p>
         <Link href="/" className="navigation-button"><span>Return to your workspace</span><ArrowRight size={16} aria-hidden="true" /></Link>
       </aside>
     </main>

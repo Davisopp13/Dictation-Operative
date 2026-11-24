@@ -4,16 +4,11 @@ interface __BaseEnv_Env {
 	IMAGES: R2Bucket;
 	DB: D1Database;
 	AUTH_ADDITIONAL_ORIGINS: "https://do-voice-workspace.davisopp.workers.dev";
-	SHARED_AI_DAILY_LIMIT: "50";
-	SHARED_AI_GLOBAL_DAILY_LIMIT: "1000";
-	CREDENTIAL_ENCRYPTION_KEY: string;
 	DEV_USER_EMAIL: string;
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
-	GROQ_API_KEY: string;
-	SHARED_GROQ_CREDENTIAL_OWNER: string;
 	SYNC_ACCOUNTS: Service /* entrypoint AccountAdmin from dictation-operative-sync */;
 }
 declare namespace Cloudflare {
@@ -27,5 +22,5 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "AUTH_ADDITIONAL_ORIGINS" | "SHARED_AI_DAILY_LIMIT" | "SHARED_AI_GLOBAL_DAILY_LIMIT" | "CREDENTIAL_ENCRYPTION_KEY" | "DEV_USER_EMAIL" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GROQ_API_KEY" | "SHARED_GROQ_CREDENTIAL_OWNER">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "AUTH_ADDITIONAL_ORIGINS" | "DEV_USER_EMAIL" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> {}
 }

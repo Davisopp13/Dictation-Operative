@@ -1,8 +1,25 @@
-# Dictation-Operative
+# Catchall Desk (formerly Dictation Operative)
 
-A cross-platform voice-to-text dictation app — a personal replacement for Wispr Flow and Spokenly. Press a hotkey anywhere, speak, and cleaned-up text is inserted into whatever app you're using.
+**Current direction, November 2026:** this repository is being restructured into
+Catchall Desk, a lightweight workspace for moving text, images, and documents
+between a Mac, a Windows PC, and an iPhone. The active code is the web app in
+[`pwa/`](pwa/README.md), a Cloudflare Worker with D1, private R2, and Better
+Auth, served at https://dictationoperative.com/. The encrypted device-handoff
+relay is in [`backend/sync-relay/`](backend/sync-relay/README.md). Web
+dictation and AI writing tools have been retired. Native iPhone and Android
+apps are planned and not started.
 
-**Current status: Phase 1 — native macOS menu-bar app.** iOS, Windows, and a shared sync backend come later (see [docs/roadmap.md](docs/roadmap.md)).
+The repository name, the Worker, database, bucket, and relay names, and the Mac
+app's identifiers keep "Dictation Operative" / "DO" on purpose: installed apps,
+sessions, and device pairings depend on them.
+
+The rest of this README describes the earlier native macOS dictation app in
+`macos/`. That app is kept as historical source and still builds, but it is no
+longer the focus and is not linked from the web app.
+
+## Legacy: macOS dictation app
+
+A voice-to-text dictation app — a personal replacement for Wispr Flow and Spokenly. Press a hotkey anywhere, speak, and cleaned-up text is inserted into whatever app you're using.
 
 ## How it works
 
@@ -65,11 +82,13 @@ Keep ad-hoc previews in DerivedData instead of overwriting `/Applications/Dictat
 ## Repository layout
 
 ```
-macos/      Phase 1 — native Swift/SwiftUI menu-bar app (this is the active code)
-docs/       Architecture, roadmap, ADRs, platform-constraint notes
-ios/        Phase 3 — reserved
-windows/    Native hotkey/insertion compatibility prototype; full Windows app planned
-backend/    Phase 4 — reserved (shared cleanup/sync "brain", Vercel + Supabase)
+pwa/        Catchall Desk web app (the active code)
+backend/    sync-relay: Cloudflare Worker for encrypted device handoff
+Shared/     Sync protocol sources shared with the web app
+macos/      Legacy native Swift/SwiftUI dictation menu-bar app
+windows/    Legacy native hotkey/insertion compatibility prototype
+ios/        Empty; reserved for the planned iPhone app
+docs/       Architecture, roadmap, ADRs, platform-constraint notes (many predate Catchall Desk)
 ```
 
 ## CI

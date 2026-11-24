@@ -100,7 +100,7 @@ export function ContentTray() {
     const stop = watchVisibleList(reload, {
       error: () =>
         setListError(
-          'Content could not refresh. Check your connection and choose Refresh.',
+          'Documents could not refresh. Check your connection and choose Refresh.',
         ),
     });
     return () => {
@@ -186,7 +186,7 @@ export function ContentTray() {
       }
       if (alive.current)
         setNotice(
-          `${saved} ${saved === 1 ? 'file' : 'files'} added to Content.`,
+          `${saved} ${saved === 1 ? 'file' : 'files'} added to Documents.`,
         );
     });
   const loadMore = () =>
@@ -205,14 +205,14 @@ export function ContentTray() {
   return (
     <section
       className="content-tray"
-      aria-label="Content tray"
+      aria-label="Documents"
       aria-busy={!!busy}
     >
       <div className="content-add-actions">
         <label className="content-file-control">
           <span>Add files</span>
           <input
-            aria-label="Add files to Content"
+            aria-label="Add files to Documents"
             type="file"
             multiple
             disabled={!!busy}
@@ -232,19 +232,19 @@ export function ContentTray() {
         </Button>
       </div>
       <p className="subtle content-policy">
-        50 MB per file · 2 GB per account · 500 items. Content stays until you
+        50 MB per file · 2 GB per account · 500 items. Documents stay until you
         delete it, including unpinned items. Clipboard daily cleanup does not
         apply.
       </p>
       <p className="subtle content-policy">
-        Files are private to your signed-in account and readable by the DO
+        Files are private to your signed-in account and readable by the Catchall Desk
         server. They use saved cloud storage, separate from encrypted device
         Sync. Google links open the originals with Google’s permissions. Content
         is not sent to AI.
       </p>
       <div className="content-quota">
         <label htmlFor="content-storage">
-          Content storage: {megabytes(page?.usedBytes ?? 0)} /{' '}
+          Documents storage: {megabytes(page?.usedBytes ?? 0)} /{' '}
           {megabytes(CONTENT_ACCOUNT_LIMIT)}
           {page ? ` · ${page.itemCount} / ${page.itemLimit} items` : ''}
         </label>
@@ -265,7 +265,7 @@ export function ContentTray() {
       <div className="content-filters">
         <label className="content-search" htmlFor="content-search">
           <Search size={18} aria-hidden="true" />
-          <span className="sr-only">Search Content</span>
+          <span className="sr-only">Search Documents</span>
           <Input
             id="content-search"
             type="search"
@@ -315,7 +315,7 @@ export function ContentTray() {
           notice
         )}
       </output>
-      {loading && !page && <output>Loading Content…</output>}
+      {loading && !page && <output>Loading Documents…</output>}
       {page && !page.items.length && !loading && (
         <div className="content-empty">
           <File aria-hidden="true" />
@@ -446,7 +446,7 @@ export function ContentTray() {
                   setLinkOpen(false);
                   setLinkTitle('');
                   setLinkURL('');
-                  setNotice('Link added to Content.');
+                  setNotice('Link added to Documents.');
                 }
               });
             }}
@@ -545,8 +545,8 @@ export function ContentTray() {
           <DialogTitle>Delete {deleting?.name}?</DialogTitle>
           <DialogDescription>
             {deleting?.kind === 'link'
-              ? 'This removes the shortcut from Content. The original Google document stays in Drive.'
-              : 'This removes the file from Content across your signed-in devices. Download a copy first if you need it. File deletion retries automatically if storage is temporarily unavailable.'}
+              ? 'This removes the shortcut from Documents. The original Google document stays in Drive.'
+              : 'This removes the file from Documents across your signed-in devices. Download a copy first if you need it. File deletion retries automatically if storage is temporarily unavailable.'}
           </DialogDescription>
           {error && (
             <p role="alert" className="content-error">
@@ -576,7 +576,7 @@ export function ContentTray() {
                     setNotice(
                       result.cleanupPending
                         ? 'Item removed. File deletion is queued for retry; its bytes still count toward your limit.'
-                        : 'Item deleted from Content.',
+                        : 'Item deleted from Documents.',
                     );
                   }
                 });

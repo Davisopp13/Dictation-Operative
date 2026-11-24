@@ -5,7 +5,7 @@ import { SignedOut } from '@/app/signed-out';
 import { WINDOWS_VERSION } from '@/lib/windows-release';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Windows setup — DO' };
+export const metadata = { title: 'Legacy Windows test app — Catchall Desk' };
 
 export default async function WindowsSetup() {
   if (!(await getUser())) return <SignedOut signInPath={signInPath('/windows')} />;
@@ -13,7 +13,7 @@ export default async function WindowsSetup() {
     <main className="windows-setup">
       <Link href="/" className="navigation-button">
         <ArrowLeft size={16} aria-hidden="true" />
-        <span>Back to DO</span>
+        <span>Back to Catchall Desk</span>
       </Link>
       <header className="windows-setup-header">
         <span className="windows-setup-eyebrow"><Monitor size={18} /> Windows setup</span>
@@ -74,8 +74,8 @@ export default async function WindowsSetup() {
       </section>
 
       <aside className="windows-setup-note">
-        <h2>Already installed DO as a web app?</h2>
-        <p>Keep using it for your Library, recording, and writing. This Windows test opens separately; installing the web app does not install it automatically.</p>
+        <h2>Already installed Catchall Desk as a web app?</h2>
+        <p>Keep using it for your Clipboard and Documents. This Windows test opens separately; installing the web app does not install it automatically.</p>
         <Link href="/" className="navigation-button"><span>Return to your workspace</span><ArrowRight size={16} aria-hidden="true" /></Link>
       </aside>
     </main>

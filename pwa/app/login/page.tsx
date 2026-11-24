@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function Login({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const returnTo = safeRelativeReturnPath(typeof params.returnTo === 'string' ? params.returnTo : '/');
-  return <EntryPage title="Your words start here" description="Sign in or create an account to capture thoughts, shape your words, and keep the good bits.">
+  return <EntryPage title="Everything within reach" description="Sign in or create an account to move text, images, and documents between your devices.">
     <LoginForm ready={authReady(env)} google={googleReady(env)} returnTo={returnTo} oauthError={!!params.error} />
   </EntryPage>;
 }

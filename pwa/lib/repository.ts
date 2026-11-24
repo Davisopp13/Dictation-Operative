@@ -147,7 +147,7 @@ export async function saveClip(
     .run();
   if (result.meta.changes !== 1)
     throw new AppError(
-      'This thought changed elsewhere. Reopen it before saving; your unsaved text is still here.',
+      'This text changed elsewhere. Reopen it before saving; your unsaved text is still here.',
       409,
     );
   return clip;
@@ -164,7 +164,7 @@ export async function deleteClip(
     .run();
   if (r.meta.changes !== 1)
     throw new AppError(
-      'This thought changed elsewhere. Reopen it before deleting.',
+      'This text changed elsewhere. Reopen it before deleting.',
       409,
     );
 }

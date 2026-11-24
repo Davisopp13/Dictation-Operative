@@ -29,10 +29,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'DO — Voice Workspace',
-  description: 'Capture thoughts. Shape your words. Keep the good bits.',
+  title: 'Catchall Desk',
+  description: 'Move text, images, and documents between your devices.',
   icons: { icon: '/icons/icon-192.png', apple: '/icons/apple-touch-icon.png' },
-  appleWebApp: { capable: true, title: 'DO', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Catchall Desk', statusBarStyle: 'default' },
 };
 
 // Applied before first paint so the page never flashes the wrong theme.
@@ -50,7 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Cloudflare Access requires cookies even for same-origin manifests. */}
+        {/* Send cookies with the manifest request so protected previews can serve it. */}
         <link
           rel="manifest"
           href="/manifest.webmanifest"
