@@ -103,6 +103,15 @@ export async function deleteQueuedContent(
     .run();
 }
 
+/** How long one upload may spend streaming its file into storage. */
+const WRITE_DEADLINE_MS = 10 * 60 * 1000;
+/**
+ * While a file is being written its reservation is kept alive this far past
+ * the write deadline, so the daily cleanup can never remove a reservation
+ * whose upload is still allowed to finish.
+ */
+const WRITE_GRACE_MS = 5 * 60 * 1000;
+
 /** Only abandoned uploads expire. Ready files and links never expire, including unpinned ones. */
 export async function runContentCleanup(
   db: D1Database,
@@ -359,9 +368,18 @@ export async function handleContent(
     // bytes written for the reservation it replaced.
     const claimed = await s.db
       .prepare(
-        "UPDATE content_items SET state='writing' WHERE owner=? AND id=? AND object_key=? AND state='uploading' RETURNING id",
+        // Claiming also renews the expiry. A reservation is good for an hour,
+        // but an upload that starts in its last minutes may run for the whole
+        // write deadline; cleanup must not delete the row underneath it and
+        // strand the finished file with nothing left to track it.
+        "UPDATE content_items SET state='writing',expires_at=MAX(expires_at,?) WHERE owner=? AND id=? AND object_key=? AND state='uploading' RETURNING id",
       )
-      .bind(s.owner, itemId, row.object_key)
+      .bind(
+        Date.now() + WRITE_DEADLINE_MS + WRITE_GRACE_MS,
+        s.owner,
+        itemId,
+        row.object_key,
+      )
       .first();
     if (!claimed)
       throw new AppError(
@@ -371,7 +389,7 @@ export async function handleContent(
     const abort = new AbortController();
     const timer = setTimeout(
       () => abort.abort('Upload timed out'),
-      10 * 60 * 1000,
+      WRITE_DEADLINE_MS,
     );
     try {
       // FixedLengthStream both enforces exact length and preserves R2's known-length

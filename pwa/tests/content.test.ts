@@ -70,6 +70,23 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           };
           return handleAPI(request,{db:env.DB,owner:user?.userId ?? '',content:store});
         }
+        if(request.headers.has('X-Test-Cleanup-Before-Publish')) {
+          // The daily cleanup runs while this upload is still writing: after
+          // the reservation's original expiry, inside the write deadline.
+          const user=await resolveUser(env,request.headers);
+          const db={
+            batch:(...args)=>env.DB.batch(...args),
+            prepare:(sql)=>{
+              const real=env.DB.prepare(sql);
+              if(!sql.includes("SET state='ready'")) return real;
+              return {bind:(...args)=>({first:async()=>{
+                await runContentCleanup(env.DB,env.IMAGES,Date.now()+5*60*1000);
+                return real.bind(...args).first();
+              }})};
+            },
+          };
+          return handleAPI(request,{db,owner:user?.userId ?? '',content:env.IMAGES});
+        }
         if(request.headers.has('X-Test-Replace-Before-Claim')) {
           // Between this upload reading its reservation and claiming it, the
           // reservation is replaced by one with the same identifier and a new
@@ -81,7 +98,7 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
               const real=env.DB.prepare(sql);
               if(!sql.includes("SET state='writing'")) return real;
               return {bind:(...args)=>({first:async()=>{
-                await env.DB.prepare("UPDATE content_items SET object_key='content/replacement-' || id WHERE id=?").bind(args[1]).run();
+                await env.DB.prepare("UPDATE content_items SET object_key='content/replacement-' || id WHERE id=?").bind(request.headers.get('X-Test-Replace-Before-Claim')).run();
                 return real.bind(...args).first();
               }})};
             },
@@ -803,7 +820,7 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           'PUT',
           bytes,
           alice.cookie,
-          { 'X-Test-Replace-Before-Claim': '1' },
+          { 'X-Test-Replace-Before-Claim': racedId },
         );
         assert.equal(lost.status, 409, await lost.clone().text());
         const replacementKey = (await keyOf(racedId))!;
@@ -823,6 +840,57 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
         const racedFile = await call(`v1/documents/${racedId}/file`);
         assert.equal(racedFile.status, 200);
         assert.deepEqual(new Uint8Array(await racedFile.arrayBuffer()), bytes);
+
+        // An upload that starts just before its reservation expires must
+        // survive a cleanup that runs while it is still writing.
+        const lateId = crypto.randomUUID();
+        assert.equal(
+          (
+            await call('v1/documents', 'POST', {
+              ...reservation,
+              id: lateId,
+              name: 'late.pdf',
+            })
+          ).status,
+          201,
+        );
+        await db
+          .prepare('UPDATE content_items SET expires_at=? WHERE id=?')
+          .bind(Date.now() + 60 * 1000, lateId)
+          .run();
+        const objectsBefore = (await bucket.list()).objects.length;
+        const late = await call(
+          `v1/documents/${lateId}/file`,
+          'PUT',
+          bytes,
+          alice.cookie,
+          { 'X-Test-Cleanup-Before-Publish': '1' },
+        );
+        assert.equal(late.status, 200, await late.clone().text());
+        assert.equal(((await late.json()) as Doc).state, 'ready');
+        const lateKey = (await keyOf(lateId))!;
+        assert.ok(await bucket.head(lateKey));
+        // Exactly one new file, and it is tracked by its item.
+        assert.equal((await bucket.list()).objects.length, objectsBefore + 1);
+        assert.equal((await call(`v1/documents/${lateId}/file`)).status, 200);
+        // A reservation nobody is writing to still expires on time.
+        const idleId = crypto.randomUUID();
+        await call('v1/documents', 'POST', {
+          ...reservation,
+          id: idleId,
+          name: 'idle.pdf',
+        });
+        await db
+          .prepare('UPDATE content_items SET expires_at=? WHERE id=?')
+          .bind(Date.now() + 60 * 1000, idleId)
+          .run();
+        const cleanupWorker = await mf.getWorker();
+        await cleanupWorker.scheduled({
+          scheduledTime: new Date(Date.now() + 5 * 60 * 1000),
+          cron: '0 8 * * *',
+        });
+        assert.equal((await call(`v1/documents/${idleId}`)).status, 404);
+        assert.equal((await call(`v1/documents/${lateId}`)).status, 200);
 
         // Cursor pages stay complete when an earlier item is deleted.
         const linkIds: string[] = [];
