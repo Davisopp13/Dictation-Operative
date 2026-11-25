@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ThemeToggle } from './theme';
-import { Wordmark } from './wordmark';
+import { LogoOnBrand } from './wordmark';
 import { quickStart } from '@/lib/quick-start';
 
 function GuideContent() {
@@ -31,7 +31,7 @@ function GuideContent() {
     <div className="quick-start">
       <header className="guide-stage">
         <div className="guide-brand">
-          <Wordmark />
+          <LogoOnBrand />
         </div>
         <p className="guide-kicker">START HERE · QUICK GUIDE</p>
         <h2>{quickStart.title}</h2>

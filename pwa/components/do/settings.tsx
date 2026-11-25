@@ -168,7 +168,7 @@ export function SettingsPage({
         </section>
 
         <section
-          className="settings-card settings-card-sticky"
+          className="settings-card"
           aria-labelledby="set-clean"
         >
           <h2 id="set-clean">Daily Clipboard cleanup</h2>

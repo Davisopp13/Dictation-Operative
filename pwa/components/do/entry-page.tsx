@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ThemeToggle } from './theme';
-import { LogoStacked } from './wordmark';
+import { LogoOnBrand } from './wordmark';
 
 /** Shared frame for the small pages outside the signed-in workspace. */
 export function EntryPage({ title, description, icon, children }: {
@@ -15,7 +15,7 @@ export function EntryPage({ title, description, icon, children }: {
       <div className="entry-shell">
         <header className="entry-header">
           <Link className="entry-logo" href="/" aria-label="Catch-all Desk home">
-            <LogoStacked />
+            <LogoOnBrand />
           </Link>
           <ThemeToggle />
         </header>

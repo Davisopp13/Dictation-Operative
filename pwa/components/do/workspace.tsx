@@ -19,7 +19,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import Image from 'next/image';
-import { LogoOnBrand, Wordmark } from './wordmark';
+import { LogoOnBrand, LogoOnLight } from './wordmark';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
@@ -653,7 +653,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       </aside>
       <main className="desk-main">
         <div className="desk-mobile-top">
-          <Wordmark />
+          <LogoOnLight />
           <div>
             <button
               type="button"
