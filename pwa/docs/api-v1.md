@@ -1,0 +1,139 @@
+# /api/v1
+
+The contract native clients build against. It sits on the same storage,
+ownership checks, quotas, and deletion queues as the browser API, which keeps
+working unchanged. The router is `lib/api-v1.ts`.
+
+## Status
+
+Local only. Migration `0007_workspace_revision.sql` is not applied to
+production.
+
+Authentication is still the browser session: every request needs the session
+cookie, and every non-GET request needs an `Origin` equal to the request's own
+origin. Native bearer tokens are the next piece of work; until then a native
+app cannot call this API.
+
+## Conventions
+
+- JSON in and out. Errors are `{ "error": "message" }` with a 4xx or 5xx status.
+- Identifiers are 8 to 80 characters of `A-Z a-z 0-9 _ -`. Clients should
+  generate UUIDs. Identifiers are global across accounts: using one that
+  belongs to another account returns 409 and reveals nothing about it.
+- Times are milliseconds since the Unix epoch.
+- Every response is `Cache-Control: no-store`.
+
+## Revision
+
+`GET /api/v1/revision` → `{ revision, updatedAt, serverTime }`
+
+One counter per workspace. It increases on every change to saved text, images,
+or documents, from any device and from scheduled cleanup. A workspace that has
+not changed since the counter was introduced reads `0`.
+
+Intended client loop: poll the revision every five seconds while in the
+foreground, and immediately on resume, on reconnect, and after a successful
+write. Refetch lists only when the number differs from the one stored with the
+last fetch. Each list response includes the `revision` read just before the
+list, so storing that value never hides a change that raced with the listing.
+The number only ever increases; compare for inequality, not for size of jump.
+
+## Lists
+
+`GET /text`, `GET /images`, and `GET /documents` return
+
+```json
+{ "items": [], "nextCursor": "opaque-or-null", "revision": 12 }
+```
+
+Newest first. Pass `nextCursor` back as `cursor` for the next page; `null`
+means the end. `limit` is 1 to 100 (default 50 for text, 40 for images and
+documents). Cursors are keyset positions, so deleting items between requests
+never causes a later item to be skipped. An item edited while you page through
+text can move to the top and be missed on that pass; the revision will have
+moved, so the next refresh picks it up.
+
+Filters: `q` (search), `pinned=true`, and for text `collection` and `tag`.
+
+## Text
+
+| Request | Result |
+| --- | --- |
+| `GET /text` | Page of summaries. `content` is the first 500 characters; `contentLength` is the full length. |
+| `POST /text` | Create. Body: `id`, `content`, optional `title`, `pinned`, `collection`, `tags`, `clipboardItem`. 201 when created, 200 with the saved item when the `id` already exists in this account. |
+| `GET /text/:id` | Full item with original segments and versions. |
+| `PATCH /text/:id` | Body carries `action`, the item's current `revision`, and the action's fields. Actions: `edit`, `rename`, `pin`, `organize`, `append`, `without-segment`, `restore`, `restore-original`. 409 if `revision` is stale. |
+| `DELETE /text/:id?revision=N` | 409 if `revision` is stale. The revision may be sent in a JSON body instead. |
+
+A repeated create is first-write-wins: the response is what was saved the first
+time, even if the retry carried different text.
+
+Text created through this API is a Clipboard item unless `clipboardItem` is
+`false`, so it is removed by daily cleanup when the account has turned that on
+and the item is unpinned and older than 24 hours.
+
+Each item has its own `revision` for optimistic locking. That is separate from
+the workspace revision.
+
+## Images
+
+| Request | Result |
+| --- | --- |
+| `GET /images` | Page of `{ id, name, size, width, height, createdAt, pinned }`. |
+| `PUT /images/:id?name=…` | Create. Body is the PNG, `Content-Type: image/png`, at most 8 MiB. 201 when created, 200 with the saved metadata when the `id` already exists in this account (the body is not stored again). |
+| `GET /images/:id` | Metadata. |
+| `GET /images/:id/file` | The PNG. Add `?download` for an attachment disposition. |
+| `PATCH /images/:id` | Body `{ "pinned": true }`. |
+| `DELETE /images/:id` | |
+
+Only PNG is accepted. Clients convert other formats, including HEIC and JPEG,
+before upload.
+
+Budget per account: 2 GB and 5,000 images. An upload past either returns 409.
+These numbers are placeholders pending an agreed storage budget.
+
+## Documents
+
+| Request | Result |
+| --- | --- |
+| `GET /documents` | Page of ready items, plus `usedBytes`, `pendingBytes`, `itemCount`, `fileLimit`, `accountLimit`, `itemLimit`. |
+| `POST /documents` | Reserve a file or save a link. File body: `kind: "file"`, `name`, `filename`, `size`, optional `id`, `mime`. Link body: `kind: "link"`, `name`, `url`, optional `id`. 201 when created, 200 with the existing item when the `id` already exists in this account. |
+| `GET /documents/:id` | The item and its upload `state`. |
+| `PUT /documents/:id/file` | Upload. `Content-Type: application/octet-stream` and a `Content-Length` equal to the reserved `size`. |
+| `GET` or `HEAD /documents/:id/file` | The file. Single byte ranges and `If-Range` are supported. |
+| `PATCH /documents/:id` | Body `{ "pinned": true }`. |
+| `DELETE /documents/:id` | 409 while an upload is being written. |
+
+Items carry `state`:
+
+- `uploading`: reserved, waiting for the file. The reservation expires after
+  one hour.
+- `writing`: the upload is in progress.
+- `ready`: saved. Links are ready immediately.
+
+Recovering from an uncertain upload: `GET /documents/:id`.
+
+- `ready`: it worked. Sending the same `PUT` again is also safe and returns the
+  item.
+- `uploading`: send the `PUT` again.
+- `writing`: wait and ask again; the server allows ten minutes.
+- 404: the upload failed and the reservation is gone. Reserve again with the
+  same `id` and upload.
+
+Limits: 50 MB per file, 2 GB per account, 500 items. Files other than MP3 and
+MP4 are served as `application/octet-stream` attachments under a sandbox
+content security policy.
+
+## Deployment notes
+
+- Apply migrations before deploying the Worker, as usual. `0007` adds a table
+  and triggers on `clipboard_images` and `content_items` only, so the currently
+  deployed Worker keeps working after the migration and before the deploy.
+- Saved text is deliberately not covered by a trigger. Its writes are
+  conditional on a row revision, and D1 includes trigger writes in the row
+  counts the older code checks. The application bumps the workspace revision
+  for text in the same batch as the write.
+- This Worker needs `0007`: saving text writes to `workspace_revision`. Do not
+  deploy it before the migration.
+- If the revision cannot be read, the web app reloads its lists on every tick,
+  as it did before, so a revision outage never hides new items.

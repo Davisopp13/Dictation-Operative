@@ -70,6 +70,24 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
           };
           return handleAPI(request,{db:env.DB,owner:user?.userId ?? '',content:store});
         }
+        if(request.headers.has('X-Test-Replace-Before-Claim')) {
+          // Between this upload reading its reservation and claiming it, the
+          // reservation is replaced by one with the same identifier and a new
+          // object key, as a delete followed by a fresh reserve would do.
+          const user=await resolveUser(env,request.headers);
+          const db={
+            batch:(...args)=>env.DB.batch(...args),
+            prepare:(sql)=>{
+              const real=env.DB.prepare(sql);
+              if(!sql.includes("SET state='writing'")) return real;
+              return {bind:(...args)=>({first:async()=>{
+                await env.DB.prepare("UPDATE content_items SET object_key='content/replacement-' || id WHERE id=?").bind(args[1]).run();
+                return real.bind(...args).first();
+              }})};
+            },
+          };
+          return handleAPI(request,{db,owner:user?.userId ?? '',content:env.IMAGES});
+        }
         return handleWorkspaceRequest(request,env);
       },
       async scheduled(controller,env){await runContentCleanup(env.DB,env.IMAGES,controller.scheduledTime);}
@@ -626,6 +644,240 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
             .first<{ n: number }>())!.n,
           0,
         );
+      },
+    );
+    await t.test(
+      '/api/v1 documents: idempotent reservation, upload status, repeatable upload and cursor pages',
+      async () => {
+        type Doc = { id: string; name: string; state: string };
+        type DocPage = {
+          items: Doc[];
+          nextCursor: string | null;
+          revision: number;
+          usedBytes: number;
+          itemLimit: number;
+        };
+        const revision = async () =>
+          ((await (await call('v1/revision')).json()) as { revision: number })
+            .revision;
+        const keyOf = async (id: string) =>
+          (
+            await db
+              .prepare('SELECT object_key FROM content_items WHERE id=?')
+              .bind(id)
+              .first<{ object_key: string }>()
+          )?.object_key;
+        const docId = crypto.randomUUID();
+        const reservation = {
+          id: docId,
+          kind: 'file',
+          name: 'scan.pdf',
+          filename: 'scan.pdf',
+          size: 16,
+        };
+        const start = await revision();
+        const first = await call('v1/documents', 'POST', reservation);
+        assert.equal(first.status, 201, await first.clone().text());
+        const reserved = (await first.json()) as Doc;
+        assert.equal(reserved.id, docId);
+        assert.equal(reserved.state, 'uploading');
+        assert.ok((await revision()) > start);
+        // Repeating the reservation returns it instead of making a second one.
+        const again = await call('v1/documents', 'POST', reservation);
+        assert.equal(again.status, 200);
+        assert.equal(((await again.json()) as Doc).state, 'uploading');
+        assert.equal(
+          (
+            await db
+              .prepare('SELECT COUNT(*) AS n FROM content_items WHERE id=?')
+              .bind(docId)
+              .first<{ n: number }>()
+          )?.n,
+          1,
+        );
+        // Another account can neither take nor learn about the identifier.
+        assert.equal(
+          (await call('v1/documents', 'POST', reservation, bob.cookie)).status,
+          409,
+        );
+        assert.equal(
+          (await call(`v1/documents/${docId}`, 'GET', undefined, bob.cookie))
+            .status,
+          404,
+        );
+        // Upload status, before and after.
+        assert.equal(
+          ((await (await call(`v1/documents/${docId}`)).json()) as Doc).state,
+          'uploading',
+        );
+        assert.equal((await call(`v1/documents/${docId}/file`)).status, 404);
+        const beforeUpload = await revision();
+        const put = await call(`v1/documents/${docId}/file`, 'PUT', bytes);
+        assert.equal(put.status, 200, await put.clone().text());
+        assert.equal(((await put.json()) as Doc).state, 'ready');
+        assert.ok((await revision()) > beforeUpload);
+        // A client that lost that response can send the upload again.
+        const replay = await call(`v1/documents/${docId}/file`, 'PUT', bytes);
+        assert.equal(replay.status, 200);
+        assert.equal(((await replay.json()) as Doc).state, 'ready');
+        assert.equal(
+          ((await (await call(`v1/documents/${docId}`)).json()) as Doc).state,
+          'ready',
+        );
+        // The browser route keeps refusing a second upload, and its item
+        // shape has no state field.
+        assert.equal(
+          (await call(`content/${docId}/file`, 'PUT', bytes)).status,
+          409,
+        );
+        const legacy = (await (await call('content')).json()) as {
+          items: Record<string, unknown>[];
+        };
+        assert.ok(legacy.items.some((item) => item.id === docId));
+        assert.ok(legacy.items.every((item) => !('state' in item)));
+        // The file is not stored under the client's identifier.
+        const key = (await keyOf(docId))!;
+        assert.notEqual(key, `content/${docId}`);
+        assert.equal(await bucket.head(`content/${docId}`), null);
+        assert.ok(await bucket.head(key));
+        const file = await call(`v1/documents/${docId}/file`);
+        assert.equal(file.status, 200);
+        assert.deepEqual(new Uint8Array(await file.arrayBuffer()), bytes);
+        assert.equal(
+          (
+            await call(`v1/documents/${docId}/file`, 'GET', undefined, alice.cookie, {
+              Range: 'bytes=0-3',
+            })
+          ).status,
+          206,
+        );
+
+        // A failed upload removes the reservation. Reserving the same
+        // identifier again gets a new storage key, so cleanup of the failed
+        // attempt can never delete the retried file.
+        const retryId = crypto.randomUUID();
+        const retry = { ...reservation, id: retryId, name: 'retry.pdf' };
+        assert.equal((await call('v1/documents', 'POST', retry)).status, 201);
+        const failedKey = (await keyOf(retryId))!;
+        assert.equal(
+          (
+            await call(`v1/documents/${retryId}/file`, 'PUT', bytes, alice.cookie, {
+              'X-Test-Storage-Failure': 'put',
+            })
+          ).status,
+          400,
+        );
+        assert.equal((await call(`v1/documents/${retryId}`)).status, 404);
+        assert.equal((await call('v1/documents', 'POST', retry)).status, 201);
+        const retriedKey = (await keyOf(retryId))!;
+        assert.notEqual(retriedKey, failedKey);
+        assert.equal(
+          (await call(`v1/documents/${retryId}/file`, 'PUT', bytes)).status,
+          200,
+        );
+        assert.ok(await bucket.head(retriedKey));
+
+        // An upload must not claim a reservation that replaced the one it
+        // read. Otherwise the replacement is marked ready with no file behind
+        // it and every later download fails.
+        const racedId = crypto.randomUUID();
+        const raced = { ...reservation, id: racedId, name: 'raced.pdf' };
+        assert.equal((await call('v1/documents', 'POST', raced)).status, 201);
+        const replacedKey = (await keyOf(racedId))!;
+        const lost = await call(
+          `v1/documents/${racedId}/file`,
+          'PUT',
+          bytes,
+          alice.cookie,
+          { 'X-Test-Replace-Before-Claim': '1' },
+        );
+        assert.equal(lost.status, 409, await lost.clone().text());
+        const replacementKey = (await keyOf(racedId))!;
+        assert.equal(replacementKey, `content/replacement-${racedId}`);
+        assert.equal(await bucket.head(replacedKey), null);
+        assert.equal(await bucket.head(replacementKey), null);
+        // The replacement is untouched and still waiting for its own upload.
+        assert.equal(
+          ((await (await call(`v1/documents/${racedId}`)).json()) as Doc).state,
+          'uploading',
+        );
+        assert.equal(
+          (await call(`v1/documents/${racedId}/file`, 'PUT', bytes)).status,
+          200,
+        );
+        assert.ok(await bucket.head(replacementKey));
+        const racedFile = await call(`v1/documents/${racedId}/file`);
+        assert.equal(racedFile.status, 200);
+        assert.deepEqual(new Uint8Array(await racedFile.arrayBuffer()), bytes);
+
+        // Cursor pages stay complete when an earlier item is deleted.
+        const linkIds: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const id = crypto.randomUUID();
+          linkIds.push(id);
+          const link = await call('v1/documents', 'POST', {
+            id,
+            kind: 'link',
+            name: `Link ${i}`,
+            url: 'https://docs.google.com/document/d/fixture' + i,
+          });
+          assert.equal(link.status, 201, await link.clone().text());
+          assert.equal(((await link.json()) as Doc).state, 'ready');
+          await db
+            .prepare('UPDATE content_items SET created_at=? WHERE id=?')
+            .bind(Date.now() + 60000 * (i + 1), id)
+            .run();
+        }
+        const pageOne = (await (
+          await call('v1/documents?limit=2')
+        ).json()) as DocPage;
+        assert.deepEqual(
+          pageOne.items.map((item) => item.name),
+          ['Link 2', 'Link 1'],
+        );
+        assert.ok(pageOne.nextCursor);
+        assert.equal(pageOne.revision, await revision());
+        assert.ok(pageOne.usedBytes >= 32);
+        assert.equal(pageOne.itemLimit, 500);
+        const beforeDelete = await revision();
+        assert.equal(
+          (await call(`v1/documents/${linkIds[2]}`, 'DELETE')).status,
+          200,
+        );
+        assert.ok((await revision()) > beforeDelete);
+        const pageTwo = (await (
+          await call(`v1/documents?limit=2&cursor=${pageOne.nextCursor}`)
+        ).json()) as DocPage;
+        assert.equal(pageTwo.items[0].name, 'Link 0');
+        assert.equal((await call('v1/documents?cursor=garbage')).status, 400);
+        const pinned = await call(`v1/documents/${docId}`, 'PATCH', {
+          pinned: true,
+        });
+        assert.equal(pinned.status, 200);
+        assert.equal(
+          (
+            (await (await call('v1/documents?pinned=true')).json()) as DocPage
+          ).items.some((item) => item.id === docId),
+          true,
+        );
+
+        // The deletion queue drains past one page, and past a stuck entry.
+        for (let i = 0; i < 150; i++)
+          await db
+            .prepare(
+              'INSERT INTO content_deletion_queue(object_key,owner,size) VALUES (?,?,1)',
+            )
+            .bind(`content/synthetic-${String(i).padStart(3, '0')}`, alice.owner)
+            .run();
+        const worker = await mf.getWorker();
+        await worker.scheduled({ scheduledTime: new Date(), cron: '0 8 * * *' });
+        assert.equal(
+          (await db
+            .prepare('SELECT COUNT(*) AS n FROM content_deletion_queue')
+            .first<{ n: number }>())!.n,
+          0,
+        );
+        assert.ok(await bucket.head(key));
       },
     );
     await t.test(

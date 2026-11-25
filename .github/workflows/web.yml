@@ -1,0 +1,80 @@
+name: Web app and sync relay
+
+on:
+  push:
+    paths:
+      - 'pwa/**'
+      - 'backend/sync-relay/**'
+      - 'Shared/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'pwa/**'
+      - 'backend/sync-relay/**'
+      - 'Shared/**'
+      - '.github/workflows/web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pwa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: pwa/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      # These run the built Worker against isolated local D1 and R2. They use
+      # no production data, credentials, or network services.
+      - run: npm run test:built-auth
+      - run: npm run test:built-clipboard
+      - run: npm run test:built-content
+
+  relay:
+    name: Sync relay
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/sync-relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/sync-relay/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      # Bundles with a dry run only; nothing is deployed.
+      - run: npm test
+
+  sync-sources:
+    name: Shared sync sources match the web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # The web app carries a copy of the shared protocol. Account and
+      # protocol sources must be identical; pairing differs only in the
+      # site its links point to.
+      - run: diff Shared/Sync/account.ts pwa/lib/sync/account.ts
+      - run: diff Shared/Sync/protocol.ts pwa/lib/sync/protocol.ts

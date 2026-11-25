@@ -84,8 +84,9 @@ npm run test:built-downloads   # needs the Windows ZIPs in ../windows/dist
 Tests use real D1 SQLite through Miniflare. They cover ownership, same-origin
 requests, optimistic concurrency, idempotent creation/append/import, version
 restoration, literal wildcard searches, backups, navigation (including the
-retired-page mapping), daily cleanup, images, Documents, the service worker
-upgrade, and the read-only local recording export. The built checks run the
+retired-page mapping), daily cleanup, images, Documents, `/api/v1` (revision,
+cursor pages, idempotent creates, upload recovery, the image budget), the
+service worker upgrade, and the read-only local recording export. The built checks run the
 actual Worker bundle against isolated local D1/R2. No production data or
 credentials are used.
 
@@ -111,6 +112,16 @@ columns on `preferences` (`encrypted_key`, `consent`, `model`), and the
 vocabulary and templates inside `workspace_tools`. Version kinds `cleaned` and
 `rewritten`, and clip kinds `reply`, `prompt`, and `combined`, remain valid for
 existing rows.
+
+`/api/v1` is the versioned contract for native clients: cursor-paged lists,
+idempotent creates on client-chosen identifiers, upload status, and a
+per-workspace revision for cheap change detection. See [docs/api-v1.md](docs/api-v1.md).
+The browser routes under `/api/` are unchanged. The web app polls the revision
+every five seconds and reloads its lists only when it moves.
+
+Clipboard images have a per-account budget of 2 GB and 5,000 images
+(placeholders pending an agreed storage budget), separate from the Documents
+limits.
 
 Workspace APIs enter through `worker.ts` and share `lib/workspace-request.ts`
 with the framework route. Every non-GET request must carry an `Origin` equal to
@@ -151,8 +162,9 @@ npm run deploy       # vinext build, then wrangler deploy
 
 Both commands change production and need explicit approval. Before the first
 Catchall Desk deploy, confirm which migrations production already has:
-`0005_fuzzy_cable.sql` (daily cleanup) and `0006_content_tray.sql` (Documents)
-were both unapplied when this branch was cut.
+`0005_fuzzy_cable.sql` (daily cleanup), `0006_content_tray.sql` (Documents),
+and `0007_workspace_revision.sql` (sync revision) were all unapplied when this
+branch was cut. Apply migrations before deploying the Worker.
 
 Sign-in uses Better Auth application sessions (`BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `AUTH_ADDITIONAL_ORIGINS`, and optional Google credentials).
