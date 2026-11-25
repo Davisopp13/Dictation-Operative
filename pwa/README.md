@@ -119,6 +119,15 @@ per-workspace revision for cheap change detection. See [docs/api-v1.md](docs/api
 The browser routes under `/api/` are unchanged. The web app polls the revision
 every five seconds and reloads its lists only when it moves.
 
+Native apps sign in through the system browser with OAuth 2.1 authorization
+code and PKCE, then call `/api/v1` with a short-lived bearer token. See
+[docs/native-sign-in.md](docs/native-sign-in.md), including how an operator
+registers an app.
+
+Settings → Account sign-in also offers **Delete my account**, which removes the
+workspace, its files, and the sign-in after a fresh sign-in and a typed
+confirmation.
+
 Clipboard images have a per-account budget of 2 GB and 5,000 images
 (placeholders pending an agreed storage budget), separate from the Documents
 limits.
@@ -163,8 +172,8 @@ npm run deploy       # vinext build, then wrangler deploy
 Both commands change production and need explicit approval. Before the first
 Catchall Desk deploy, confirm which migrations production already has:
 `0005_fuzzy_cable.sql` (daily cleanup), `0006_content_tray.sql` (Documents),
-and `0007_workspace_revision.sql` (sync revision) were all unapplied when this
-branch was cut. Apply migrations before deploying the Worker.
+`0007_workspace_revision.sql` (sync revision), and `0008_oauth_provider.sql`
+(native sign-in) were all unapplied when this branch was cut. Apply migrations before deploying the Worker.
 
 Sign-in uses Better Auth application sessions (`BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `AUTH_ADDITIONAL_ORIGINS`, and optional Google credentials).

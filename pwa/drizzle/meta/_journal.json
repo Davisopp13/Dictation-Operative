@@ -57,6 +57,13 @@
       "when": 1795556921676,
       "tag": "0007_workspace_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795559149626,
+      "tag": "0008_oauth_provider",
+      "breakpoints": true
     }
   ]
 }

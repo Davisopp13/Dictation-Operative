@@ -144,8 +144,16 @@ export default function Privacy() {
         as text from its editor. Delete saved text in its editor or from its
         card to remove the record and all versions from the active database.
         Delete images and documents from their own lists. Infrastructure
-        backups follow their own policies. Account deletion is not yet
-        self-service; contact us to request it.
+        backups follow their own policies.
+      </p>
+      <p>
+        To delete your account, open Settings → Account sign-in and choose
+        Delete my account. You are asked to sign in again first. Deletion
+        removes your saved text, images, documents, settings, and sign-in, and
+        signs out every device. Stored files are removed promptly, and at the
+        latest by the next daily cleanup. The encrypted device directory used
+        by account sync, which holds device names and no readable content, is
+        not yet removed automatically; contact us to have it deleted.
       </p>
       <h2>Connectivity</h2>
       <p>

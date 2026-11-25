@@ -1,8 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
-import { username } from 'better-auth/plugins';
+import { jwt, username } from 'better-auth/plugins';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/auth-schema';
+import { ACCESS_TOKEN_SECONDS, OAUTH_SCOPES } from './oauth';
 
 export type AuthConfig = {
   DB: D1Database;
@@ -67,7 +69,25 @@ export function createAppAuth(e: AuthConfig) {
       },
       customStorage: { consume: (key, rule) => consumeAuthLimit(e.DB, key, rule) },
     },
-    plugins: [username({ minUsernameLength: 3, maxUsernameLength: 30 })],
+    // The jwt plugin exists only to sign native access tokens. Its own route
+    // and header would hand any browser session a token signed with that key.
+    disabledPaths: ['/token'],
+    plugins: [
+      username({ minUsernameLength: 3, maxUsernameLength: 30 }),
+      jwt({ disableSettingJwtHeader: true }),
+      // Native sign-in: authorization code with PKCE for registered public
+      // clients. See lib/oauth.ts and docs/native-sign-in.md.
+      oauthProvider({
+        loginPage: '/login',
+        consentPage: '/oauth/consent',
+        scopes: OAUTH_SCOPES,
+        grantTypes: ['authorization_code', 'refresh_token'],
+        accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
+        // Clients are registered by an operator in the database. Nobody can
+        // create, read, or change one through the API.
+        clientPrivileges: () => false,
+      }),
+    ],
   });
 }
 

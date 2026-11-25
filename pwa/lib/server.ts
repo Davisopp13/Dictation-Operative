@@ -28,6 +28,12 @@ export type Services = {
   images?: ImageStore;
   content?: ContentStore;
   owner: string;
+  /**
+   * How the caller proved who they are. A bearer token is sent deliberately by
+   * a native client, so it needs no same-origin check; a session cookie is
+   * sent automatically by the browser, so it always does.
+   */
+  via?: 'session' | 'bearer';
   logoutPath?: string;
 };
 const json = (data: unknown, status = 200) =>
@@ -67,7 +73,7 @@ export async function handleAPI(
   s: Services,
 ): Promise<Response> {
   try {
-    checkOrigin(request);
+    if (s.via !== 'bearer') checkOrigin(request);
     if (!s.owner) throw new AppError('Sign in to open your workspace.', 401);
     const url = new URL(request.url),
       path = url.pathname.replace(/^\/api\//, '');

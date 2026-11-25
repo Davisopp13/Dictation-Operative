@@ -1,7 +1,35 @@
 import { resolveUser, logoutPath } from './identity';
 import { checkOrigin, handleAPI } from './server';
 import { readBounded } from './request';
+import { bearerToken, resolveBearerUser } from './bearer';
 export async function handleWorkspaceRequest(request: Request, env: Cloudflare.Env) {
+  const pathname = new URL(request.url).pathname;
+  // Native clients call /api/v1 with a bearer access token. A request that
+  // presents one is judged on that token alone: an invalid token is refused
+  // even if the request also carries a valid session cookie, and a bearer
+  // token is not accepted anywhere outside /api/v1.
+  const token = pathname.startsWith('/api/v1/') ? bearerToken(request.headers) : null;
+  if (token !== null) {
+    const bearer = await resolveBearerUser(env, token);
+    if (!bearer)
+      return Response.json(
+        { error: 'This sign-in has expired. Sign in again.' },
+        {
+          status: 401,
+          headers: {
+            'Cache-Control': 'no-store',
+            'WWW-Authenticate': 'Bearer error="invalid_token"',
+          },
+        },
+      );
+    return handleAPI(request, {
+      db: env.DB,
+      images: env.IMAGES,
+      content: env.IMAGES,
+      owner: bearer.userId,
+      via: 'bearer',
+    });
+  }
   const user = await resolveUser(env, request.headers);
   const accountRelay = /^\/api\/account-relay\/([a-f0-9]{64})\/(state|register|rename|revoke|settings|clipboard(?:\/[a-zA-Z0-9_-]{8,80})?)$/.exec(new URL(request.url).pathname);
   if (accountRelay) {
