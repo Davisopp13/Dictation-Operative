@@ -58,7 +58,7 @@ void test('saved Clipboard images: storage, isolation, limits, search, paginatio
             delete: (key) => images.delete(key),
           },
           owner,
-          encryptionKey: '',
+          
         },
       );
     let image: ClipboardImage;

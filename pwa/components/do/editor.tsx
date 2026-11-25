@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Pin,
   Copy,
@@ -7,15 +7,12 @@ import {
   Plus,
   Save,
   Undo2,
-  Sparkles,
   Trash2,
   Download,
   LoaderCircle,
   ArrowLeft,
   MoreVertical,
   Smartphone,
-  ChevronDown,
-  X,
 } from 'lucide-react';
 import {
   Sheet,
@@ -44,19 +41,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/toast';
-import { useWorkspaceTools, TemplatePicker } from './workspace-tools';
-import { Recorder } from './recorder';
-import { api, post, errorMessage, download } from '@/lib/client';
-import { type Clip, type Transform } from '@/lib/domain';
+import { useWorkspaceTools } from './workspace-tools';
+import { api, errorMessage, download } from '@/lib/client';
+import { type Clip } from '@/lib/domain';
 type Props = {
   clip: Clip | null;
   onClose: () => void;
   onSync: () => void;
   onUpdate: (clip: Clip) => void;
   onDelete: (id: string) => void;
-  ensureCloud: () => boolean;
 };
 export function ClipEditor({
   clip,
@@ -64,16 +58,9 @@ export function ClipEditor({
   onSync,
   onUpdate,
   onDelete,
-  ensureCloud,
 }: Props) {
   const organization = useWorkspaceTools();
-  const shapeMenu = useRef<HTMLDetailsElement>(null);
-  const [writingFeedback, setWritingFeedback] = useState<{
-    kind: 'working' | 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [templateId, setTemplateId] = useState(''),
-    [collection, setCollection] = useState(clip?.collection ?? ''),
+  const [collection, setCollection] = useState(clip?.collection ?? ''),
     [tags, setTags] = useState((clip?.tags ?? []).join(', '));
   const [draft, setDraft] = useState(clip?.content ?? ''),
     [title, setTitle] = useState(clip?.title ?? ''),
@@ -81,13 +68,12 @@ export function ClipEditor({
     [adding, setAdding] = useState(false),
     [addition, setAddition] = useState(''),
     [busy, setBusy] = useState(false),
-    [recording, setRecording] = useState(false),
     [, setLastNotice] = useState(''),
     [remove, setRemove] = useState(false),
     [discard, setDiscard] = useState(false),
     [copyText, setCopyText] = useState<string | null>(null);
   const dirty = !!clip && (draft !== clip.content || title !== clip.title),
-    locked = busy || recording;
+    locked = busy;
   // Feedback goes to the shared toast viewport instead of the bottom of a
   // scrolling sheet, where it was routinely off-screen.
   const setNotice = useCallback((text: string) => {
@@ -107,7 +93,7 @@ export function ClipEditor({
     return () => window.removeEventListener('beforeunload', protect);
   }, [dirty, adding, addition]);
   async function change(data: Record<string, unknown>): Promise<Clip> {
-    if (!clip) throw new Error('Open a thought first.');
+    if (!clip) throw new Error('Open an item first.');
     const updated = await api<Clip>('clips/' + clip.id, {
       method: 'PATCH',
       body: JSON.stringify({ ...data, revision: clip.revision }),
@@ -117,17 +103,14 @@ export function ClipEditor({
     onUpdate(updated);
     return updated;
   }
-  async function action(
-    fn: () => Promise<void>,
-    reportError: (text: string) => void = setError,
-  ) {
+  async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError('');
     setNotice('');
     try {
       await fn();
     } catch (e) {
-      reportError(errorMessage(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -138,39 +121,6 @@ export function ClipEditor({
       await change({ action: 'edit', content: draft, title });
       setNotice('Saved to Clipboard.');
     });
-  }
-  async function transform(kind: Transform, custom = '') {
-    if (dirty) {
-      setError('Save or undo your edits before using a writing tool.');
-      return;
-    }
-    if (!ensureCloud()) return;
-    if (shapeMenu.current) {
-      shapeMenu.current.querySelector('summary')?.focus();
-      shapeMenu.current.open = false;
-    }
-    setWritingFeedback({ kind: 'working', text: 'Shaping your words…' });
-    await action(
-      async () => {
-        const result = await post<{ text: string }>('transform', {
-          kind,
-          templateId: custom || undefined,
-          text: draft,
-          context: clip?.context ?? '',
-        });
-        await change({
-          action: 'transform',
-          content: result.text,
-          versionKind: kind === 'clean' ? 'cleaned' : 'rewritten',
-        });
-        setTab('draft');
-        setWritingFeedback({
-          kind: 'success',
-          text: 'New version saved. Your original is preserved.',
-        });
-      },
-      (text) => setWritingFeedback({ kind: 'error', text }),
-    );
   }
   async function copy(value: string) {
     try {
@@ -221,7 +171,7 @@ export function ClipEditor({
           <SheetHeader>
             <div className="section-line">
               <div>
-                <SheetTitle>Your thought</SheetTitle>
+                <SheetTitle>Saved text</SheetTitle>
                 <SheetDescription>
                   {clip ? new Date(clip.createdAt).toLocaleString() : ''}
                 </SheetDescription>
@@ -333,7 +283,7 @@ export function ClipEditor({
                 <details className="overflow-menu">
                   <summary
                     className="control icon-control"
-                    aria-label="More actions for this thought"
+                    aria-label="More actions for this text"
                   >
                     <MoreVertical size={18} />
                   </summary>
@@ -356,7 +306,7 @@ export function ClipEditor({
                       type="button"
                       onClick={() =>
                         download(
-                          (title || 'thought')
+                          (title || 'text')
                             .replace(/[^a-zA-Z0-9 -]/g, '')
                             .slice(0, 60) + '.txt',
                           draft,
@@ -373,7 +323,7 @@ export function ClipEditor({
                       disabled={locked}
                       onClick={() => setRemove(true)}
                     >
-                      <Trash2 size={16} /> Delete thought
+                      <Trash2 size={16} /> Delete text
                     </button>
                   </div>
                 </details>
@@ -388,7 +338,7 @@ export function ClipEditor({
                 </TabsList>
                 <TabsContent value="draft">
                   <label className="sr-only" htmlFor="clip-draft">
-                    Edit thought
+                    Edit text
                   </label>
                   <Textarea
                     id="clip-draft"
@@ -426,104 +376,6 @@ export function ClipEditor({
                       </Button>
                     </div>
                   </div>
-                  {/* Five competing buttons become one control. The template
-                      picker moves inside it, where it is a choice and not a gate. */}
-                  <div className="tool-section">
-                    <details className="shape-menu" ref={shapeMenu}>
-                      <summary className="control shape-summary">
-                        <Sparkles size={17} />
-                        Shape your words
-                        <ChevronDown size={15} className="shape-chevron" />
-                      </summary>
-                      <div className="shape-sheet">
-                        <button
-                          type="button"
-                          disabled={locked || dirty}
-                          onClick={() => void transform('clean')}
-                        >
-                          Clean up
-                        </button>
-                        <button
-                          type="button"
-                          disabled={locked || dirty}
-                          onClick={() => void transform('rewrite')}
-                        >
-                          Rewrite
-                        </button>
-                        {clip.kind === 'reply' && (
-                          <button
-                            type="button"
-                            disabled={locked || dirty}
-                            onClick={() => void transform('reply')}
-                          >
-                            Draft reply
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={locked || dirty}
-                          onClick={() => void transform('prompt')}
-                        >
-                          Turn into an AI prompt
-                        </button>
-                        <hr />
-                        <div className="shape-template">
-                          <TemplatePicker
-                            value={templateId}
-                            onChange={setTemplateId}
-                            disabled={locked}
-                          />
-                          <Button
-                            variant="outline"
-                            className="control w-full mt-2"
-                            disabled={locked || dirty || !templateId}
-                            onClick={() =>
-                              void transform('rewrite', templateId)
-                            }
-                          >
-                            Apply template
-                          </Button>
-                        </div>
-                      </div>
-                    </details>
-                    {writingFeedback && (
-                      <Alert
-                        className={`mt-3 flex items-center gap-3 ${writingFeedback.kind === 'error' ? 'error-banner' : ''}`}
-                        variant={
-                          writingFeedback.kind === 'error'
-                            ? 'destructive'
-                            : 'default'
-                        }
-                        role={
-                          writingFeedback.kind === 'error' ? 'alert' : 'status'
-                        }
-                      >
-                        {writingFeedback.kind === 'working' && (
-                          <LoaderCircle
-                            className="animate-spin shrink-0"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <AlertDescription className="flex-1">
-                          {writingFeedback.text}
-                        </AlertDescription>
-                        {writingFeedback.kind !== 'working' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Dismiss writing message"
-                            onClick={() => setWritingFeedback(null)}
-                          >
-                            <X />
-                          </Button>
-                        )}
-                      </Alert>
-                    )}
-                    <p className="subtle text-sm mt-3">
-                      Review AI drafts before using them. Your source is always
-                      kept.
-                    </p>
-                  </div>
                   {!adding ? (
                     <Button
                       variant="outline"
@@ -531,12 +383,12 @@ export function ClipEditor({
                       disabled={locked || dirty}
                       onClick={() => setAdding(true)}
                     >
-                      <Plus /> Add more to this thought
+                      <Plus /> Add more text
                     </Button>
                   ) : (
                     <div className="add-panel">
                       <div className="section-line">
-                        <h2>Keep your thought going</h2>
+                        <h2>Add more text</h2>
                         <Button
                           variant="ghost"
                           className="control"
@@ -554,23 +406,8 @@ export function ClipEditor({
                           Cancel
                         </Button>
                       </div>
-                      <Recorder
-                        target={{ clipId: clip.id }}
-                        compact
-                        ensureCloud={() => true}
-                        onBusy={setRecording}
-                        onTranscript={async (value, segmentId) => {
-                          await change({
-                            action: 'append',
-                            content: value,
-                            segmentId,
-                          });
-                          setNotice('Added as a new original segment.');
-                          setAdding(false);
-                        }}
-                      />
                       <label className="field-label" htmlFor="addition">
-                        Or add a few words
+                        Text to add
                       </label>
                       <Textarea
                         className="field"
@@ -591,7 +428,7 @@ export function ClipEditor({
                             });
                             setAddition('');
                             setAdding(false);
-                            setNotice('Added to your thought.');
+                            setNotice('Added as a new original segment.');
                           })
                         }
                       >
@@ -602,7 +439,7 @@ export function ClipEditor({
                 </TabsContent>
                 <TabsContent value="original">
                   <p className="subtle text-sm mb-4">
-                    Your captured words, preserved in the order you added them.
+                    Your original text, preserved in the order you added it.
                   </p>
                   {clip.segments.map((segment, i) => (
                     <div className="segment" key={segment.id}>
@@ -717,14 +554,14 @@ export function ClipEditor({
       <AlertDialog open={remove} onOpenChange={setRemove}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this thought?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this text?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the thought and all its versions from Clipboard, including All and Pinned.
+              This removes the text and all its versions from Clipboard, including All and Pinned.
               Export anything you want to keep first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep thought</AlertDialogCancel>
+            <AlertDialogCancel>Keep text</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white"
               onClick={() =>
@@ -738,7 +575,7 @@ export function ClipEditor({
                 })
               }
             >
-              Delete thought
+              Delete text
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -748,7 +585,7 @@ export function ClipEditor({
           <AlertDialogHeader>
             <AlertDialogTitle>Leave unsaved words?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your saved thought is safe. The changes you haven’t saved will be
+              Your saved text is safe. The changes you haven’t saved will be
               discarded.
             </AlertDialogDescription>
           </AlertDialogHeader>

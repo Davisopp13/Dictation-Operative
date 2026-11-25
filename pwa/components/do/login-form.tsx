@@ -44,8 +44,8 @@ export function LoginForm({ ready, google, returnTo, oauthError }: { ready: bool
       {error && <p className="login-error" role="alert">{error}</p>}
       <button className="entry-primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
     </form>
-    <button type="button" className="text-link login-switch" disabled={busy} onClick={() => { setSignup(!signup); setError(''); }}>{signup ? 'Already have an account? Sign in' : 'New to DO? Create an account'}</button>
+    <button type="button" className="text-link login-switch" disabled={busy} onClick={() => { setSignup(!signup); setError(''); }}>{signup ? 'Already have an account? Sign in' : 'New to Catchall Desk? Create an account'}</button>
     {!signup && <p className="subtle text-sm">Usually sign in with Google? Add a password in Settings → Account sign-in while signed in with Google.</p>}
-    <p className="subtle text-sm">Your saved words are private to your account.</p>
+    <p className="subtle text-sm">Your saved items are private to your account.</p>
   </div>;
 }

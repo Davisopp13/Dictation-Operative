@@ -14,7 +14,7 @@ void test('Mac downloads require sign-in and serve only reviewed packages', asyn
     let missing = false;
     let lastBody: ReadableStream<Uint8Array>;
     const s: Services = {
-      db, owner: 'tester', encryptionKey: '',
+      db, owner: 'tester',
       images: {
         put: async () => { throw new Error('Download must never write'); },
         delete: async () => { throw new Error('Download must never delete'); },

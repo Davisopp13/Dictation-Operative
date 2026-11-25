@@ -1,63 +1,72 @@
-# DO — Voice Workspace (PWA V2)
+# Catchall Desk (web app)
 
-Private, installable voice capture and writing workspace. This is a separate web
-application beside the native macOS project; it reuses the DO brand assets.
+Private, installable workspace for moving text, images, and documents between
+your devices. Paste, type, or upload on one device; copy, share, or download on
+another. It was previously called Dictation Operative ("DO — Voice Workspace").
+Web recording, transcription, and AI writing tools were retired in the Catchall
+Desk restructuring; text dictated or rewritten earlier remains as ordinary saved
+text.
 
-Public signup and included AI are being rolled out. See [distribution setup](../docs/web-distribution.md)
-for username/password signup, Google OAuth, existing-account migration and server-side shared Groq access.
+The daily site is `https://dictationoperative.com/`. Infrastructure names
+(`do-voice-workspace`, `do-voice-images`, `dictation-operative-sync`) and the
+`do-…` browser storage keys keep their original names on purpose: renaming them
+would sign people out, break device pairing, or orphan stored data.
 
 ## Included
 
-- **Help · Quick start** in the desktop sidebar and mobile workspace menu opens
-  the branded Capture → Refine → Use guide without leaving the current draft.
-  `/help` is the standalone, shareable guide, with a PNG infographic download.
-  Both app themes are supported. Guide copy lives in `lib/quick-start.ts`; run
-  `node --import tsx scripts/generate-quick-start.ts` after copy changes to update
-  the SVG. Set `DO_SHARP_PACKAGE` to an installed Sharp package directory in that
-  command to regenerate the PNG as well. Both exports live in `public/docs/`.
-- Tap-to-record notes, replies, and AI prompt ideas. Original transcripts save
-  automatically; text can also be written or deliberately pasted.
-- Searchable history, pinned internal clipboard, naming, edit, copy, share,
-  delete, text export, and lossless JSON backup export/import.
-- Mobile layout with a compact workspace menu, three thumb-friendly bottom tabs, per-view search/filter state, compact filter sheets, larger controls, keyboard-friendly text sizes, and safe-area spacing.
-- Settings → Start page chooses Capture (default), Clipboard, or Compose for a fresh visit. Refreshing restores the current workspace tab independently of that choice. The start page is saved per account in this browser; the current tab is remembered separately in each browser tab. This restores navigation, not unsaved drafts or filters. Reopening an app window that is still running keeps its current view.
-- One Clipboard destination on desktop and mobile: All combines saved text and images by most recent activity, Pinned keeps reusable text and images handy, and Images shows saved pictures. Text keeps its originals, versions, tags, collections, and Compose selection. Unpinning keeps the item in All, where optional daily cleanup may remove it; deletion removes it. Collection/tag filters apply to text only.
-- Clipboard images: paste screenshots or upload PNG, JPEG, and WebP; private R2 storage with D1 ownership metadata, thumbnails, full-size previews, copy, download, and delete. Images are saved as PNG (8 MiB / 40 MP maximum); text JSON backups exclude image files.
-- Add More with immutable original segments, duplicate-safe recording retries,
-  restore-original and complete version history.
-- Compose ordered clips into a combined draft, email, progress update, or checklist.
-- Groq connection management, explicit cloud-processing consent, encrypted
-  credentials, authenticated owner-scoped storage, and same-origin mutations.
-- Home-screen manifest, app icons, offline capture, update notification, optional
-  WebMCP search/open/stage tools, keyboard-accessible dialogs and mobile layout.
+- **Clipboard**: All combines saved text and images by most recent activity,
+  Pinned keeps reusable items handy, and Images shows saved pictures. Add text
+  by typing, pasting, or **Paste from clipboard**. Text keeps its originals,
+  versions, tags, and collections. Collection and tag filters apply to text only.
+- **Clipboard images**: paste screenshots or upload PNG, JPEG, and WebP; private
+  R2 storage with D1 ownership metadata, thumbnails, full-size previews, copy,
+  download, and delete. Images are saved as PNG (8 MiB / 40 MP maximum); text
+  JSON backups exclude image files.
+- **Documents**: explicitly added files and Google Docs/Sheets shortcuts.
+  50 MB per file, 2 GB per account, 500 items. Documents stay until deleted;
+  Clipboard cleanup does not apply. See [implementation and production
+  setup](docs/content-tray.md). The view's stored page value is `content`.
+- Search, pins, naming, editing, copy, share, delete, text export, and lossless
+  JSON backup export/import.
+- **Device Sync**: end-to-end encrypted, short-lived text and image handoff
+  between paired devices through a separate relay, plus an optional account
+  device directory.
+- Settings → Start page chooses Clipboard (default) or Documents for a fresh
+  visit. Refreshing restores the current tab. Start pages saved as the retired
+  Capture or Compose pages open Clipboard.
+- Settings → Daily Clipboard cleanup (off by default) removes unpinned
+  Clipboard text and images older than 24 hours once a day. Earlier dictation
+  history, imports, and text saved before the feature existed are never removed.
+- **Help · Quick start** in the sidebar and mobile menu; `/help` is the
+  standalone guide. Copy lives in `lib/quick-start.ts`.
+- Home-screen manifest, app icons, an offline notice, and an update prompt.
+
+### Recordings left on a device
+
+The recorder is gone, but audio it stored in a browser's IndexedDB
+(`do-recordings-v2`) is not. When the signed-in account has recordings in the
+current browser, the workspace shows **Recordings left on this device** with
+Download audio, Save transcript as text (when a transcript was already cached),
+and Remove from this device. Saving a transcript never deletes the local
+record. This panel is temporary and can be removed once it is no longer needed.
 
 ## Run locally
 
-Requires Node 22.13+ (tested on 22.22.3).
+Requires Node 22.13+.
 
 ```sh
 npm ci
 npm run db:local
-# Create .dev.vars (see .env.example): CREDENTIAL_ENCRYPTION_KEY and DEV_USER_EMAIL
+# Create .dev.vars (see .env.example)
 npm run dev
 ```
 
-Generate a **local-only** random credential-encryption key into `.dev.vars`:
-
-```sh
-node --input-type=module -e "import {randomBytes} from 'node:crypto'; import {writeFileSync} from 'node:fs'; writeFileSync('.dev.vars', 'CREDENTIAL_ENCRYPTION_KEY='+randomBytes(32).toString('base64')+'\n', {mode:0o600});"
-```
-
 Open the printed local URL. `DEV_USER_EMAIL` in `.dev.vars` stands in for a
-signed-in user on localhost only; the deployed site signs users in through
-Cloudflare Access (below). Do not rotate an existing encryption key without
-migrating encrypted credentials; users otherwise need to reconnect their
-provider key.
+signed-in user on localhost only. To exercise real sign-in locally, set
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
 
-In Settings, connect a Groq API key and enable cloud processing. Nothing sends
-recordings or text to Groq before consent. Keys are validated, encrypted on the
-server with AES-GCM and account-specific additional authenticated data, and are
-never returned by the API. Production secrets are Worker secrets (`wrangler secret`).
+For local multi-worker development, set `DO_SYNC_RELAY_CONFIG` to the sync
+relay's `wrangler.jsonc` path before `npm run dev`.
 
 ## Validation
 
@@ -66,200 +75,119 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run test:built-auth
+npm run test:built-clipboard
+npm run test:built-content
+npm run test:built-downloads   # needs the Windows ZIPs in ../windows/dist
 ```
 
-Tests use real D1 SQLite through Miniflare, with synthetic provider responses.
-They cover ownership, same-origin requests, optimistic concurrency, idempotent
-creation/append/import, version restoration, literal wildcard searches, backups,
-credential encryption and revocation, request contracts, and AI rate limits.
-WebMCP contract tests use a registry harness; a supported real browser WebMCP
-context was unavailable during development. Device recording/installation/share
-and real provider quality still need a target-device acceptance pass.
+Tests use real D1 SQLite through Miniflare. They cover ownership, same-origin
+requests, optimistic concurrency, idempotent creation/append/import, version
+restoration, literal wildcard searches, backups, navigation (including the
+retired-page mapping), daily cleanup, images, Documents, the service worker
+upgrade, and the read-only local recording export. The built checks run the
+actual Worker bundle against isolated local D1/R2. No production data or
+credentials are used.
 
 Lint is scoped to authored product code. The bundled shadcn primitives and
-scaffold hooks are preserved. Runtime React/RSC, Vinext and Vite were patched
-from scaffold pins after audit found advisories. Some development tooling still
-has transitive advisories (Miniflare/Drizzle/Cloudflare tooling); these tools are
-not part of the deployed Worker application. Do not blindly run audit --force.
+scaffold hooks are preserved. Some development tooling still has transitive
+advisories (Miniflare/Drizzle/Cloudflare tooling); these tools are not part of
+the deployed Worker. Do not blindly run `npm audit fix --force`.
 
 ## Data model and API
 
-`db/schema.ts` is the migration source; `drizzle/` contains generated migrations.
-Do not run schema creation in request handlers. The site build packages migrations
-for production. SQL statements use bound parameters and owner predicates.
+`db/schema.ts` is the migration source; `drizzle/` contains migrations. Do not
+run schema creation in request handlers. SQL statements use bound parameters
+and owner predicates.
 
-Each thought contains original segments, an append-only text version list, a
-current draft, and a revision. Conditional updates prevent another tab’s changes
-from being overwritten. Limits: 20,000 characters per draft, 300 versions,
-850 KB per thought, 20 source clips per composition, 5 minutes / 20 MB per
-recording, and 10 AI requests per minute per account. Export larger libraries
-before hitting per-thought limits. Imports are additive and safe to retry.
+Saved text lives in `clips`: original segments, an append-only version list, a
+current draft, and a revision. Conditional updates prevent another tab's changes
+from being overwritten. Limits: 20,000 characters per draft, 300 versions, and
+850 KB per item. Imports are additive and safe to retry.
 
-The service worker caches static icons and an offline recording shell, never
-private API responses or authenticated pages. Unfinished audio is saved in
-IndexedDB and deleted after successful library saving. See [V2 release notes](docs/v2.md)
-for recovery guarantees, device limits, and validation.
+Tables and columns from the retired features are kept, unused, so nothing is
+lost and a rollback stays possible: `usage`, `shared_ai_usage`, the Groq
+columns on `preferences` (`encrypted_key`, `consent`, `model`), and the
+vocabulary and templates inside `workspace_tools`. Version kinds `cleaned` and
+`rewritten`, and clip kinds `reply`, `prompt`, and `combined`, remain valid for
+existing rows.
+
+Workspace APIs enter through `worker.ts` and share `lib/workspace-request.ts`
+with the framework route. Every non-GET request must carry an `Origin` equal to
+the request's own origin. Session validity is checked in D1 on every request.
 
 ### Adding password sign-in to a Google account
 
 Open **Settings → Account sign-in** (`/account/sign-in`) while signed in with
 Google. Confirm Google sign-in again if prompted, then add a password of at
 least 12 characters within 10 minutes. The password is attached to the existing
-user and workspace; Google sign-in stays connected. The login form accepts
-either an email or an existing username. This lets an account use email/password
-on the alternate host without starting a Google callback on the custom domain.
-Set up the password on a device that can complete Google sign-in first.
-
-The setup endpoint requires a verified Google account, a recent authenticated
-session, a same-origin JSON request, and a per-user rate limit. Better Auth hashes
-the password and the database rejects duplicate provider/account records. It
-cannot replace an existing password or choose a user from a supplied email.
-Email password recovery is not configured; keep using Google if needed.
+user and workspace; Google sign-in stays connected. Email password recovery is
+not configured.
 
 ### PWA installation
 
-Sign in to the HTTPS Cloudflare site, then use **Install DO** in the workspace
-or the browser's install menu. On iPhone/iPad, open the site in Safari and use
-**Share → Add to Home Screen**. The installed app opens in its own standalone
-window. Visit online once before relying on offline recording; transcription,
-library saving, and AI require a connection.
+Sign in, then use **Install app** in the workspace or the browser's install
+menu. On iPhone/iPad, open the site in Safari and use **Share → Add to Home
+Screen**.
 
-The manifest link includes `crossorigin="use-credentials"` for Cloudflare Access.
-Static asset headers revalidate the manifest, service worker, and offline shell;
-service worker updates bypass the HTTP cache. API downloads and Access routes
-are excluded from offline fallback. PWA tests verify icon dimensions, offline
-assets, fallback behavior, and private-request exclusions. After deployment,
-check installation and offline relaunch on each target device.
+The manifest `id`, `start_url`, and `scope` are all `/` and must not change:
+installed apps are identified by them. The service worker is `/sw.js` with
+scope `/`. Its cache is named `do-static-v<n>`; bump the number when the
+precached files change and keep the prefix, because activation deletes older
+caches by that prefix. Private API responses are never cached.
 
 ## Publishing
 
-### Mac installation downloads
-
-`/mac` guides users through downloading the native app, moving it to Applications,
-granting Microphone and Accessibility permissions, downloading a speech model,
-and pairing clipboard Sync. The main entry is Settings → Desktop apps, with
-contextual links in Sync pairing help and PWA installation help. Settings remains
-available when the PWA is already installed; setup links are absent from the
-sidebar and mobile workspace menu.
-The browser downloads the installer; macOS installation and permissions remain
-user actions.
-
-The authenticated `/api/mac-downloads/arm64` endpoint streams the signed,
-notarized 0.2.0 beta 1 DMG for Apple Silicon and macOS 14+. This beta supports
-paired Sync but predates account membership/shared Groq settings. Updates are
-manual; users with a newer installed build should keep it.
-
-`lib/mac-release.ts` pins the verified filename, size, SHA-256, and immutable R2
-key. Publish the matching DMG before deploying the PWA:
-
-```sh
-npm run publish:mac-download -- /path/to/Dictation-0.2.0-beta.1-arm64.dmg --check
-npm run publish:mac-download -- /path/to/Dictation-0.2.0-beta.1-arm64.dmg
-```
-
-The publisher rejects mismatched bytes before any upload. The installer uses the
-existing private R2 bucket under `releases/macos/`, outside the static web asset
-bundle. Missing or size-mismatched packages return 503; unauthenticated requests
-cannot read the bucket. Downloads bypass the service worker's offline shell.
-For a new release, notarize and staple both app and DMG with
-`macos/scripts/prepare-beta.sh`, validate with Gatekeeper, then update the manifest
-and setup page to match that exact release. Never substitute a signed-only build.
-
-### Windows setup downloads
-
-`/windows` contains the Win + Alt compatibility setup and is linked from the
-Settings → Desktop apps and installation help. The two downloads stream
-through authenticated `/api/windows-downloads/x64` and `/api/windows-downloads/arm64`
-routes. They are native prototype ZIPs, not automatically installed by the PWA.
-
-Reviewed package sizes and SHA-256 hashes live in `lib/windows-release.ts`. The
-ZIPs stay out of the web asset bundle and are stored under hash-qualified
-`releases/windows/` keys in the existing private R2 bucket. No clipboard-image
-records or database migrations are involved.
-
-After building a new Windows release, update that manifest and verify/upload the
-packages before deploying the site:
-
-```sh
-npm run publish:windows-downloads -- --check
-npm run publish:windows-downloads
-```
-
-The upload script checks both local ZIPs before writing anything. Missing or
-size-mismatched remote packages return an error rather than an invalid download.
-
-Workspace APIs enter through `worker.ts` and share `lib/workspace-request.ts`
-with the framework route. This avoids React routing and per-chunk JavaScript
-stream wrappers on R2 downloads. Authentication configuration is reused only
-after initialization completes; session validity is still checked in D1 on
-every request. Login and page rendering continue through vinext.
-
-After `npm run build`, run `npm run test:built-downloads` to exercise the actual
-Worker bundle with isolated local D1/R2, the full Windows x64 ZIP, concurrent
-authenticated/anonymous requests, and session revocation. No production data
-or credentials are used by this check.
-
 ### Workspace deployment
 
-The site is a Cloudflare Worker (`wrangler.jsonc`): `do-voice-workspace` on the
-account's `workers.dev` subdomain, with D1 `do-voice-workspace` and R2
-`do-voice-images`. Deploy validated source with:
+The site is a Cloudflare Worker (`wrangler.jsonc`): `do-voice-workspace`, on
+the custom domain `dictationoperative.com` and the account's `workers.dev`
+subdomain, with D1 `do-voice-workspace` and R2 `do-voice-images`.
 
 ```sh
-npm run db:migrate   # apply new Drizzle migrations to the remote D1
+npm run db:migrate   # apply new migrations to the remote D1
 npm run deploy       # vinext build, then wrangler deploy
 ```
 
-The credential-storage secret is `CREDENTIAL_ENCRYPTION_KEY`, set with
-`wrangler secret put CREDENTIAL_ENCRYPTION_KEY`. Never add secrets or a provider
-key to `wrangler.jsonc`, Git config, source, or frontend environment.
+Both commands change production and need explicit approval. Before the first
+Catchall Desk deploy, confirm which migrations production already has:
+`0005_fuzzy_cable.sql` (daily cleanup) and `0006_content_tray.sql` (Documents)
+were both unapplied when this branch was cut.
 
-### Legacy sign-in and beta access
+Sign-in uses Better Auth application sessions (`BETTER_AUTH_SECRET`,
+`BETTER_AUTH_URL`, `AUTH_ADDITIONAL_ORIGINS`, and optional Google credentials).
+`lib/identity.ts` still accepts a verified Cloudflare Access identity as a
+legacy fallback when `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set; production
+leaves them unset.
 
-Cloudflare Access protects the Worker's hostname; its policy is the beta
-allowlist. In the dashboard: Workers & Pages → do-voice-workspace → Access →
-*Protect this Worker behind Access*. Then in Zero Trust → Access controls →
-Applications, edit that application's policy to allow the testers' email
-addresses, and copy two public values into `wrangler.jsonc` `vars`:
+The Worker no longer reads `CREDENTIAL_ENCRYPTION_KEY`, `GROQ_API_KEY`,
+`SHARED_GROQ_CREDENTIAL_OWNER`, or the `SHARED_AI_*` limits. Leave the
+`CREDENTIAL_ENCRYPTION_KEY` secret in place: it is the only way to decrypt the
+Groq keys still stored in `preferences`. Never add secrets to `wrangler.jsonc`,
+Git config, source, or frontend environment.
 
-- `ACCESS_TEAM_DOMAIN` — the team domain, `https://<team>.cloudflareaccess.com`.
-- `ACCESS_AUD` — the application's Audience (AUD) tag.
+### Legacy desktop downloads
 
-`app/auth.ts` verifies the `Cf-Access-Jwt-Assertion` JWT on every request
-against those values and uses the token's `sub` as the account id. With either
-value empty nobody can sign in, and the app never trusts a bare header.
-
-The new application sign-in is enabled with `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
-It takes precedence over the verified legacy Access identity. Keep the Access gate
-until existing users have linked their new login as documented in the rollout guide.
-Do not remove the old Access configuration or gate before that migration.
-
-V2 includes project collections/tags, personal vocabulary, reusable templates,
-persistent recording recovery and offline capture. Native Mac clipboard handoff
-is available through the separately implemented Dictation Operative Sync.
+`/mac` and `/windows` and their authenticated download routes
+(`/api/mac-downloads/arm64`, `/api/windows-downloads/{x64,arm64}`) still work
+but are no longer linked from the workspace. They serve the earlier Dictation
+Mac beta and the Windows hotkey test app from the private R2 bucket under
+`releases/`. `lib/mac-release.ts` and `lib/windows-release.ts` pin each file's
+name, size, and SHA-256; `npm run publish:mac-download` and
+`npm run publish:windows-downloads` verify bytes before uploading.
 
 ## Account sync
 
-Sync now includes an optional account device directory, encrypted shared Groq settings, and latest per-device clipboards. The first browser bootstraps from the verified Access identity; further devices join through approved pairings. Browser account requests use the `SYNC_ACCOUNTS` named service binding. Deploy the relay with `AccountAdmin` and its `v3` migration first, then apply the new D1 model migration before deploying this web build. No provider key is automatically exported from the existing server credential store.
+Browser account requests use the `SYNC_ACCOUNTS` named service binding to the
+relay's `AccountAdmin` entrypoint. The earlier Mac app can still publish
+encrypted Groq settings through the account layer; the web app ignores them.
+Pairing links are issued for `https://do-voice-workspace.davisopp.workers.dev`,
+and the wire identifiers and key-derivation strings in `lib/sync/` (including
+the salt `Dictation Operative Sync v1`) must stay byte-identical with
+`../Shared/Sync/` and the Mac app.
 
-For local multi-worker development, set `DO_SYNC_RELAY_CONFIG` to the sync relay’s `wrangler.jsonc` path before `npm run dev`. This enables the local auxiliary Worker.
+## Brand assets
 
-## Optional daily Clipboard cleanup
-
-Settings → Daily Clipboard cleanup is off by default and saved per account.
-The daily server job removes unpinned Clipboard text and images older than 24
-hours. Pin images from their cards; Pinned combines pinned text and images.
-Dictation history, imports, and pre-feature text remain saved.
-
-Apply migration `0005_fuzzy_cable.sql` before deploying the new Worker. Its image
-delete trigger queues file deletion atomically; temporary R2 failures retry on
-the next run. The source and built Wrangler configs include a daily trigger at
-08:00 UTC. See [the cleanup design and validation](../docs/clipboard-cleanup.md).
-
-```sh
-npm run typecheck
-npm run lint
-npm test
-npm run build
-npm run test:built-clipboard
-```
+The app uses a text wordmark (`components/do/wordmark.tsx`) until logo files
+are added under `public/brand/`. The installed-app icons in `public/icons/`
+still carry the previous artwork.

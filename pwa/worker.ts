@@ -1,10 +1,16 @@
+import { runContentCleanup } from './lib/content';
 import app from 'vinext/server/fetch-handler';
 import { runClipboardCleanup } from './lib/clipboard-cleanup';
 import { handleWorkspaceRequest } from './lib/workspace-request';
 
 export default {
   async scheduled(controller, env) {
-    await runClipboardCleanup(env.DB, env.IMAGES, controller.scheduledTime);
+    const results = await Promise.allSettled([
+      runClipboardCleanup(env.DB, env.IMAGES, controller.scheduledTime),
+      runContentCleanup(env.DB, env.IMAGES, controller.scheduledTime),
+    ]);
+    if (results.some((result) => result.status === 'rejected'))
+      throw new Error('Workspace storage cleanup has pending work.');
   },
   async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;

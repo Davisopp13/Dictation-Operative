@@ -147,7 +147,7 @@ export async function saveClip(
     .run();
   if (result.meta.changes !== 1)
     throw new AppError(
-      'This thought changed elsewhere. Reopen it before saving; your unsaved text is still here.',
+      'This text changed elsewhere. Reopen it before saving; your unsaved text is still here.',
       409,
     );
   return clip;
@@ -164,7 +164,7 @@ export async function deleteClip(
     .run();
   if (r.meta.changes !== 1)
     throw new AppError(
-      'This thought changed elsewhere. Reopen it before deleting.',
+      'This text changed elsewhere. Reopen it before deleting.',
       409,
     );
 }
@@ -187,22 +187,4 @@ export async function getPreferences(db: D1Database, owner: string) {
       clipboard_daily_cleanup: 0,
     }
   );
-}
-export async function limitUsage(db: D1Database, owner: string) {
-  const window = Math.floor(Date.now() / 60000);
-  const r = await db
-    .prepare(
-      'INSERT INTO usage (owner,window,count) VALUES (?,?,1) ON CONFLICT(owner,window) DO UPDATE SET count=count+1 RETURNING count',
-    )
-    .bind(owner, window)
-    .first<{ count: number }>();
-  if ((r?.count ?? 99) > 10)
-    throw new AppError(
-      'Please wait a minute before making another AI request.',
-      429,
-    );
-  await db
-    .prepare('DELETE FROM usage WHERE owner=? AND window<?')
-    .bind(owner, window - 2)
-    .run();
 }

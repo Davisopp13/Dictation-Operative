@@ -40,15 +40,22 @@ function browser() {
   };
 }
 
-void test('Capture is the default on first visit and first reload', () => {
+void test('Clipboard is the default on first visit and first reload', () => {
   const env = browser();
   for (const type of ['navigate', 'reload']) {
     env.navigate(type);
     assert.deepEqual(readWorkspaceNavigation('alice', env), {
-      startPage: 'capture',
-      view: 'capture',
+      startPage: 'clipboard',
+      view: 'clipboard',
     });
   }
+});
+
+void test('the two pages are Clipboard and Documents, stored as clipboard and content', () => {
+  assert.deepEqual(workspacePages, [
+    { value: 'clipboard', label: 'Clipboard' },
+    { value: 'content', label: 'Documents' },
+  ]);
 });
 
 void test('every start page opens on a fresh visit, ignoring a previous current tab', () => {
@@ -57,7 +64,7 @@ void test('every start page opens on a fresh visit, ignoring a previous current 
     saveStartPage('alice', page.value, env);
     rememberWorkspacePage(
       'alice',
-      page.value === 'compose' ? 'capture' : 'compose',
+      page.value === 'content' ? 'clipboard' : 'content',
       env,
     );
     assert.deepEqual(readWorkspaceNavigation('alice', env), {
@@ -85,38 +92,58 @@ void test('reload restores each current tab regardless of the chosen start page'
 void test('changing start page does not change the current tab on refresh', () => {
   const env = browser();
   rememberWorkspacePage('alice', 'clipboard', env);
-  saveStartPage('alice', 'compose', env);
+  saveStartPage('alice', 'content', env);
   env.navigate('reload');
   assert.equal(readWorkspaceNavigation('alice', env).view, 'clipboard');
   env.navigate('navigate');
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'compose');
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'content');
 });
 
 void test('browser tabs keep independent current pages and share the start preference', () => {
   const first = browser();
   const second = browser();
   second.localStorage = first.localStorage;
-  saveStartPage('alice', 'compose', first);
+  saveStartPage('alice', 'content', first);
   rememberWorkspacePage('alice', 'clipboard', first);
-  rememberWorkspacePage('alice', 'capture', second);
+  rememberWorkspacePage('alice', 'content', second);
   first.navigate('reload');
   second.navigate('reload');
   assert.equal(readWorkspaceNavigation('alice', first).view, 'clipboard');
-  assert.equal(readWorkspaceNavigation('alice', second).view, 'capture');
-  second.navigate('navigate');
-  assert.equal(readWorkspaceNavigation('alice', second).view, 'compose');
+  assert.equal(readWorkspaceNavigation('alice', second).view, 'content');
+  first.navigate('navigate');
+  assert.equal(readWorkspaceNavigation('alice', first).view, 'content');
 });
 
 void test('start and current pages are isolated between accounts', () => {
   const env = browser();
-  saveStartPage('alice', 'compose', env);
-  rememberWorkspacePage('alice', 'clipboard', env);
+  saveStartPage('alice', 'content', env);
+  rememberWorkspacePage('alice', 'content', env);
   for (const type of ['navigate', 'reload']) {
     env.navigate(type);
     assert.deepEqual(readWorkspaceNavigation('bob', env), {
-      startPage: 'capture',
-      view: 'capture',
+      startPage: 'clipboard',
+      view: 'clipboard',
     });
+  }
+});
+
+void test('retired Capture and Compose pages open Clipboard without rewriting storage', () => {
+  for (const retired of ['capture', 'compose']) {
+    const env = browser();
+    env.localStorage.setItem('do-start-page:alice', retired);
+    assert.deepEqual(readWorkspaceNavigation('alice', env), {
+      startPage: 'clipboard',
+      view: 'clipboard',
+    });
+    // A retired current tab maps to Clipboard even when Documents is the start page.
+    saveStartPage('alice', 'content', env);
+    env.sessionStorage.setItem('do-current-page:alice', retired);
+    env.navigate('reload');
+    assert.deepEqual(readWorkspaceNavigation('alice', env), {
+      startPage: 'content',
+      view: 'clipboard',
+    });
+    assert.equal(env.sessionStorage.getItem('do-current-page:alice'), retired);
   }
 });
 
@@ -125,20 +152,20 @@ void test('invalid storage and missing navigation timing fall back safely', () =
   env.localStorage.setItem('do-start-page:alice', 'removed-tab');
   env.sessionStorage.setItem('do-current-page:alice', 'removed-tab');
   env.navigate('reload');
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'capture');
-  saveStartPage('alice', 'compose', env);
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'compose');
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'clipboard');
+  saveStartPage('alice', 'content', env);
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'content');
   rememberWorkspacePage('alice', 'clipboard', env);
   env.navigate();
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'compose');
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'content');
 });
 
 void test('history restoration keeps the current tab', () => {
   const env = browser();
-  saveStartPage('alice', 'capture', env);
-  rememberWorkspacePage('alice', 'compose', env);
+  saveStartPage('alice', 'clipboard', env);
+  rememberWorkspacePage('alice', 'content', env);
   env.navigate('back_forward');
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'compose');
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'content');
 });
 
 void test('blocked browser storage does not break navigation or silently report a saved preference', () => {
@@ -152,12 +179,12 @@ void test('blocked browser storage does not break navigation or silently report 
   }
   env.navigate('reload');
   assert.deepEqual(readWorkspaceNavigation('alice', env), {
-    startPage: 'capture',
-    view: 'capture',
+    startPage: 'clipboard',
+    view: 'clipboard',
   });
   assert.doesNotThrow(() => rememberWorkspacePage('alice', 'clipboard', env));
   assert.throws(
-    () => saveStartPage('alice', 'compose', env),
+    () => saveStartPage('alice', 'content', env),
     /Could not save your start page/,
   );
 });

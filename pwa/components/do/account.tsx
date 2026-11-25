@@ -18,7 +18,6 @@ import {
   type Device,
   type Payload,
 } from '@/lib/sync/protocol';
-import type { SettingsState } from '@/components/do/settings';
 import { readClipboard, writeClipboard } from '@/lib/sync/clipboard';
 
 // Keep browser account access behind the same signed-in account as the workspace.
@@ -37,13 +36,11 @@ export function AccountPanel({
   device,
   pair,
   disabled,
-  onSettings,
 }: {
   owner: string;
   device: Device;
   pair?: Pair;
   disabled: boolean;
-  onSettings?: (settings: SettingsState) => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [preview, setPreview] = useState<{
@@ -64,10 +61,7 @@ export function AccountPanel({
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [error, setError] = useState('');
-  const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
-  const [key, setKey] = useState(''),
-    [model, setModel] = useState('openai/gpt-oss-120b');
   function save(a: Account) {
     localStorage.setItem(storage, JSON.stringify(a));
     setAccount(a);
@@ -123,21 +117,6 @@ export function AccountPanel({
       clearInterval(timer);
     };
   }, [account]);
-  useEffect(() => {
-    if (!account || !state?.settings || editing) return;
-    let active = true;
-    void new AccountClient(account, accountFetch)
-      .settings(state.settings)
-      .then((value) => {
-        if (active) setModel(value.model);
-      })
-      .catch(() => {
-        if (active) setError('Shared settings could not be decrypted.');
-      });
-    return () => {
-      active = false;
-    };
-  }, [account, state?.settings, editing]);
   async function run(action: () => Promise<void>) {
     if (busy || disabled) return;
     setBusy(true);
@@ -180,7 +159,7 @@ export function AccountPanel({
                 const a: Account = {
                   v: 1,
                   id: info.id,
-                  label: 'DO account',
+                  label: 'Catchall Desk account',
                   secret: randomSecret(),
                   token: randomSecret(),
                   device: { ...device, id: crypto.randomUUID() },
@@ -406,99 +385,6 @@ export function AccountPanel({
               </Button>
             </div>
           )}
-          <h4 className="font-semibold">Shared Groq connection</h4>
-          <p className="subtle text-sm">
-            Publish once for your trusted devices. Leave the key blank to share
-            preferences only. Each device chooses whether to apply the shared
-            connection.
-          </p>
-          <label className="field-label" htmlFor="account-model">
-            Groq model
-          </label>
-          <Input
-            id="account-model"
-            value={model}
-            maxLength={120}
-            onChange={(e) => {
-              setEditing(true);
-              setModel(e.target.value);
-            }}
-            disabled={blocked}
-          />
-          <label className="field-label" htmlFor="account-groq">
-            Groq API key (optional)
-          </label>
-          <Input
-            id="account-groq"
-            type="password"
-            autoComplete="off"
-            value={key}
-            maxLength={300}
-            onChange={(e) => setKey(e.target.value)}
-            disabled={blocked}
-          />
-          <Button
-            disabled={blocked || !state}
-            onClick={() =>
-              void run(async () => {
-                const client = new AccountClient(account, accountFetch);
-                const previous = state!.settings
-                  ? await client.settings(state!.settings)
-                  : null;
-                await client.publishSettings(
-                  {
-                    v: 1,
-                    provider: 'groq',
-                    model,
-                    cleanupEnabled: previous?.cleanupEnabled ?? true,
-                    vocabulary: previous?.vocabulary ?? [],
-                    groqKey: key.trim() || null,
-                  },
-                  state!.settingsRevision,
-                );
-                setKey('');
-                setEditing(false);
-                setMessage(
-                  'Encrypted Groq settings published. Approved devices can apply them.',
-                );
-              })
-            }
-          >
-            Publish shared connection
-          </Button>
-          <Button
-            variant="outline"
-            disabled={blocked || !state?.settings}
-            onClick={() =>
-              void run(async () => {
-                const shared = await new AccountClient(
-                  account,
-                  accountFetch,
-                ).settings(state!.settings!);
-                if (!shared.groqKey)
-                  throw new Error(
-                    'Shared preferences contain no API key. Publish one from a trusted device.',
-                  );
-                const connection = await post<SettingsState>('settings', {
-                  action: 'connect',
-                  key: shared.groqKey,
-                  model: shared.model,
-                });
-                onSettings?.(connection);
-                setMessage(
-                  'Web connection updated. Cloud-processing consent is still controlled in Settings.',
-                );
-              })
-            }
-          >
-            Use shared connection in web app
-          </Button>
-          <p className="subtle text-sm">
-            Using the connection in the web app sends the decrypted key to its
-            existing secure credential store so it can call Groq. Account sync
-            itself stores only encrypted content. Browser trust keys remain in
-            this browser’s site storage.
-          </p>
         </>
       )}
       {message && <output className="block text-sm">{message}</output>}

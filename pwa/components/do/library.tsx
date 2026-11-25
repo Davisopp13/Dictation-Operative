@@ -1,13 +1,12 @@
 'use client';
 import { useState } from 'react';
-import type { Dispatch, ReactNode, SetStateAction } from 'react';
+import type { ReactNode } from 'react';
 import {
   Clipboard,
   Pin,
   Search,
   X,
   Download,
-  Layers,
   LoaderCircle,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -34,10 +33,7 @@ import { mergeClipboardFeed } from '@/lib/clipboard-feed';
 import { ClipboardImages, type ImageFeed } from './clipboard-images';
 import { ClipboardText } from './clipboard-text';
 import { ClipboardSyncControls } from './clipboard-sync';
-import { ComposeSurface, type ComposeFormat } from './compose';
 import type { ClipSummary } from '@/lib/domain';
-
-type View = 'capture' | 'clipboard' | 'compose';
 
 export type LibraryProps = {
   dailyCleanup: boolean;
@@ -45,8 +41,6 @@ export type LibraryProps = {
   setClipboardFilter: (filter: 'all' | 'pinned' | 'images') => void;
   accountEmail: string;
   onClipboardSaved: () => void;
-  view: View;
-  setView: (view: View) => void;
   collectionFilter: string;
   setCollectionFilter: (value: string) => void;
   tagFilter: string;
@@ -55,28 +49,18 @@ export type LibraryProps = {
   query: string;
   setQuery: (value: string) => void;
   clips: ClipSummary[];
-  card: (item: ClipSummary, selectable?: boolean) => ReactNode;
+  card: (item: ClipSummary) => ReactNode;
   loading: boolean;
   hasMore: boolean;
   loadMore: () => Promise<void>;
-  selected: ClipSummary[];
-  setSelected: Dispatch<SetStateAction<ClipSummary[]>>;
-  toggleSelection: (clip: ClipSummary) => void;
-  format: ComposeFormat;
-  setFormat: (format: ComposeFormat) => void;
-  compose: () => Promise<void>;
-  resetComposeId: () => void;
   setImportOpen: (open: boolean) => void;
   exportLibrary: () => Promise<void>;
-  busy: boolean;
   locked: boolean;
 };
 
-/** Saved Clipboard items and text selection for Compose. */
+/** Saved Clipboard text and images. */
 export function LibrarySurface({
-  view,
   dailyCleanup,
-  setView,
   clipboardFilter,
   setClipboardFilter,
   collectionFilter,
@@ -91,16 +75,8 @@ export function LibrarySurface({
   loading,
   hasMore,
   loadMore,
-  selected,
-  setSelected,
-  toggleSelection,
-  format,
-  setFormat,
-  compose,
-  resetComposeId,
   setImportOpen,
   exportLibrary,
-  busy,
   locked,
   accountEmail,
   onClipboardSaved,
@@ -141,7 +117,7 @@ export function LibrarySurface({
       clips.map((item) => ({
         id: `text:${item.id}`,
         time: item.updatedAt,
-        content: card(item, true),
+        content: card(item),
       })),
       imageFeed?.items ?? [],
       hasMore,
@@ -149,7 +125,7 @@ export function LibrarySurface({
     );
     const pending = loading || imageFeed?.loading;
     const filtered = !!(query || collectionFilter || tagFilter);
-    const pinned = view === 'clipboard' && clipboardFilter === 'pinned';
+    const pinned = clipboardFilter === 'pinned';
     return (
       <>
         {pending ? (
@@ -180,29 +156,26 @@ export function LibrarySurface({
                   ? 'Try another search or clear your filters.'
                   : pinned
                     ? 'Pin text or images from All to keep them handy and protect them from daily cleanup.'
-                    : 'Capture a thought, paste text, or upload an image to get started.'}
+                    : 'Paste text or upload an image above to get started.'}
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <Button
-                variant="outline"
-                className="control"
-                onClick={() => {
-                  if (filtered) {
-                    setQuery('');
-                    setCollectionFilter('');
-                    setTagFilter('');
-                  } else if (pinned) setClipboardFilter('all');
-                  else setView('capture');
-                }}
-              >
-                {filtered
-                  ? 'Clear filters'
-                  : pinned
-                    ? 'Browse All'
-                    : 'Capture a thought'}
-              </Button>
-            </EmptyContent>
+            {(filtered || pinned) && (
+              <EmptyContent>
+                <Button
+                  variant="outline"
+                  className="control"
+                  onClick={() => {
+                    if (filtered) {
+                      setQuery('');
+                      setCollectionFilter('');
+                      setTagFilter('');
+                    } else setClipboardFilter('all');
+                  }}
+                >
+                  {filtered ? 'Clear filters' : 'Browse All'}
+                </Button>
+              </EmptyContent>
+            )}
           </Empty>
         )}
         {(hasMore || imageFeed?.hasMore) && !pending && (
@@ -223,42 +196,34 @@ export function LibrarySurface({
   };
   return (
     <>
-      {view === 'clipboard' && (
-        <fieldset
-          className="clipboard-filters actions"
-          aria-label="Clipboard filter"
-        >
-          {(['all', 'pinned', 'images'] as const).map((filter) => (
-            <Button
-              key={filter}
-              className="control"
-              variant={clipboardFilter === filter ? 'secondary' : 'ghost'}
-              aria-pressed={clipboardFilter === filter}
-              disabled={locked}
-              onClick={() => setClipboardFilter(filter)}
-            >
-              {filter === 'all'
-                ? 'All'
-                : filter === 'pinned'
-                  ? 'Pinned'
-                  : 'Images'}
-            </Button>
-          ))}
-        </fieldset>
-      )}
+      <fieldset
+        className="clipboard-filters actions"
+        aria-label="Clipboard filter"
+      >
+        {(['all', 'pinned', 'images'] as const).map((filter) => (
+          <Button
+            key={filter}
+            className="control"
+            variant={clipboardFilter === filter ? 'secondary' : 'ghost'}
+            aria-pressed={clipboardFilter === filter}
+            disabled={locked}
+            onClick={() => setClipboardFilter(filter)}
+          >
+            {filter === 'all'
+              ? 'All'
+              : filter === 'pinned'
+                ? 'Pinned'
+                : 'Images'}
+          </Button>
+        ))}
+      </fieldset>
       <div className="library-toolbar">
         <div className="search-field">
           <Search size={18} />
           <Input
             className="search-input"
-            aria-label={
-              view === 'clipboard' ? 'Search Clipboard' : 'Search thoughts'
-            }
-            placeholder={
-              view === 'clipboard'
-                ? 'Search words and image names…'
-                : 'Search your words…'
-            }
+            aria-label="Search Clipboard"
+            placeholder="Search words and image names…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             maxLength={200}
@@ -269,7 +234,7 @@ export function LibrarySurface({
             </button>
           )}
         </div>
-        {(view !== 'clipboard' || clipboardFilter !== 'images') && (
+        {clipboardFilter !== 'images' && (
           <div className="library-desktop-filters">{filters}</div>
         )}
         <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
@@ -289,14 +254,12 @@ export function LibrarySurface({
             <SheetHeader>
               <SheetTitle>Filters and options</SheetTitle>
               <SheetDescription>
-                {view === 'clipboard'
-                  ? 'Filter saved text by collection or tag. Images have no collection or tags.'
-                  : 'Narrow down your thoughts.'}
+                Filter saved text by collection or tag. Images have no
+                collection or tags.
               </SheetDescription>
             </SheetHeader>
             <div className="mobile-library-fields">
-              {(view !== 'clipboard' || clipboardFilter !== 'images') &&
-                filters}
+              {clipboardFilter !== 'images' && filters}
               {(collectionFilter || tagFilter) && (
                 <Button
                   variant="ghost"
@@ -314,7 +277,6 @@ export function LibrarySurface({
               >
                 Show results
               </Button>
-              {view !== 'compose' && (
                 <div className="actions">
                   <Button
                     variant="outline"
@@ -339,33 +301,26 @@ export function LibrarySurface({
                     <Download /> Export text
                   </Button>
                 </div>
-              )}
             </div>
           </SheetContent>
         </Sheet>
-        {view !== 'compose' && (
-          <Button
-            variant="outline"
-            className="control library-desktop-action"
-            disabled={locked}
-            onClick={() => setImportOpen(true)}
-          >
-            Import text
-          </Button>
-        )}
-        {view !== 'compose' && (
-          <Button
-            className="control library-desktop-action"
-            variant="outline"
-            disabled={locked}
-            onClick={() => void exportLibrary()}
-          >
-            <Download /> Export text
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="control library-desktop-action"
+          disabled={locked}
+          onClick={() => setImportOpen(true)}
+        >
+          Import text
+        </Button>
+        <Button
+          className="control library-desktop-action"
+          variant="outline"
+          disabled={locked}
+          onClick={() => void exportLibrary()}
+        >
+          <Download /> Export text
+        </Button>
       </div>
-      {view === 'clipboard' && (
-        <>
           <div className="clipboard-sync-bar">
             <div className="clipboard-sync-summary">
               <strong>Shared Clipboard</strong>
@@ -383,7 +338,7 @@ export function LibrarySurface({
           </div>
           <p className="subtle text-sm">
             {dailyCleanup
-              ? 'Daily cleanup is on. Unpinned Clipboard text and images older than 24 hours are cleared once a day. Pin anything you want to keep. Dictation history and older saved text stay saved.'
+              ? 'Daily cleanup is on. Unpinned Clipboard text and images older than 24 hours are cleared once a day. Pin anything you want to keep. Earlier dictation history and text saved before cleanup existed stay saved.'
               : 'Daily cleanup is off. Your saved items stay until you delete them. Pin text or images to keep them handy.'}
           </p>
           <div hidden={clipboardFilter === 'images'}>
@@ -395,48 +350,9 @@ export function LibrarySurface({
               to include images.
             </p>
           )}
-        </>
-      )}
-      {view === 'compose' && (
-        <ComposeSurface
-          selected={selected}
-          setSelected={setSelected}
-          format={format}
-          setFormat={setFormat}
-          compose={compose}
-          resetComposeId={() => {
-            resetComposeId();
-          }}
-          toggleSelection={toggleSelection}
-          busy={busy}
-          locked={locked}
-        />
-      )}
-      {view !== 'compose' && selected.length > 0 && (
-        <div className="selection-bar">
-          <span>{selected.length} selected</span>
-          <Button
-            className="control"
-            disabled={locked}
-            onClick={() => setView('compose')}
-          >
-            <Layers /> Compose with these
-          </Button>
-          <Button
-            variant="ghost"
-            className="control"
-            onClick={() => setSelected([])}
-          >
-            Clear
-          </Button>
-        </div>
-      )}
-      {view === 'clipboard' && clipboardFilter === 'images' ? (
+      {clipboardFilter === 'images' ? (
         <ClipboardImages query={query} locked={locked} />
-      ) : view === 'clipboard' &&
-        (clipboardFilter === 'all' || clipboardFilter === 'pinned') &&
-        !collectionFilter &&
-        !tagFilter ? (
+      ) : !collectionFilter && !tagFilter ? (
         <ClipboardImages
           query={query}
           locked={locked}

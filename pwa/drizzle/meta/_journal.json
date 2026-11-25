@@ -43,6 +43,13 @@
       "when": 1790609360839,
       "tag": "0005_fuzzy_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790966627054,
+      "tag": "0006_content_tray",
+      "breakpoints": true
     }
   ]
 }

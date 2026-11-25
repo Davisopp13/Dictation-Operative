@@ -1923,3 +1923,52 @@ a:focus-visible {
   .guide-flow { gap: 8px; flex-wrap: wrap; }
   .guide-flow span svg { display: none; }
 }
+
+/* Deliberately saved files and Drive shortcuts, separate from Clipboard. */
+.content-tray { min-width: 0; }
+.content-policy { font-size: .875rem; line-height: 1.6; margin-block: .75rem; }
+.content-add-actions, .content-filters { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.content-file-control { display: grid; gap: .4rem; font-size: .9rem; font-weight: 600; }
+.content-file-control input { max-width: 100%; font-size: .875rem; }
+.content-file-control input::file-selector-button { background: var(--secondary); color: var(--secondary-foreground); padding: .65rem .85rem; border: 1px solid var(--border); border-radius: .6rem; cursor: pointer; }
+.content-quota { display: grid; gap: .4rem; font-size: .875rem; margin-block: 1.25rem; }
+.content-quota progress { width: 100%; height: .75rem; accent-color: var(--primary); }
+.content-search { display: flex; align-items: center; gap: .4rem; flex: 1; min-width: min(100%, 240px); }
+.content-pinned { display: flex; align-items: center; gap: .5rem; white-space: nowrap; font-size: .875rem; min-height: 44px; }
+.content-pinned input { width: 18px; height: 18px; accent-color: var(--primary); }
+.content-status { display: flex; align-items: center; gap: .5rem; min-height: 1.5rem; margin-block: .75rem; }
+.content-status svg { width: 18px; }
+.content-error { color: var(--destructive); margin-block: .75rem; overflow-wrap: anywhere; }
+.content-list { display: grid; gap: .75rem; list-style: none; padding: 0; }
+.content-card { display: flex; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: .85rem; background: var(--card); }
+.content-card-icon { color: var(--primary); flex-shrink: 0; }
+.content-card-details { min-width: 0; flex: 1; }
+.content-card-details h2 { display: flex; align-items: center; gap: .5rem; font-size: 1rem; font-weight: 650; overflow-wrap: anywhere; }
+.content-card-details p { font-size: .875rem; overflow-wrap: anywhere; margin-block: .4rem .75rem; }
+.content-card .actions { flex-wrap: wrap; }
+.content-link { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding-inline: .4rem; font-size: .875rem; }
+.content-empty { text-align: center; border: 1px dashed var(--border); border-radius: 1rem; padding: 2rem 1rem; }
+.content-empty > svg { margin: 0 auto .75rem; color: var(--primary); }
+.content-empty h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: .5rem; }
+.content-empty p { color: var(--muted-foreground); max-width: 32rem; margin: auto; }
+.content-link-form { display: grid; gap: .65rem; }
+.content-player { width: 100%; max-height: 55dvh; }
+.content-tray :is(a,input):focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+@media (max-width: 767px) {
+  .mobile-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content-card { gap: .65rem; padding: .85rem; }
+  .content-filters { gap: .5rem; }
+  .content-search { flex-basis: 100%; }
+  .content-add-actions > * { width: 100%; }
+  .content-card .actions button { min-height: 44px; }
+}
+
+.content-quota progress { border: 0; border-radius: .5rem; overflow: hidden; }
+.content-quota progress::-webkit-progress-bar { background: var(--muted); }
+.content-quota progress::-webkit-progress-value { background: var(--primary); }
+.content-quota progress::-moz-progress-bar { background: var(--primary); }
+
+@media (max-width: 767px) {
+  .content-add-actions button, .content-filters button, .content-dialog button { min-height: 44px; }
+  .content-file-control input { min-height: 44px; }
+}

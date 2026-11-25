@@ -3,61 +3,92 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import 'fake-indexeddb/auto';
-import * as store from '../public/recording-store.js';
+import * as store from '../lib/recording-store.js';
 import { handleAPI } from '../lib/server';
 import { validateTools, emptyTools } from '../lib/workspace-tools';
-import { transformText, transcribeAudio } from '../lib/provider';
 import { importClip } from '../lib/backup';
-import { recoverRecording, type SavedRecording } from '../lib/recordings';
-import { newClip } from '../lib/domain';
-void test('recording chunks survive reopened connections, preserve order and isolate owners', async () => {
-  const id = crypto.randomUUID();
-  await store.setAccount('alice');
-  assert.equal(await store.getAccount(), 'alice');
-  await store.beginRecording('alice', id, 'audio/webm', {
-    clipId: 'existing-thought',
+import {
+  audioFileName,
+  saveTranscript,
+  type SavedRecording,
+} from '../lib/recordings';
+import { newClip, type Clip } from '../lib/domain';
+
+// Writes a recording the way the retired recorder stored it, using the same
+// database name, version and object stores.
+function seedRecording(
+  recording: Omit<SavedRecording, 'bytes'>,
+  chunks: string[],
+) {
+  return new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('do-recordings-v2', 1);
+    open.onupgradeneeded = () => {
+      open.result.createObjectStore('recordings', { keyPath: 'id' });
+      open.result.createObjectStore('chunks', { keyPath: ['id', 'index'] });
+      open.result.createObjectStore('session');
+    };
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction(['recordings', 'chunks'], 'readwrite');
+      tx.objectStore('recordings').put({
+        ...recording,
+        bytes: chunks.reduce((n, c) => n + c.length, 0),
+      });
+      // Stored out of order on purpose: reads must sort by chunk index.
+      chunks
+        .map((text, index) => ({ id: recording.id, index, blob: new Blob([text]) }))
+        .reverse()
+        .forEach((chunk) => tx.objectStore('chunks').put(chunk));
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    };
   });
-  await store.appendChunk('alice', id, 1, new Blob(['second']));
-  await store.appendChunk('alice', id, 0, new Blob(['first']));
-  await store.appendChunk('alice', id, 0, new Blob(['duplicate']));
-  await assert.rejects(store.readAudio('bob', id));
-  await assert.rejects(store.deleteRecording('bob', id));
-  await assert.rejects(
-    store.updateRecording('bob', id, { transcript: 'attack' }),
-  );
-  assert.equal(((await store.listRecordings('bob')) as unknown[]).length, 0);
-  assert.equal(
-    await ((await store.readAudio('alice', id)) as Blob).text(),
-    'firstsecond',
-  );
-  await store.updateRecording('alice', id, {
-    state: 'ready',
-    transcript: 'Transcript preserved',
-  });
-  const records = (await store.listRecordings('alice')) as {
-    target: { clipId: string };
-    transcript: string;
-    bytes: number;
-  }[];
-  assert.equal(records[0].target.clipId, 'existing-thought');
-  assert.equal(records[0].transcript, 'Transcript preserved');
-  assert.equal(records[0].bytes, 11);
-  await store.deleteRecording('alice', id);
-  assert.equal(((await store.listRecordings('alice')) as unknown[]).length, 0);
-  await assert.rejects(store.readAudio('alice', id));
+}
+const recording = (
+  account: string,
+  transcript: string | null,
+  mime = 'audio/webm',
+): Omit<SavedRecording, 'bytes'> => ({
+  id: crypto.randomUUID(),
+  account,
+  mime,
+  target: { kind: 'note' },
+  createdAt: Date.now(),
+  state: 'ready',
+  transcript,
 });
-void test('device storage enforces count and byte limits without deleting prior audio', async () => {
-  const ids = Array.from({ length: 20 }, () => crypto.randomUUID());
-  for (const id of ids)
-    await store.beginRecording('limit', id, 'audio/webm', { kind: 'note' });
-  await assert.rejects(
-    store.beginRecording('limit', crypto.randomUUID(), 'audio/webm', {}),
-  );
-  await assert.rejects(
-    store.appendChunk('limit', ids[0], 0, new Blob([new Uint8Array(20000001)])),
-  );
-  assert.equal(((await store.readAudio('limit', ids[0])) as Blob).size, 0);
-  for (const id of ids) await store.deleteRecording('limit', id);
+
+void test('recordings left by the retired recorder stay readable, ordered and isolated by account', async () => {
+  const mine = recording('alice', 'Transcript preserved');
+  await seedRecording(mine, ['first', 'second']);
+  await assert.rejects(store.readAudio('bob', mine.id));
+  await assert.rejects(store.deleteRecording('bob', mine.id));
+  assert.equal(((await store.listRecordings('bob')) as unknown[]).length, 0);
+  const listed = (await store.listRecordings('alice')) as SavedRecording[];
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].transcript, 'Transcript preserved');
+  assert.equal(listed[0].bytes, 11);
+  const audio = (await store.readAudio('alice', mine.id)) as Blob;
+  assert.equal(await audio.text(), 'firstsecond');
+  assert.equal(audio.type, 'audio/webm');
+  assert.equal(audioFileName(listed[0]), `recording-${mine.id}.webm`);
+  assert.equal(audioFileName({ id: 'x', mime: 'audio/mp4' }), 'recording-x.m4a');
+  await store.deleteRecording('alice', mine.id);
+  assert.equal(((await store.listRecordings('alice')) as unknown[]).length, 0);
+  await assert.rejects(store.readAudio('alice', mine.id));
+});
+void test('the recording store no longer offers any way to create or change recordings', () => {
+  assert.deepEqual(Object.keys(store).sort(), [
+    'RECORDING_DB',
+    'deleteRecording',
+    'listRecordings',
+    'readAudio',
+  ]);
+  assert.equal(store.RECORDING_DB, 'do-recordings-v2');
 });
 void test('workspace validators bound preferences and metadata survives backup', () => {
   assert.throws(() =>
@@ -80,39 +111,6 @@ void test('workspace validators bound preferences and metadata survives backup',
   });
   assert.deepEqual(importClip(clip).tags, ['ideas', 'next']);
   assert.equal(importClip(clip).collection, 'Project');
-});
-void test('vocabulary and templates reach the provider without changing source data', async () => {
-  await transcribeAudio(
-    'synthetic',
-    new File(['audio'], 'sample.webm', { type: 'audio/webm' }),
-    async (_url, init) => {
-      assert.equal(
-        (init!.body as FormData).get('prompt'),
-        'Oppenheimer, Dictation Operative',
-      );
-      return Response.json({ text: 'Words' });
-    },
-    ['Oppenheimer', 'Dictation Operative'],
-  );
-  await transformText(
-    'synthetic',
-    'rewrite',
-    'Unchanged source',
-    '',
-    async (_url, init) => {
-      const body = JSON.parse(init?.body as string);
-      assert.match(body.messages[0].content, /Use three paragraphs/);
-      assert.match(body.messages[0].content, /Oppenheimer/);
-      assert.equal(
-        JSON.parse(body.messages[1].content).sourceText,
-        'Unchanged source',
-      );
-      return Response.json({
-        choices: [{ message: { content: 'Result' }, finish_reason: 'stop' }],
-      });
-    },
-    { instructions: 'Use three paragraphs.', vocabulary: ['Oppenheimer'] },
-  );
 });
 void test('V2 D1 migration, owner isolation, filters and concurrent preference saves', async () => {
   const mf = new Miniflare({
@@ -147,7 +145,7 @@ void test('V2 D1 migration, owner isolation, filters and concurrent preference s
           },
           ...(data ? { body: JSON.stringify(data) } : {}),
         }),
-        { db, owner, encryptionKey: '' },
+        { db, owner },
       );
     const input = {
       ...emptyTools,
@@ -237,97 +235,61 @@ void test('V2 D1 migration, owner isolation, filters and concurrent preference s
       ).status,
       409,
     );
-    assert.equal(
-      (
-        await call(
-          'transform',
-          'POST',
-          {
-            kind: 'rewrite',
-            text: 'Private',
-            templateId: input.templates[0].id,
-          },
-          'bob',
-        )
-      ).status,
-      404,
-    );
-    // Lose a library write response after the server commits, then recover from a fresh IDB read.
+    // A cached transcript is saved as ordinary Clipboard text. The local
+    // record stays, and saving again never creates a second copy.
     const originalFetch = globalThis.fetch;
     try {
-      const recordingId = crypto.randomUUID();
-      await store.beginRecording('alice', recordingId, 'audio/webm', {
-        clipId: clip.id,
-      });
-      await store.appendChunk(
-        'alice',
-        recordingId,
-        0,
-        new Blob(['synthetic audio'.repeat(20)]),
-      );
-      let transcriptions = 0,
-        loseResponse = true;
-      globalThis.fetch = async (input, init) => {
-        const path = (
-          input instanceof Request ? input.url : input.toString()
-        ).replace('/api/', '');
-        if (path === 'transcribe') {
-          transcriptions++;
-          return Response.json({ text: 'Recovered addition.' });
-        }
-        const response = await call(
-          path,
+      globalThis.fetch = async (input, init) =>
+        call(
+          (input instanceof Request ? input.url : input.toString()).replace(
+            '/api/',
+            '',
+          ),
           init?.method ?? 'GET',
           typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
         );
-        if (init?.method === 'PATCH' && loseResponse) {
-          loseResponse = false;
-          throw new Error('Connection lost after commit');
-        }
-        return response;
+      const withTranscript = recording('alice', 'Words from an old recording.');
+      await seedRecording(withTranscript, ['synthetic audio']);
+      const stored = ((await store.listRecordings('alice')) as SavedRecording[]).find(
+        (r) => r.id === withTranscript.id,
+      )!;
+      const saved = await saveTranscript(stored);
+      assert.equal(saved.id, withTranscript.id);
+      assert.equal(saved.content, 'Words from an old recording.');
+      assert.equal(saved.kind, 'note');
+      assert.equal((await saveTranscript(stored)).revision, saved.revision);
+      const library = (await (await call('library?q=old+recording')).json()) as {
+        items: Clip[];
       };
-      const first = (
-        (await store.listRecordings('alice')) as SavedRecording[]
-      ).find((r) => r.id === recordingId)!;
-      await assert.rejects(recoverRecording(first), /offline|interrupted/);
-      const persisted = (
-        (await store.listRecordings('alice')) as SavedRecording[]
-      ).find((r) => r.id === recordingId)!;
-      assert.equal(persisted.transcript, 'Recovered addition.');
-      const recovered = await recoverRecording(persisted);
-      assert.equal(transcriptions, 1);
+      assert.equal(library.items.length, 1);
+      // Saved as history, not as a Clipboard item, so daily cleanup never removes it.
       assert.equal(
-        recovered.segments.filter((s) => s.id === recordingId).length,
-        1,
+        (
+          await db
+            .prepare('SELECT clipboard_item FROM clips WHERE id=?')
+            .bind(saved.id)
+            .first<{ clipboard_item: number }>()
+        )?.clipboard_item,
+        0,
       );
+      const kept = ((await store.listRecordings('alice')) as SavedRecording[]).find(
+        (r) => r.id === withTranscript.id,
+      );
+      assert.equal(kept?.transcript, 'Words from an old recording.');
       assert.equal(
-        ((await store.listRecordings('alice')) as SavedRecording[]).some(
-          (r) => r.id === recordingId,
-        ),
-        false,
+        await ((await store.readAudio('alice', withTranscript.id)) as Blob).text(),
+        'synthetic audio',
       );
-      const missingId = crypto.randomUUID();
-      await store.beginRecording('alice', missingId, 'audio/webm', {
-        clipId: crypto.randomUUID(),
-      });
-      await store.updateRecording('alice', missingId, {
-        transcript: 'Keep this',
-      });
+      const audioOnly = recording('alice', null);
+      await seedRecording(audioOnly, ['audio']);
       await assert.rejects(
-        recoverRecording(
+        saveTranscript(
           ((await store.listRecordings('alice')) as SavedRecording[]).find(
-            (r) => r.id === missingId,
+            (r) => r.id === audioOnly.id,
           )!,
         ),
-        /not found/,
+        /no saved transcript/,
       );
-      assert.equal(
-        ((await store.listRecordings('alice')) as SavedRecording[]).some(
-          (r) => r.id === missingId,
-        ),
-        true,
-      );
-      await store.deleteRecording('alice', missingId);
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -86,7 +86,7 @@ export function importClip(value: unknown): Clip {
   )
     throw new AppError('This backup contains duplicate versions or segments.');
   if (JSON.stringify(clip).length > 850000)
-    throw new AppError('This backup thought exceeds the size limit.');
+    throw new AppError('An item in this backup exceeds the size limit.');
   return clip;
 }
 export function parseBackup(value: unknown): Clip[] {
@@ -98,7 +98,7 @@ export function parseBackup(value: unknown): Clip[] {
     data.clips.length > 2000
   )
     throw new AppError(
-      'Choose a DO V1 library export containing up to 2,000 thoughts.',
+      'Choose a text backup exported from this workspace, containing up to 2,000 items.',
     );
   return data.clips.map(importClip);
 }

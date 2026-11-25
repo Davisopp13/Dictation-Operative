@@ -1,6 +1,6 @@
-import { api, post } from './client';
+import { post } from './client';
 import type { Clip, ClipKind } from './domain';
-import * as store from '../public/recording-store.js';
+import * as store from './recording-store.js';
 export { store };
 export type RecordingTarget = {
   clipId?: string;
@@ -18,72 +18,41 @@ export type SavedRecording = {
   state: string;
   transcript: string | null;
 };
-export async function recoverRecording(
-  recording: SavedRecording,
-): Promise<Clip> {
-  const { account, id, target } = recording;
-  let transcript = recording.transcript;
-  if (!transcript) {
-    const audio = (await store.readAudio(account, id)) as Blob;
-    if (audio.size < 100)
-      throw new Error(
-        'This recording has no recoverable audio. You can discard it.',
-      );
-    const form = new FormData();
-    form.append(
-      'audio',
-      audio,
-      'recording.' +
-        (audio.type.includes('mp4')
-          ? 'm4a'
-          : audio.type.includes('ogg')
-            ? 'ogg'
-            : 'webm'),
-    );
-    transcript = (
-      await api<{ text: string }>('transcribe', { method: 'POST', body: form })
-    ).text;
-    await store.updateRecording(account, id, { transcript });
-  }
-  let clip: Clip;
-  if (target.clipId) {
-    const current = await api<Clip>('clips/' + target.clipId);
-    clip = await api<Clip>('clips/' + current.id, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        action: 'append',
-        revision: current.revision,
-        content: transcript,
-        segmentId: id,
-      }),
-    });
-  } else {
-    clip = await post<Clip>('clips', {
-      id,
-      content: transcript,
-      kind: target.kind ?? 'note',
-      context: target.context ?? '',
-    });
-  }
-  // Recover the original safely; templates can be applied from the editor without duplicate AI versions on retries.
-  await store.deleteRecording(account, id);
-  return clip;
+export function audioFileName(recording: Pick<SavedRecording, 'id' | 'mime'>) {
+  const extension = recording.mime.includes('mp4')
+    ? '.m4a'
+    : recording.mime.includes('ogg')
+      ? '.ogg'
+      : '.webm';
+  return 'recording-' + recording.id + extension;
+}
+/**
+ * Saves a transcript that the retired recorder cached on this device as
+ * ordinary Clipboard text. The local record is left in place. The recording id
+ * is the clip id, so saving twice never creates a second copy.
+ */
+export async function saveTranscript(recording: SavedRecording): Promise<Clip> {
+  if (!recording.transcript?.trim())
+    throw new Error('This recording has no saved transcript.');
+  return post<Clip>('clips', {
+    id: recording.id,
+    content: recording.transcript,
+    kind: 'note',
+  });
 }
 export async function withRecordingLock<T>(
   id: string,
   task: () => Promise<T>,
 ): Promise<T> {
-  if (!navigator.locks)
-    throw new Error(
-      'Recovery needs a browser with Web Locks. Update Safari or Chrome, or download your audio.',
-    );
+  // Older browsers without Web Locks cannot have another tab recording.
+  if (!navigator.locks) return task();
   return navigator.locks.request(
     'do-recording-' + id,
     { ifAvailable: true },
     (lock) => {
       if (!lock)
         throw new Error(
-          'This recording is active in another tab. Stop it there first.',
+          'This recording is in use in another tab. Close that tab first.',
         );
       return task();
     },

@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { QuickStartPage } from '@/components/do/quick-start';
 
 export const metadata: Metadata = {
-  title: 'Quick start — Dictation Operative',
+  title: 'Quick start — Catchall Desk',
   description:
-    'Learn to capture, refine, and use your thoughts with DO. A quick visual guide to the voice workspace, Mac dictation, and device Sync.',
+    'Save text, images, and documents on one device and use them on another. A quick guide to Clipboard, Documents, and device Sync.',
 };
 
 export default function HelpPage() {

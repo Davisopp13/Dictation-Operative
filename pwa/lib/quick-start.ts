@@ -1,27 +1,26 @@
-// Shared by the accessible in-app guide and the downloadable infographic.
+// Copy for the in-app guide and the /help page.
 export const quickStart = {
-  title: 'DO in 60 seconds',
-  subtitle: 'From a passing thought to words you can use.',
+  title: 'Catchall Desk in 60 seconds',
+  subtitle: 'Bring it in on one device. Take it out on another.',
   steps: [
     {
-      title: 'Capture',
-      caption: 'Get the thought down.',
-      body: 'In Capture, tap the microphone, speak, then stop. Your transcript saves automatically. Prefer the keyboard? Choose Write instead or Paste.',
-      tip: 'Reply to something: paste the message first, then speak your reply points.',
+      title: 'Bring it in',
+      caption: 'Paste, type, or upload.',
+      body: 'In Clipboard, paste or type text and choose Save to Clipboard, or paste or upload an image. In Documents, add files or a Google Docs or Sheets link.',
+      tip: 'Paste from clipboard fills the text box for you when your browser allows it.',
     },
     {
-      title: 'Refine',
-      caption: 'Shape your words.',
-      body: 'Open a saved thought. Choose Shape your words to Clean up, Rewrite, or Turn into an AI prompt. Review the result and save any edits.',
-      tip: 'Use Add more to this thought to keep going. Your original and saved versions stay available.',
+      title: 'Keep it handy',
+      caption: 'Find it again quickly.',
+      body: 'Pin anything you reuse. Search by words, image names, or file names. Give saved text a collection and tags, then filter by them.',
+      tip: 'Daily Clipboard cleanup is optional. When it is on, pinned items and Documents are never removed.',
     },
     {
-      title: 'Use',
-      caption: 'Put your words to work.',
-      body: 'Copy or share your finished text. Find saved thoughts in Clipboard, pin text you reuse, or select at least two thoughts in Compose to build a new draft.',
-      tip: 'In Compose, arrange your thoughts, choose Email, Progress update, or Checklist, then Create draft.',
+      title: 'Take it out',
+      caption: 'Use it anywhere.',
+      body: 'Sign in on another device and your items are there. Copy text, share it, download images and files, or export your saved text as a backup.',
+      tip: 'Clipboard refreshes every few seconds while the app is open.',
     },
   ],
-  mac: 'Click where you want to type. Tap Control + Option, speak, then tap again to insert. Or hold the shortcut while talking and release to insert.',
-  sync: 'Open Sync devices in the workspace and Settings → Sync on Mac. Create a pairing code, enter it on the other device, compare the confirmation codes, and approve.',
+  sync: 'For a one-off handoff that is never saved, open Sync, create a pairing code, enter it on the other device, compare the confirmation codes, and approve. Then choose Send clipboard or Receive latest.',
 };

@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -8,14 +7,12 @@ import {
   ArrowLeftRight,
   BookOpen,
   Check,
-  Clipboard,
+  ClipboardPaste,
   Copy,
   Download,
-  Layers,
-  Mic,
-  Monitor,
   Pin,
-  Sparkles,
+  Search,
+  Share2,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -25,41 +22,34 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ThemeToggle } from './theme';
+import { Wordmark } from './wordmark';
 import { quickStart } from '@/lib/quick-start';
 
 function GuideContent() {
-  const icons = [Mic, Sparkles, Clipboard];
+  const icons = [ClipboardPaste, Pin, Share2];
   return (
     <div className="quick-start">
       <header className="guide-stage">
         <div className="guide-brand">
-          <Image
-            src="/icons/icon-192.png"
-            alt=""
-            width={52}
-            height={52}
-            unoptimized
-          />
-          <span>
-            DICTATION
-            <br />
-            OPERATIVE
-          </span>
+          <Wordmark />
         </div>
         <p className="guide-kicker">START HERE · QUICK GUIDE</p>
         <h2>{quickStart.title}</h2>
         <p>{quickStart.subtitle}</p>
-        <div className="guide-flow" aria-label="Capture, then Refine, then Use">
+        <div
+          className="guide-flow"
+          aria-label="Bring it in, then keep it handy, then take it out"
+        >
           <span>
-            <Mic /> Capture
+            <ClipboardPaste /> In
           </span>
           <ArrowRight />
           <span>
-            <Sparkles /> Refine
+            <Pin /> Keep
           </span>
           <ArrowRight />
           <span>
-            <Clipboard /> Use
+            <Share2 /> Out
           </span>
         </div>
       </header>
@@ -84,20 +74,16 @@ function GuideContent() {
               >
                 {index === 0 ? (
                   <>
-                    <Mic aria-hidden="true" />
-                    <span>
-                      “The first draft is ready.
-                      <br />
-                      I’ll send it over today.”
-                    </span>
+                    <ClipboardPaste aria-hidden="true" />
+                    <span>Text · Images · Files · Google links</span>
                   </>
                 ) : index === 1 ? (
                   <>
-                    <Sparkles aria-hidden="true" />
+                    <Search aria-hidden="true" />
                     <span>
-                      The first draft is ready.
-                      <br />
-                      I’ll send it over today.
+                      <Pin size={14} aria-hidden="true" /> Pin{' '}
+                      <span aria-hidden="true">·</span> Search{' '}
+                      <span aria-hidden="true">·</span> Filter
                     </span>
                   </>
                 ) : (
@@ -106,7 +92,7 @@ function GuideContent() {
                     <span>
                       Copy <span aria-hidden="true">·</span> Share{' '}
                       <span aria-hidden="true">·</span>{' '}
-                      <Pin size={14} aria-hidden="true" /> Pin
+                      <Download size={14} aria-hidden="true" /> Download
                     </span>
                   </>
                 )}
@@ -117,74 +103,27 @@ function GuideContent() {
         })}
       </ol>
 
-      <section className="guide-example" aria-label="Try a project update">
-        <div>
-          <Layers aria-hidden="true" />
-          <h3>Try it: three thoughts, one email.</h3>
-        </div>
-        <ol>
-          <li>Record three project updates.</li>
-          <li>Select and order them in Compose.</li>
-          <li>Choose Email → Create draft.</li>
-          <li>Review, copy, and send from your email app.</li>
-        </ol>
-      </section>
-
       <div className="guide-devices">
         <section>
           <h3>
-            <Monitor aria-hidden="true" /> On your Mac
-          </h3>
-          <p>{quickStart.mac}</p>
-          <p className="guide-tip">
-            Requires the native Mac app, microphone and Accessibility
-            permissions, and a downloaded speech model. If you changed your
-            shortcut, use that instead.
-          </p>
-          <Link
-            href="/mac"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="guide-text-link"
-          >
-            Mac setup guide <ArrowRight aria-hidden="true" />
-            <span className="sr-only"> (opens in a new tab)</span>
-          </Link>
-        </section>
-        <section>
-          <h3>
-            <ArrowLeftRight aria-hidden="true" /> Across devices
+            <ArrowLeftRight aria-hidden="true" /> Direct device handoff
           </h3>
           <p>{quickStart.sync}</p>
           <p className="guide-tip">
-            Choose a destination to Send clipboard or Receive latest for text
-            and images. Keep the web app open and both devices online. Mac and
-            web dictation histories stay separate.
+            Handoff transfers are encrypted between your paired devices and
+            expire after two minutes. Keep the app open and both devices
+            online.
           </p>
         </section>
       </div>
       <p className="guide-note">
         <Check aria-hidden="true" />
         <span>
-          Before your first recording, allow microphone access and follow the
-          voice &amp; AI setup prompts. Web transcription and AI tools need an
-          internet connection.
+          Your saved Clipboard and Documents are private to your signed-in
+          account and need an internet connection.
         </span>
       </p>
     </div>
-  );
-}
-
-function DownloadGuide() {
-  return (
-    <a
-      className={`${buttonVariants({ variant: 'outline' })} control`}
-      href="/docs/do-quick-start.png"
-      download="DO-quick-start.png"
-    >
-      <Download aria-hidden="true" /> Download infographic{' '}
-      <span className="guide-filetype">PNG</span>
-    </a>
   );
 }
 
@@ -201,12 +140,11 @@ export function QuickStartDialog({
         <div className="guide-dialog-heading">
           <DialogTitle>Help · Quick start</DialogTitle>
           <DialogDescription>
-            Capture, refine, and use your first thought.
+            Save something on one device and use it on another.
           </DialogDescription>
         </div>
         <GuideContent />
         <div className="guide-actions">
-          <DownloadGuide />
           <Button className="control" onClick={() => onOpenChange(false)}>
             Back to workspace <ArrowRight aria-hidden="true" />
           </Button>
@@ -239,9 +177,8 @@ export function QuickStartPage() {
       </h1>
       <GuideContent />
       <div className="guide-actions">
-        <DownloadGuide />
         <Link href="/" className={`${buttonVariants()} control`}>
-          Start capturing <ArrowRight aria-hidden="true" />
+          Open workspace <ArrowRight aria-hidden="true" />
         </Link>
       </div>
     </main>

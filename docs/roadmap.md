@@ -1,5 +1,8 @@
 # Roadmap
 
+> **Status, November 24, 2026:** this document predates the Catchall Desk
+> restructuring. Dictation is retired on the web, the iOS keyboard extension in Phase 3 is no longer planned, and the Phase 4 "Vercel + Supabase" backend was never built: the backend is the Cloudflare Worker in `pwa/` plus the relay in `backend/sync-relay/`. The planned iPhone and Android apps are clipboard and document clients. See [`pwa/README.md`](../pwa/README.md) for the current web app.
+
 ## Universal Clipboard — cross-platform implementation track
 
 The [Universal Clipboard implementation roadmap](universal-clipboard-roadmap.md) defines the proposed path from existing Mac/PWA Sync to macOS, Windows, Linux, iOS, and Android support. It covers platform capabilities, native companions, shared protocol behavior, multi-device delivery, and release acceptance. Clipboard support can ship independently of each platform's dictation engine.
