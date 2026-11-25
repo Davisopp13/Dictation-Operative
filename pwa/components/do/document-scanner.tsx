@@ -203,7 +203,9 @@ export function DocumentScanner({
     }
   };
 
-  // A small live preview of the flattened, cleaned page.
+  // A small live preview of the flattened, cleaned page. The discard question
+  // unmounts the canvas, so `leaving` is a dependency: answering "Keep
+  // scanning" brings back an empty canvas that has to be drawn again.
   useEffect(() => {
     const target = preview.current;
     if (!draft || !target) return;
@@ -234,7 +236,7 @@ export function DocumentScanner({
       );
     }, 60);
     return () => clearTimeout(timer);
-  }, [draft, quad, filter]);
+  }, [draft, quad, filter, leaving]);
 
   const move = (index: number, x: number, y: number) =>
     setQuad((current) => {
