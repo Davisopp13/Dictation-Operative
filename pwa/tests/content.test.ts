@@ -484,16 +484,18 @@ void test('Content API uses real Worker streams, D1, R2 and application sessions
             disposition === 'inline' ? /^inline;/ : /^attachment;/,
             name,
           );
-          // Asking for a download always gets one.
-          const download = await call(`content/${item.id}/file?download=1`);
-          assert.match(download.headers.get('Content-Disposition')!, /^attachment;/);
-          await download.arrayBuffer();
           assert.equal(
             response.headers.get('Content-Security-Policy'),
             "default-src 'none'; sandbox",
           );
           assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
+          // Read this body before the next request: a response left unread
+          // while another is fetched can have its body taken away.
           await response.arrayBuffer();
+          // Asking for a download always gets one.
+          const download = await call(`content/${item.id}/file?download=1`);
+          assert.match(download.headers.get('Content-Disposition')!, /^attachment;/);
+          await download.arrayBuffer();
         }
       },
     );
