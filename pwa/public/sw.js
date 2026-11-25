@@ -1,10 +1,13 @@
 // Private workspace responses are deliberately never cached.
 // Keep the `do-static-` prefix: activation deletes older caches by it.
-const CACHE = 'do-static-v5';
+const CACHE = 'do-static-v6';
 const STATIC = [
   '/offline.html',
+  '/icons/favicon-32.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
   '/icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (event) => {

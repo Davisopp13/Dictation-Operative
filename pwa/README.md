@@ -26,6 +26,11 @@ would sign people out, break device pairing, or orphan stored data.
   50 MB per file, 2 GB per account, 500 items. Documents stay until deleted;
   Clipboard cleanup does not apply. See [implementation and production
   setup](docs/content-tray.md). The view's stored page value is `content`.
+- **Scan a document** (in Documents): photograph paper with the device camera
+  or choose a photo; the page outline is detected and its four corners can be
+  dragged; the page is flattened, cleaned (Colour, Black & white, or Photo),
+  and up to 40 pages are saved as one PDF. Everything runs in the browser
+  (`lib/scan.ts`, no libraries); the PDF then uploads like any other file.
 - Search, pins, naming, editing, copy, share, delete, text export, and lossless
   JSON backup export/import.
 - **Device Sync**: end-to-end encrypted, short-lived text and image handoff

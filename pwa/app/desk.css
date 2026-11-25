@@ -809,8 +809,7 @@ h3 {
 
 /* Pinned: a sticky note. */
 .clip-card.is-pinned,
-.content-card.is-pinned,
-.settings-card-sticky {
+.content-card.is-pinned {
   border-radius: 6px 22px 22px 22px;
   background: var(--sticky);
   color: var(--sticky-ink);
@@ -853,7 +852,7 @@ h3 {
 :is(.clip-card.is-pinned, .clip-card.is-fresh) .card-button-icon {
   border-color: transparent;
 }
-:is(.clip-card.is-pinned, .clip-card.is-fresh, .content-card.is-pinned, .settings-card-sticky) :is(button, a):focus-visible {
+:is(.clip-card.is-pinned, .clip-card.is-fresh, .content-card.is-pinned) :is(button, a):focus-visible {
   outline-color: currentColor;
 }
 
@@ -1278,13 +1277,6 @@ h3 {
   justify-content: space-between;
   gap: 12px;
 }
-.settings-card-sticky {
-  border-radius: 6px 26px 26px 26px;
-  transform: rotate(-1deg);
-}
-.settings-card-sticky p {
-  color: inherit;
-}
 .settings-switch {
   align-self: stretch;
   display: flex;
@@ -1294,12 +1286,6 @@ h3 {
   min-height: 48px;
   font-size: 16px;
   font-weight: 600;
-}
-.settings-card-sticky [data-slot='switch'][data-checked] {
-  background: var(--sticky-ink);
-}
-.settings-card-sticky [data-slot='switch']:not([data-checked]) {
-  background: rgba(63, 48, 0, 0.3);
 }
 .settings-list {
   align-self: stretch;
@@ -1402,11 +1388,10 @@ h3 {
     justify-content: space-between;
     gap: 12px;
   }
-  .desk-mobile-top .wordmark {
-    font-family: var(--font-display);
-    font-size: 17px;
-    font-weight: 900;
-    color: var(--primary);
+  .desk-mobile-top .logo-on-light,
+  .desk-mobile-top .logo-on-light-dark {
+    width: auto;
+    height: 30px;
   }
   .desk-mobile-top > div {
     display: flex;
@@ -1601,7 +1586,10 @@ h3 {
 /* ----- Sign-in and the other small pages --------------------------------- */
 .entry-page {
   align-items: start;
-  background: var(--brand-gradient);
+  background: #ffffff;
+}
+.dark .entry-page {
+  background: var(--background);
 }
 .entry-shell {
   display: flex;
@@ -1618,8 +1606,8 @@ h3 {
   display: block;
   padding: 16px;
   border-radius: 28px;
-  background: #fefefe;
-  box-shadow: 0 16px 32px rgba(2, 32, 110, 0.4);
+  background: #0056e4;
+  box-shadow: 0 14px 28px rgba(0, 86, 228, 0.28);
   transform: rotate(-2deg);
   line-height: 0;
 }
@@ -1628,22 +1616,70 @@ h3 {
   width: min(256px, 56vw);
   height: auto;
 }
+.logo-on-light,
+.logo-on-light-dark {
+  display: block;
+  width: min(280px, 64vw);
+  height: auto;
+}
+.logo-on-light-dark {
+  display: none;
+}
+.dark .logo-on-light {
+  display: none;
+}
+.dark .logo-on-light-dark {
+  display: block;
+}
 .entry-header [aria-label^='Appearance'] {
-  border: 0;
-  background: #ffffff;
-  color: #0a4fcc;
+  border: 1px solid #c9dafc;
+  background: #e8f0ff;
+  color: #0056e4;
+  opacity: 1;
+}
+.dark .entry-header [aria-label^='Appearance'] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+.entry-logo .logo-on-brand {
+  width: min(280px, 64vw);
 }
 .entry-tagline {
   margin: 0;
   font-size: 17px;
   line-height: 1.45;
-  color: var(--on-brand-muted);
+  color: var(--muted-foreground);
 }
 .entry-card {
+  /* A blue panel in every theme: re-point the colour tokens so the form and
+     links inside read as white-on-blue. */
+  --card: #0056e4;
+  --card-foreground: #ffffff;
+  --foreground: #ffffff;
+  --muted-foreground: rgba(255, 255, 255, 0.86);
+  --primary: #ffffff;
+  --primary-foreground: #0043b8;
+  --accent: rgba(255, 255, 255, 0.16);
+  --border: rgba(255, 255, 255, 0.28);
+  --input: rgba(255, 255, 255, 0.5);
+  --ring: #ffffff;
   padding: 24px;
   border: 0;
   border-radius: 32px;
-  box-shadow: 0 20px 44px rgba(2, 32, 110, 0.35);
+  background: #0056e4;
+  color: #ffffff;
+  box-shadow: 0 16px 36px rgba(0, 86, 228, 0.3);
+}
+.entry-card a {
+  color: #ffffff;
+}
+.entry-card input {
+  background: #ffffff;
+  color: #0b1f47;
+  border-color: transparent;
+}
+.entry-card input::placeholder {
+  color: #5b6f98;
 }
 .entry-card h1 {
   font-size: 28px;
@@ -1655,27 +1691,28 @@ h3 {
   border-radius: 18px;
   font-size: 17px;
   font-weight: 700;
-  box-shadow: 0 10px 22px rgba(10, 92, 230, 0.32);
+  box-shadow: 0 10px 22px rgba(0, 30, 120, 0.3);
 }
 .login-form input {
   min-height: 52px;
-  border: 2px solid var(--border);
+  border: 2px solid transparent;
   border-radius: 16px;
-  background: var(--muted);
+  background: #ffffff;
+  color: #0b1f47;
   font-size: 17px;
 }
 .login-google {
   border: 2px solid var(--input);
-  background: var(--card);
-  color: var(--foreground);
+  background: transparent;
+  color: #ffffff;
   box-shadow: none;
 }
 .entry-footer,
 .entry-footer a {
-  color: var(--on-brand-muted);
+  color: var(--muted-foreground);
 }
 .entry-page :is(a, button):focus-visible {
-  outline-color: #ffffff;
+  outline-color: var(--ring);
 }
 .entry-card :is(a, button, input):focus-visible {
   outline-color: var(--ring);
@@ -1701,10 +1738,8 @@ h3 {
 .guide-stage {
   background: var(--brand-gradient);
 }
-.guide-brand .wordmark {
-  font-family: var(--font-display);
-  font-weight: 900;
-  letter-spacing: 0;
+.guide-brand .logo-on-brand {
+  width: min(220px, 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1713,5 +1748,214 @@ h3 {
   .content-card,
   .desk-nav-item {
     transition: none;
+  }
+}
+
+/* ----- Document scanner -------------------------------------------------- */
+.scan-dialog {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.scan-stage-wrap {
+  display: flex;
+  justify-content: center;
+  /* Room for corner handles that sit on the photo's edge. */
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--muted);
+}
+.scan-stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scan-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: min(52dvh, 560px);
+  border-radius: 4px;
+}
+.scan-stage svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.scan-stage polygon {
+  fill: color-mix(in oklch, var(--primary) 16%, transparent);
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.scan-corner {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.scan-corner::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 3px solid var(--primary);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.scan-corner:active {
+  cursor: grabbing;
+}
+.scan-corner:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: -4px;
+}
+.scan-finish {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.scan-preview {
+  flex: none;
+  max-width: 96px;
+  max-height: 120px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+.scan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.scan-filters legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.scan-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scan-filters label:has(input:checked) {
+  border-color: var(--primary);
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+.scan-filters label:has(input:focus-visible) {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+.scan-filters input {
+  accent-color: var(--primary);
+}
+.scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.scan-actions > button,
+.scan-dialog form button {
+  min-height: 48px;
+  height: auto;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.scan-photo-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--secondary-foreground);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.scan-photo-control.is-primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.scan-photo-control svg {
+  width: 20px;
+  height: 20px;
+}
+.scan-photo-control input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.scan-photo-control:focus-within {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+.scan-photo-control:has(input:disabled) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.scan-pages {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 4px 2px 8px;
+  overflow-x: auto;
+  list-style: none;
+}
+.scan-pages li {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.scan-pages img {
+  width: auto;
+  height: 132px;
+  max-width: 132px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+.scan-pages button {
+  min-width: 44px;
+  min-height: 44px;
+}
+@media (max-width: 640px) {
+  .scan-actions > *,
+  .scan-photo-control {
+    flex: 1 1 100%;
   }
 }

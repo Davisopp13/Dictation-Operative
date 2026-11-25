@@ -18,7 +18,10 @@ existing owner's workspace mapping was verified in production.
 
 The production URL is https://dictationoperative.com/.
 The old https://do-voice-workspace.davisopp.workers.dev/ address is retained to
-support existing links. Worker-level Access is now scoped to **Previews only**;
+support existing links: its pages redirect to the production URL and its APIs
+still answer. Sign-in has to start on the production URL, because Google returns
+the browser there and the cookie that proves who started the sign-in belongs to
+the address it started on. Worker-level Access is now scoped to **Previews only**;
 production on both hostnames reaches the app's login directly. The production
 Access variables have been removed. Private APIs continue to require app sessions.
 This is the web workspace; native Mac installation and native AI requests are

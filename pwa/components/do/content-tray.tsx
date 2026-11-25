@@ -12,6 +12,7 @@ import {
   Search,
   LoaderCircle,
   RefreshCw,
+  ScanLine,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
+import { DocumentScanner } from '@/components/do/document-scanner';
 import { api, errorMessage, workspaceRevision } from '@/lib/client';
 import { watchVisibleList, refreshPages } from '@/lib/live-list';
 import {
@@ -59,7 +61,8 @@ export function ContentTray({ active = true }: { active?: boolean }) {
     [notice, setNotice] = useState('');
   const [linkOpen, setLinkOpen] = useState(false),
     [linkTitle, setLinkTitle] = useState(''),
-    [linkURL, setLinkURL] = useState('');
+    [linkURL, setLinkURL] = useState(''),
+    [scanOpen, setScanOpen] = useState(false);
   const [preview, setPreview] = useState<ContentItem | null>(null),
     [deleting, setDeleting] = useState<ContentItem | null>(null);
   const visible = useRef(0),
@@ -130,8 +133,11 @@ export function ContentTray({ active = true }: { active?: boolean }) {
   }, [query, pinned, refresh, active]);
 
   const run = useCallback(
-    async (label: string, action: (signal: AbortSignal) => Promise<void>) => {
-      if (working.current) return;
+    async (
+      label: string,
+      action: (signal: AbortSignal) => Promise<void>,
+    ): Promise<boolean> => {
+      if (working.current) return false;
       working.current = true;
       setBusy(label);
       setError('');
@@ -140,12 +146,14 @@ export function ContentTray({ active = true }: { active?: boolean }) {
       operation.current = controller;
       try {
         await action(controller.signal);
+        return true;
       } catch (e) {
         if (alive.current && !controller.signal.aborted) {
           setError(errorMessage(e));
           if (!shown.current)
             toast.add({ title: errorMessage(e), type: 'error' });
         }
+        return false;
       } finally {
         working.current = false;
         if (alive.current) {
@@ -157,8 +165,9 @@ export function ContentTray({ active = true }: { active?: boolean }) {
     [],
   );
 
+  /** Resolves true once every file is saved. */
   const upload = (files: File[]) =>
-    void run('Uploading files…', async (signal) => {
+    run('Uploading files…', async (signal) => {
       let saved = 0;
       for (const file of files) {
         if (!file.size || file.size > CONTENT_FILE_LIMIT)
@@ -220,11 +229,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
       });
     });
   return (
-    <section
-      className="content-tray"
-      aria-label="Documents"
-      aria-busy={!!busy}
-    >
+    <section className="content-tray" aria-label="Documents" aria-busy={!!busy}>
       <div className="content-add-actions">
         <label className="content-file-control">
           <span>Add files</span>
@@ -236,7 +241,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);
               e.target.value = '';
-              if (files.length) upload(files);
+              if (files.length) void upload(files);
             }}
           />
         </label>
@@ -247,6 +252,13 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         >
           <LinkIcon aria-hidden="true" /> Add Google link
         </Button>
+        <Button
+          variant="outline"
+          disabled={!!busy}
+          onClick={() => setScanOpen(true)}
+        >
+          <ScanLine aria-hidden="true" /> Scan a document
+        </Button>
       </div>
       <p className="subtle content-policy">
         50 MB per file · 2 GB per account · 500 items. Documents stay until you
@@ -254,9 +266,10 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         apply.
       </p>
       <p className="subtle content-policy">
-        Files are private to your signed-in account and readable by the Catch-all Desk
-        server. They use saved cloud storage, separate from encrypted device
-        Sync. Google links open the originals with Google’s permissions.
+        Files are private to your signed-in account and readable by the
+        Catch-all Desk server. They use saved cloud storage, separate from
+        encrypted device Sync. Google links open the originals with Google’s
+        permissions.
       </p>
       <div className="content-quota">
         <label htmlFor="content-storage">
@@ -350,7 +363,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
               onDrop={(event) => {
                 event.preventDefault();
                 const files = Array.from(event.dataTransfer.files);
-                if (files.length && !busy) upload(files);
+                if (files.length && !busy) void upload(files);
               }}
             >
               <Upload aria-hidden="true" />
@@ -365,7 +378,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
                   e.target.value = '';
-                  if (files.length) upload(files);
+                  if (files.length) void upload(files);
                 }}
               />
             </label>
@@ -472,6 +485,11 @@ export function ContentTray({ active = true }: { active?: boolean }) {
           Load more
         </Button>
       )}
+      <DocumentScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onSave={(file) => upload([file])}
+      />
       <Dialog
         open={linkOpen}
         onOpenChange={(open) => {
