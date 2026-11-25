@@ -6,7 +6,6 @@ import {
   Pin,
   Search,
   X,
-  Download,
   LoaderCircle,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -33,14 +32,14 @@ import { mergeClipboardFeed } from '@/lib/clipboard-feed';
 import { ClipboardImages, type ImageFeed } from './clipboard-images';
 import { ClipboardText } from './clipboard-text';
 import { ClipboardSyncControls } from './clipboard-sync';
+import { ScreenTitle } from './screen-title';
 import type { ClipSummary } from '@/lib/domain';
 
 export type LibraryProps = {
   dailyCleanup: boolean;
   clipboardFilter: 'all' | 'pinned' | 'images';
   setClipboardFilter: (filter: 'all' | 'pinned' | 'images') => void;
-  accountEmail: string;
-  onClipboardSaved: () => void;
+  onClipboardSaved: (id: string) => void;
   collectionFilter: string;
   setCollectionFilter: (value: string) => void;
   tagFilter: string;
@@ -53,12 +52,16 @@ export type LibraryProps = {
   loading: boolean;
   hasMore: boolean;
   loadMore: () => Promise<void>;
-  setImportOpen: (open: boolean) => void;
-  exportLibrary: () => Promise<void>;
   locked: boolean;
+  /** Phones show the add panel as its own full screen while this is true. */
+  addOpen: boolean;
+  onAddClose: () => void;
 };
 
-/** Saved Clipboard text and images. */
+/**
+ * The Clipboard screen: a blue "Catch something" panel for bringing things
+ * in, beside the saved text and images.
+ */
 export function LibrarySurface({
   dailyCleanup,
   clipboardFilter,
@@ -75,19 +78,20 @@ export function LibrarySurface({
   loading,
   hasMore,
   loadMore,
-  setImportOpen,
-  exportLibrary,
   locked,
-  accountEmail,
   onClipboardSaved,
+  addOpen,
+  onAddClose,
 }: LibraryProps) {
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // The image controls belong to ClipboardImages but are drawn inside the add
+  // panel; it renders them into this element.
+  const [imageSlot, setImageSlot] = useState<HTMLElement | null>(null);
   const filters = (
-    <div className="library-filter-fields">
-      <label className="field-label">
-        Collection
+    <>
+      <label className="filter-select">
+        <span className="sr-only">Collection</span>
         <NativeSelect
-          className="field"
           value={collectionFilter}
           onChange={(e) => setCollectionFilter(e.target.value)}
         >
@@ -97,20 +101,21 @@ export function LibrarySurface({
           ))}
         </NativeSelect>
       </label>
-      <label className="field-label">
-        Tag
-        <NativeSelect
-          className="field"
-          value={tagFilter}
-          onChange={(e) => setTagFilter(e.target.value)}
-        >
-          <option value="">All tags</option>
-          {organization.tags.map((v) => (
-            <option key={v}>{v}</option>
-          ))}
-        </NativeSelect>
-      </label>
-    </div>
+      {organization.tags.length > 0 && (
+        <label className="filter-select">
+          <span className="sr-only">Tag</span>
+          <NativeSelect
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+          >
+            <option value="">All tags</option>
+            {organization.tags.map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </NativeSelect>
+        </label>
+      )}
+    </>
   );
   const renderFeed = (imageFeed?: ImageFeed) => {
     const items = mergeClipboardFeed(
@@ -133,13 +138,13 @@ export function LibrarySurface({
             <LoaderCircle className="animate-spin" /> Loading saved items…
           </output>
         ) : items.length ? (
-          <div className="thought-list clipboard-feed">
+          <div className="card-grid">
             {items.map((item) => (
               <div key={item.id}>{item.content}</div>
             ))}
           </div>
         ) : (
-          <Empty className="panel empty-library">
+          <Empty className="desk-empty">
             <EmptyHeader>
               <EmptyMedia variant="icon" className="empty-icon">
                 {pinned ? <Pin /> : <Clipboard />}
@@ -156,7 +161,7 @@ export function LibrarySurface({
                   ? 'Try another search or clear your filters.'
                   : pinned
                     ? 'Pin text or images from All to keep them handy and protect them from daily cleanup.'
-                    : 'Paste text or upload an image above to get started.'}
+                    : 'Paste text or add an image to get started.'}
               </EmptyDescription>
             </EmptyHeader>
             {(filtered || pinned) && (
@@ -194,138 +199,47 @@ export function LibrarySurface({
       </>
     );
   };
+  const segments = (
+    <fieldset className="segmented" aria-label="Show">
+      {(['all', 'pinned', 'images'] as const).map((filter) => (
+        <button
+          key={filter}
+          type="button"
+          aria-pressed={clipboardFilter === filter}
+          disabled={locked}
+          onClick={() => setClipboardFilter(filter)}
+        >
+          {filter === 'all' ? 'All' : filter === 'pinned' ? 'Pinned' : 'Images'}
+        </button>
+      ))}
+    </fieldset>
+  );
   return (
     <>
-      <fieldset
-        className="clipboard-filters actions"
-        aria-label="Clipboard filter"
-      >
-        {(['all', 'pinned', 'images'] as const).map((filter) => (
-          <Button
-            key={filter}
-            className="control"
-            variant={clipboardFilter === filter ? 'secondary' : 'ghost'}
-            aria-pressed={clipboardFilter === filter}
-            disabled={locked}
-            onClick={() => setClipboardFilter(filter)}
-          >
-            {filter === 'all'
-              ? 'All'
-              : filter === 'pinned'
-                ? 'Pinned'
-                : 'Images'}
-          </Button>
-        ))}
-      </fieldset>
-      <div className="library-toolbar">
-        <div className="search-field">
-          <Search size={18} />
-          <Input
-            className="search-input"
-            aria-label="Search Clipboard"
-            placeholder="Search words and image names…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            maxLength={200}
-          />
-          {query && (
-            <button aria-label="Clear search" onClick={() => setQuery('')}>
-              <X size={16} />
+      <ScreenTitle
+        title="Clipboard"
+        subtitle="Paste it here. Pick it up on any device."
+        accent="mint"
+        aside={segments}
+      />
+      <div className="clipboard-layout">
+        <section
+          className={`catch-panel${addOpen ? ' is-open' : ''}`}
+          aria-label="Add to Clipboard"
+        >
+          <div className="catch-panel-mobile-head">
+            <button type="button" onClick={onAddClose}>
+              Cancel
             </button>
-          )}
-        </div>
-        {clipboardFilter !== 'images' && (
-          <div className="library-desktop-filters">{filters}</div>
-        )}
-        <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
-          <SheetTrigger
-            render={
-              <Button
-                variant="outline"
-                className="control mobile-library-options"
-                aria-label="Filters and Clipboard options"
-              />
-            }
-          >
-            <SlidersHorizontal />
-            <span>Filter{collectionFilter || tagFilter ? ' · On' : ''}</span>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="mobile-menu-sheet">
-            <SheetHeader>
-              <SheetTitle>Filters and options</SheetTitle>
-              <SheetDescription>
-                Filter saved text by collection or tag. Images have no
-                collection or tags.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mobile-library-fields">
-              {clipboardFilter !== 'images' && filters}
-              {(collectionFilter || tagFilter) && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setCollectionFilter('');
-                    setTagFilter('');
-                  }}
-                >
-                  Clear filters
-                </Button>
-              )}
-              <Button
-                className="control w-full"
-                onClick={() => setOptionsOpen(false)}
-              >
-                Show results
-              </Button>
-                <div className="actions">
-                  <Button
-                    variant="outline"
-                    className="control"
-                    disabled={locked}
-                    onClick={() => {
-                      setOptionsOpen(false);
-                      setImportOpen(true);
-                    }}
-                  >
-                    Import text
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="control"
-                    disabled={locked}
-                    onClick={() => {
-                      setOptionsOpen(false);
-                      void exportLibrary();
-                    }}
-                  >
-                    <Download /> Export text
-                  </Button>
-                </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-        <Button
-          variant="outline"
-          className="control library-desktop-action"
-          disabled={locked}
-          onClick={() => setImportOpen(true)}
-        >
-          Import text
-        </Button>
-        <Button
-          className="control library-desktop-action"
-          variant="outline"
-          disabled={locked}
-          onClick={() => void exportLibrary()}
-        >
-          <Download /> Export text
-        </Button>
-      </div>
-          <div className="clipboard-sync-bar">
-            <div className="clipboard-sync-summary">
-              <strong>Shared Clipboard</strong>
-              <span>{accountEmail} · Refreshes every 5 seconds</span>
-            </div>
+          </div>
+          <div className="catch-panel-title">
+            <h2>Catch something</h2>
+            <span aria-hidden="true" />
+            <p>It will be waiting on your other devices.</p>
+          </div>
+          <ClipboardText locked={locked} onSaved={onClipboardSaved} />
+          <div ref={setImageSlot} className="catch-images" />
+          <div className="catch-sync">
             <ClipboardSyncControls
               sources={
                 clipboardFilter === 'images'
@@ -336,32 +250,99 @@ export function LibrarySurface({
               }
             />
           </div>
-          <p className="subtle text-sm">
-            {dailyCleanup
-              ? 'Daily cleanup is on. Unpinned Clipboard text and images older than 24 hours are cleared once a day. Pin anything you want to keep. Earlier dictation history and text saved before cleanup existed stay saved.'
-              : 'Daily cleanup is off. Your saved items stay until you delete them. Pin text or images to keep them handy.'}
-          </p>
-          <div hidden={clipboardFilter === 'images'}>
-            <ClipboardText locked={locked} onSaved={onClipboardSaved} />
+        </section>
+
+        <section className="saved-items" aria-label="Saved items">
+          <div className="saved-toolbar">
+            <div className="search-box">
+              <Search size={20} aria-hidden="true" />
+              <Input
+                aria-label="Search Clipboard"
+                placeholder="Search words and image names"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                maxLength={200}
+              />
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setQuery('')}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {clipboardFilter !== 'images' && (
+              <div className="saved-filters">{filters}</div>
+            )}
+            <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
+              <SheetTrigger
+                render={
+                  <button
+                    type="button"
+                    className="icon-button saved-filter-button"
+                    aria-label={`Filters${collectionFilter || tagFilter ? ', on' : ''}`}
+                  />
+                }
+              >
+                <SlidersHorizontal aria-hidden="true" />
+              </SheetTrigger>
+              <SheetContent side="bottom" className="mobile-menu-sheet">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                  <SheetDescription>
+                    Filter saved text by collection or tag. Images have no
+                    collection or tags.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mobile-library-fields">
+                  {clipboardFilter !== 'images' && filters}
+                  {(collectionFilter || tagFilter) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setCollectionFilter('');
+                        setTagFilter('');
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                  <Button
+                    className="control w-full"
+                    onClick={() => setOptionsOpen(false)}
+                  >
+                    Show results
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
-          {clipboardFilter === 'all' && (collectionFilter || tagFilter) && (
-            <p className="subtle text-sm">
-              Showing text matching your collection or tag. Clear these filters
-              to include images.
-            </p>
+          <p className="saved-note">
+            {dailyCleanup
+              ? 'Daily cleanup is on: unpinned text and images older than 24 hours are cleared once a day. Pin anything you want to keep.'
+              : 'Saved items stay until you delete them.'}
+            {clipboardFilter === 'all' && (collectionFilter || tagFilter)
+              ? ' Showing text matching your collection or tag; clear these filters to include images.'
+              : ''}
+          </p>
+          {clipboardFilter === 'images' ? (
+            <ClipboardImages query={query} locked={locked} addSlot={imageSlot} />
+          ) : !collectionFilter && !tagFilter ? (
+            <ClipboardImages
+              query={query}
+              locked={locked}
+              renderFeed={renderFeed}
+              pinnedOnly={clipboardFilter === 'pinned'}
+              addSlot={imageSlot}
+            />
+          ) : (
+            renderFeed()
           )}
-      {clipboardFilter === 'images' ? (
-        <ClipboardImages query={query} locked={locked} />
-      ) : !collectionFilter && !tagFilter ? (
-        <ClipboardImages
-          query={query}
-          locked={locked}
-          renderFeed={renderFeed}
-          pinnedOnly={clipboardFilter === 'pinned'}
-        />
-      ) : (
-        renderFeed()
-      )}
+        </section>
+      </div>
     </>
   );
 }

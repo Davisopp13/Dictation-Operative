@@ -10,8 +10,8 @@ export type ImageFeed = {
   loadMore: () => Promise<void>;
 };
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  ClipboardPaste,
   Copy,
   Download,
   ImagePlus,
@@ -43,11 +43,14 @@ export function ClipboardImages({
   locked,
   renderFeed,
   pinnedOnly = false,
+  addSlot,
 }: {
   renderFeed?: (feed: ImageFeed) => ReactNode;
   pinnedOnly?: boolean;
   query: string;
   locked: boolean;
+  /** Where to draw the "Add images" controls: the Clipboard add panel. */
+  addSlot?: HTMLElement | null;
 }) {
   const { watch: watchClipboard } = useClipboardSync();
   const [images, setImages] = useState<ClipboardImage[]>([]);
@@ -239,9 +242,13 @@ export function ClipboardImages({
     });
 
   const renderCard = (item: ClipboardImage) => (
-    <article className="clipboard-image-card" key={item.id}>
+    <article
+      className={`image-card${item.pinned ? ' is-pinned' : ''}`}
+      key={item.id}
+    >
       <button
-        className="clipboard-image-preview"
+        type="button"
+        className="image-card-preview"
         onClick={() => setPreview(item)}
         aria-label={`Preview ${item.name}`}
       >
@@ -254,24 +261,27 @@ export function ClipboardImages({
           height={item.height}
         />
       </button>
-      <div className="clipboard-image-details">
-        <strong>{item.name}</strong>
-        <p>
-          {item.width} × {item.height} · {(item.size / 1024 / 1024).toFixed(1)}{' '}
-          MiB
-        </p>
-        <div className="actions">
-          <Button
-            variant="outline"
-            className="control"
+      <div className="image-card-body">
+        <div className="image-card-text">
+          <h3>{item.name}</h3>
+          <span>
+            {item.pinned ? 'Pinned · ' : ''}PNG · {item.width} × {item.height}{' '}
+            · {(item.size / 1024 / 1024).toFixed(1)} MiB
+          </span>
+        </div>
+        <div className="image-card-actions">
+          <button
+            type="button"
+            className="icon-button"
             disabled={locked || busy}
             onClick={() => void copy(item)}
+            aria-label={`Copy ${item.name}`}
           >
-            <Copy /> Copy
-          </Button>
-          <Button
-            variant={item.pinned ? 'secondary' : 'ghost'}
-            className="control"
+            <Copy aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
             disabled={locked || busy}
             aria-label={`${item.pinned ? 'Unpin' : 'Pin'} ${item.name}`}
             aria-pressed={item.pinned}
@@ -300,25 +310,25 @@ export function ClipboardImages({
               })
             }
           >
-            <Pin /> {item.pinned ? 'Pinned' : 'Pin'}
-          </Button>
+            <Pin aria-hidden="true" fill={item.pinned ? 'currentColor' : 'none'} />
+          </button>
           <a
-            className="control"
+            className="icon-button"
             href={`/api/images/${item.id}?download=1`}
             download
             aria-label={`Download ${item.name}`}
           >
-            <Download size={16} />
+            <Download aria-hidden="true" />
           </a>
-          <Button
-            variant="ghost"
-            className="control"
+          <button
+            type="button"
+            className="icon-button"
             disabled={locked || busy}
             onClick={() => setDeleting(item)}
             aria-label={`Delete ${item.name}`}
           >
-            <Trash2 />
-          </Button>
+            <Trash2 aria-hidden="true" />
+          </button>
         </div>
       </div>
     </article>
@@ -339,76 +349,72 @@ export function ClipboardImages({
     [run, query, queryKey, pinnedOnly, images.length],
   );
 
+  const pasteImage = () =>
+    void run(async () => {
+      try {
+        await save(await readClipboard(), 'Pasted image');
+      } catch (e) {
+        if (
+          e instanceof DOMException &&
+          ['NotAllowedError', 'SecurityError'].includes(e.name)
+        )
+          throw new Error(
+            'Clipboard access was blocked. Press ⌘V or Ctrl+V while Clipboard is open, or use Upload.',
+          );
+        throw e;
+      }
+      announce('Image saved to Clipboard.');
+    });
+  const addImages = (
+    <div className="add-images">
+      <ImagePlus aria-hidden="true" />
+      <div className="add-images-text">
+        <strong>Add images</strong>
+        <span>Paste a screenshot or upload PNG, JPEG or WebP</span>
+      </div>
+      <div className="add-images-actions">
+        <button type="button" disabled={locked || busy} onClick={pasteImage}>
+          Paste
+        </button>
+        <button
+          type="button"
+          disabled={locked || busy}
+          onClick={() => input.current?.click()}
+        >
+          Upload
+        </button>
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+        hidden
+        aria-label="Upload images"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = '';
+          if (files.length) void upload(files);
+        }}
+      />
+    </div>
+  );
+
   return (
     <section
-      className={renderFeed ? 'clipboard-combined' : 'clipboard-images panel'}
+      className="saved-images"
       aria-label={renderFeed ? 'Saved items' : 'Clipboard images'}
     >
-      {!pinnedOnly && (
-        <div className="clipboard-images-heading">
-          <div>
-            <h2>{renderFeed ? 'Add images' : 'Images'}</h2>
-            <p>
-              Paste a screenshot or upload PNG, JPEG, or WebP. Up to 8 MiB per
-              image; saved as PNG.
-            </p>
-          </div>
-          <div className="actions">
-            <Button
-              variant="outline"
-              className="control"
-              disabled={locked || busy}
-              onClick={() =>
-                void run(async () => {
-                  try {
-                    await save(await readClipboard(), 'Pasted image');
-                  } catch (e) {
-                    if (
-                      e instanceof DOMException &&
-                      ['NotAllowedError', 'SecurityError'].includes(e.name)
-                    )
-                      throw new Error(
-                        'Clipboard access was blocked. Press ⌘V or Ctrl+V while Clipboard is open, or use Upload images.',
-                      );
-                    throw e;
-                  }
-                  announce('Image saved to Clipboard.');
-                })
-              }
-            >
-              <ClipboardPaste /> Paste image
-            </Button>
-            <Button
-              className="control"
-              disabled={locked || busy}
-              onClick={() => input.current?.click()}
-            >
-              <ImagePlus /> Upload images
-            </Button>
-            <input
-              ref={input}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              multiple
-              hidden
-              aria-label="Upload images"
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? []);
-                event.target.value = '';
-                if (files.length) void upload(files);
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {addSlot ? createPortal(addImages, addSlot) : !pinnedOnly && addImages}
       {busy && (
-        <output className="actions">
+        <output className="saved-status">
           <LoaderCircle size={16} className="animate-spin" /> Working…
         </output>
       )}
-      {notice && <output>{notice}</output>}
+      {/* Successes are announced by a toast; `notice` keeps them for readers. */}
+      {notice && <output className="sr-only">{notice}</output>}
       {error && (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="saved-status text-destructive">
           {error}
         </p>
       )}
@@ -429,7 +435,11 @@ export function ClipboardImages({
       ) : loading ? (
         <output>Loading images…</output>
       ) : images.length ? (
-        <div className="clipboard-image-grid">{images.map(renderCard)}</div>
+        <div className="card-grid">
+          {images.map((item) => (
+            <div key={item.id}>{renderCard(item)}</div>
+          ))}
+        </div>
       ) : (
         <p>
           {query

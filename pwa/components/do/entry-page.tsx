@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ThemeToggle } from './theme';
-import { Wordmark } from './wordmark';
+import { LogoStacked } from './wordmark';
 
 /** Shared frame for the small pages outside the signed-in workspace. */
 export function EntryPage({ title, description, icon, children }: {
@@ -14,11 +14,15 @@ export function EntryPage({ title, description, icon, children }: {
     <main className="entry-page">
       <div className="entry-shell">
         <header className="entry-header">
-          <Link className="entry-brand" href="/" aria-label="Catchall Desk home">
-            <span><Wordmark /><span className="entry-brand-label">Clipboard and documents across devices</span></span>
+          <Link className="entry-logo" href="/" aria-label="Catch-all Desk home">
+            <LogoStacked />
           </Link>
           <ThemeToggle />
         </header>
+        <p className="entry-tagline">
+          Paste, type or upload on one device. Copy, share or download on
+          another.
+        </p>
         <section className="entry-card" aria-labelledby="entry-title">
           {icon && <div className="entry-icon" aria-hidden="true">{icon}</div>}
           <h1 id="entry-title">{title}</h1>
@@ -26,7 +30,6 @@ export function EntryPage({ title, description, icon, children }: {
           <div className="entry-content">{children}</div>
         </section>
         <footer className="entry-footer">
-          <span>Paste, upload, or scan in. Copy, share, or print out.</span>
           <Link href="/privacy">Privacy</Link>
         </footer>
       </div>

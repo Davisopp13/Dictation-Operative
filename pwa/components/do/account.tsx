@@ -159,7 +159,7 @@ export function AccountPanel({
                 const a: Account = {
                   v: 1,
                   id: info.id,
-                  label: 'Catchall Desk account',
+                  label: 'Catch-all Desk account',
                   secret: randomSecret(),
                   token: randomSecret(),
                   device: { ...device, id: crypto.randomUUID() },

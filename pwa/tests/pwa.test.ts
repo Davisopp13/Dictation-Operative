@@ -21,7 +21,7 @@ void test('install manifest references real icons of the declared dimensions', (
   assert.equal(manifest.scope, '/');
   // Identity an installed app depends on must not change with the rebrand.
   assert.equal(manifest.id, '/');
-  assert.equal(manifest.name, 'Catchall Desk');
+  assert.equal(manifest.name, 'Catch-all Desk');
   assert.ok(manifest.short_name);
   for (const size of [192, 512]) {
     const icon = manifest.icons.find(

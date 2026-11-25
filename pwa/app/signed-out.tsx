@@ -9,7 +9,7 @@ export function SignedOut({ signInPath }: { signInPath: string }) {
   return (
     <EntryPage
       title="Your workspace awaits"
-      description="Sign in to open your Catchall Desk workspace and pick up where you left off."
+      description="Sign in to open your Catch-all Desk workspace and pick up where you left off."
     >
       <a className="entry-primary" href={signInPath} target="_top">
         Sign in <ArrowRight size={18} aria-hidden="true" />

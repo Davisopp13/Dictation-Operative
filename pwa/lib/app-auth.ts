@@ -44,7 +44,7 @@ export function createAppAuth(e: AuthConfig) {
   if (!authReady(e)) throw new Error('App sign-in is not configured.');
   const origin = new URL(e.BETTER_AUTH_URL!).origin;
   return betterAuth({
-    appName: 'Catchall Desk',
+    appName: 'Catch-all Desk',
     baseURL: origin,
     secret: e.BETTER_AUTH_SECRET,
     database: drizzleAdapter(drizzle(e.DB, { schema }), { provider: 'sqlite', schema, transaction: false }),

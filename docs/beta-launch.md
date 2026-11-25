@@ -1,6 +1,6 @@
 # Dictation Operative beta
 
-> **Status, November 24, 2026:** this document predates the Catchall Desk
+> **Status, November 24, 2026:** this document predates the Catch-all Desk
 > restructuring. Sign-in is now Better Auth application sessions on `dictationoperative.com`, not a Cloudflare Access allowlist, and the web source is the root-tracked `pwa/` directory, not a separate repository. See [`pwa/README.md`](../pwa/README.md) for the current web app.
 
 Prepared September 8, 2026. Scope: website + Apple Silicon Mac app + Sync.

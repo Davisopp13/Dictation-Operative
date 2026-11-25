@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-export const metadata = { title: 'Privacy & storage — Catchall Desk' };
+export const metadata = { title: 'Privacy & storage — Catch-all Desk' };
 export default function Privacy() {
   return (
     <main className="privacy-page">
       <Link href="/" className="navigation-button">
-        <ArrowLeft size={16} aria-hidden="true" /> Back to Catchall Desk
+        <ArrowLeft size={16} aria-hidden="true" /> Back to Catch-all Desk
       </Link>
       <h1>Your items, handled with care.</h1>
       <p>
-        Catchall Desk is a private workspace for moving text, images, and
+        Catch-all Desk is a private workspace for moving text, images, and
         documents between your devices. It was previously called Dictation
         Operative. Last updated November 24, 2026.
       </p>
@@ -19,7 +19,7 @@ export default function Privacy() {
         Google when enabled. Passwords are stored as salted hashes. Sign-in
         sessions use HTTP-only cookies; session records include an IP address,
         browser information and an expiry time. Google supplies your account
-        identifier, name, email and profile image. Catchall Desk does not
+        identifier, name, email and profile image. Catch-all Desk does not
         request access to your Gmail, Drive or Calendar. Email password recovery
         is not yet available.
       </p>
@@ -31,14 +31,14 @@ export default function Privacy() {
         paste or upload to Clipboard are saved privately as PNG files in server
         object storage, with their names and dimensions in the database. You can
         download or delete them in Clipboard; text backups do not include
-        images. Saved items are readable by the Catchall Desk server so they can
+        images. Saved items are readable by the Catch-all Desk server so they can
         be shown on your other signed-in devices.
       </p>
       <h2>Documents</h2>
       <p>
         Documents saves only files and Google Docs/Sheets links you explicitly
         add. Files use private server object storage and account-owned database
-        records. They are readable by the Catchall Desk server; unlike device
+        records. They are readable by the Catch-all Desk server; unlike device
         Sync transfers, they are not end-to-end encrypted. Documents stay until
         explicit deletion, including unpinned items. Daily Clipboard cleanup
         does not apply. File deletion retries after temporary storage failures.
@@ -82,13 +82,13 @@ export default function Privacy() {
         this device’s browser storage, with any transcript that was already
         produced. When they exist, the workspace offers to download the audio,
         save the transcript as text, or remove them. They are not encrypted by
-        Catchall Desk at rest; protect access to your device. Clearing browser
+        Catch-all Desk at rest; protect access to your device. Clearing browser
         data, private browsing, or storage eviction can erase them.
       </p>
       <h2>You choose what leaves the workspace</h2>
       <p>
         Copy, Share, and Paste from clipboard happen only when you select them.
-        Catchall Desk does not monitor your device’s clipboard, type into other
+        Catch-all Desk does not monitor your device’s clipboard, type into other
         apps, or send messages automatically. Sync transfers happen only when
         you select Send or Receive in the web app; the earlier Mac app also
         offers an optional automatic mode.

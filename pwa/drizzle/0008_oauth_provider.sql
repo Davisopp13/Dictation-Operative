@@ -161,4 +161,4 @@ CREATE TABLE `auth_oauth_resource` (
 CREATE UNIQUE INDEX `auth_oauth_resource_identifier_unique` ON `auth_oauth_resource` (`identifier`);
 --> statement-breakpoint
 INSERT INTO `auth_oauth_resource` (`id`,`identifier`,`name`,`dpop_bound_access_tokens_required`,`disabled`,`created_at`,`updated_at`,`policy_version`)
-VALUES ('workspace-api','urn:catchall-desk:workspace-api','Catchall Desk workspace API',0,0,0,0,1);
+VALUES ('workspace-api','urn:catchall-desk:workspace-api','Catch-all Desk workspace API',0,0,0,0,1);

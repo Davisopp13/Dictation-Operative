@@ -63,119 +63,144 @@
 :root {
   color-scheme: light;
 
-  --background: #f7f8fc;
-  --foreground: #17243c;
-  --card: #ffffff;
-  --card-foreground: #17243c;
-  --popover: #ffffff;
-  --popover-foreground: #17243c;
+  /* Catch-all Desk, Daylight: white cards on a pale sky, bright blue for
+     action, mint for what just arrived, sticky yellow for what you keep.
+     Every text colour clears 4.5:1 against the surface it is used on. */
+  --font-geist-sans: 'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Nunito Variable', 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --primary: #245ce5;
+  --background: #eaf3ff;
+  --foreground: #0b1f47;
+  --card: #ffffff;
+  --card-foreground: #0b1f47;
+  --popover: #ffffff;
+  --popover-foreground: #0b1f47;
+
+  --primary: #0a5ce6;
   --primary-foreground: #ffffff;
-  --secondary: #edf1fc;
-  --secondary-foreground: #244477;
-  --muted: #f0f3f9;
-  --muted-foreground: #4b5872;
-  --faint: #646f86;
-  --accent: #edf1fc;
-  --accent-foreground: #245ce5;
+  --secondary: #eaf3ff;
+  --secondary-foreground: #0a4fcc;
+  --muted: #f5f9ff;
+  --muted-foreground: #44587f;
+  --faint: #55688c;
+  --accent: #d9e9ff;
+  --accent-foreground: #0a4fcc;
 
   --destructive: #b8382f;
   --destructive-surface: #fdf2f2;
   --destructive-border: #f0cfcc;
-  --success: #1a7a5e;
-  --success-surface: #eaf7f1;
-  --success-border: #cce9dc;
-  --warning: #a2761f;
-  --warning-surface: #fdf6e8;
-  --warning-border: #ecd9ae;
+  --success: #0f6b4a;
+  --success-surface: #e3fbee;
+  --success-border: #b6ecd0;
+  --warning: #7a5a00;
+  --warning-surface: #fff7d6;
+  --warning-border: #f1dc8a;
 
-  --border: #e0e6f0;
-  --input: #d8dfeb;
-  --ring: #245ce5;
-  --radius: 0.8125rem;
+  --border: #d5e4fb;
+  --input: #c9dcfa;
+  --ring: #0a5ce6;
+  --radius: 1rem;
   --r-xs: 6px;
   --r-sm: 10px;
-  --r-md: 13px;
+  --r-md: 14px;
   --r-lg: 16px;
-  --r-xl: 22px;
+  --r-xl: 24px;
 
   --control-h: 44px;
   --control-h-lg: 48px;
 
-  --stage-deep: #010a2d;
-  --stage-mid: #041233;
-  --stage-lift: #0b2f7a;
+  /* Brand surfaces and states. */
+  --deep: #0447d9;
+  --glow: #18b4ff;
+  --sky: #d9e9ff;
+  --brand-gradient: linear-gradient(165deg, #0447d9 0%, #0a6cf5 65%, #18b4ff 100%);
+  --on-brand: #ffffff;
+  --on-brand-muted: #e3eeff;
+  --mint: #8ef3c0;
+  --mint-ink: #06301f;
+  --sticky: #ffd83d;
+  --sticky-ink: #3f3000;
+  --card-shadow: 0 12px 26px rgba(10, 92, 230, 0.12);
+  --soft-shadow: 0 8px 22px rgba(10, 92, 230, 0.1);
+  --panel-shadow: 0 20px 44px rgba(6, 78, 214, 0.3);
+  --mint-shadow: 0 14px 28px rgba(14, 150, 96, 0.22);
+  --sticky-shadow: 0 14px 26px rgba(160, 120, 0, 0.25);
+
+  --stage-deep: #0447d9;
+  --stage-mid: #0a6cf5;
+  --stage-lift: #18b4ff;
   --stage-ink: #ffffff;
-  --stage-muted: #9cb4e8;
-  --stage-pending: #6f86b8;
-  --stage-accent: #6ea8ff;
+  --stage-muted: #e3eeff;
+  --stage-pending: #c9dcfa;
+  --stage-accent: #8ef3c0;
   --live: #ff5a5f;
 
-  --chart-1: #245ce5;
-  --chart-2: #1a7a5e;
-  --chart-3: #a2761f;
-  --chart-4: #6f86b8;
+  --chart-1: #0a5ce6;
+  --chart-2: #0f6b4a;
+  --chart-3: #7a5a00;
+  --chart-4: #55688c;
   --chart-5: #b8382f;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #4b5872;
-  --sidebar-primary: #245ce5;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: #245ce5;
-  --sidebar-border: #e0e6f0;
-  --sidebar-ring: #245ce5;
+  --sidebar: transparent;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0a4fcc;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #0a4fcc;
+  --sidebar-border: transparent;
+  --sidebar-ring: #ffffff;
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: #080f22;
-  --foreground: #e8eefc;
-  --card: #101a33;
-  --card-foreground: #e8eefc;
-  --popover: #101a33;
-  --popover-foreground: #e8eefc;
+  /* Midnight. Derived from the Daylight palette; it was not designed as its
+     own set of screens. The blue panels, mint and sticky cards keep their
+     colours, which read as bright objects on a dark desk. */
+  --background: #071a44;
+  --foreground: #f2f7ff;
+  --card: #10306f;
+  --card-foreground: #f2f7ff;
+  --popover: #10306f;
+  --popover-foreground: #f2f7ff;
 
-  --primary: #6ea8ff;
-  --primary-foreground: #06122b;
-  --secondary: #16264a;
-  --secondary-foreground: #cfdcff;
-  --muted: #16203a;
-  --muted-foreground: #94a3c4;
-  --faint: #7c8bad;
-  --accent: #16264a;
-  --accent-foreground: #9cc4ff;
+  --primary: #7db8ff;
+  --primary-foreground: #04142f;
+  --secondary: #1a4192;
+  --secondary-foreground: #e3eeff;
+  --muted: #0c2557;
+  --muted-foreground: #b9cdf3;
+  --faint: #9db5e6;
+  --accent: #1a4192;
+  --accent-foreground: #e3eeff;
 
-  --destructive: #ef7f78;
-  --destructive-surface: #2a1417;
-  --destructive-border: #4a2229;
-  --success: #4cc79b;
-  --success-surface: #0f2620;
-  --success-border: #1e4438;
-  --warning: #e0b063;
-  --warning-surface: #2a2113;
-  --warning-border: #4a3a1c;
+  --destructive: #ff9a92;
+  --destructive-surface: #3a1620;
+  --destructive-border: #6b2a36;
+  --success: #8ef3c0;
+  --success-surface: #0c3a34;
+  --success-border: #1b6352;
+  --warning: #ffd83d;
+  --warning-surface: #3a3110;
+  --warning-border: #6b5a1c;
 
-  --border: #1e2b4a;
-  --input: #24345a;
-  --ring: #6ea8ff;
+  --border: #23489a;
+  --input: #2f58b3;
+  --ring: #7db8ff;
 
-  --chart-1: #6ea8ff;
-  --chart-2: #4cc79b;
-  --chart-3: #e0b063;
-  --chart-4: #9cb4e8;
-  --chart-5: #ef7f78;
+  --sky: #0c2557;
+  --card-shadow: 0 12px 26px rgba(1, 10, 40, 0.45);
+  --soft-shadow: 0 8px 22px rgba(1, 10, 40, 0.4);
+  --panel-shadow: 0 20px 44px rgba(1, 10, 40, 0.55);
+  --mint-shadow: 0 14px 28px rgba(1, 10, 40, 0.45);
+  --sticky-shadow: 0 14px 26px rgba(1, 10, 40, 0.45);
 
-  --sidebar: #0c1428;
-  --sidebar-foreground: #94a3c4;
-  --sidebar-primary: #6ea8ff;
-  --sidebar-primary-foreground: #06122b;
-  --sidebar-accent: #16264a;
-  --sidebar-accent-foreground: #9cc4ff;
-  --sidebar-border: #1e2b4a;
-  --sidebar-ring: #6ea8ff;
+  --chart-1: #7db8ff;
+  --chart-2: #8ef3c0;
+  --chart-3: #ffd83d;
+  --chart-4: #9db5e6;
+  --chart-5: #ff9a92;
 }
 @layer base {
   * {

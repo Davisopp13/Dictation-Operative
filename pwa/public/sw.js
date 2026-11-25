@@ -1,6 +1,6 @@
 // Private workspace responses are deliberately never cached.
 // Keep the `do-static-` prefix: activation deletes older caches by it.
-const CACHE = 'do-static-v4';
+const CACHE = 'do-static-v5';
 const STATIC = [
   '/offline.html',
   '/icons/icon-192.png',

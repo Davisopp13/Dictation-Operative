@@ -1,38 +1,27 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google';
+// Fonts are bundled with the app, so no page load asks a font service for
+// anything. They are imported here, not from the stylesheet, so the build
+// copies the font files and rewrites their addresses.
+import '@fontsource-variable/figtree/wght.css';
+import '@fontsource-variable/nunito/wght.css';
 import './globals.css';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  variable: '--font-display',
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-});
+import './desk.css';
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#245ce5' },
-    { media: '(prefers-color-scheme: dark)', color: '#080f22' },
+    { media: '(prefers-color-scheme: light)', color: '#0a5ce6' },
+    { media: '(prefers-color-scheme: dark)', color: '#071a44' },
   ],
 };
 
 export const metadata: Metadata = {
-  title: 'Catchall Desk',
+  title: 'Catch-all Desk',
   description: 'Move text, images, and documents between your devices.',
   icons: { icon: '/icons/icon-192.png', apple: '/icons/apple-touch-icon.png' },
-  appleWebApp: { capable: true, title: 'Catchall Desk', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Catch-all Desk', statusBarStyle: 'default' },
 };
 
 // Applied before first paint so the page never flashes the wrong theme.
@@ -58,11 +47,7 @@ export default function RootLayout({
         />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
