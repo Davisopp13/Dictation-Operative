@@ -2,6 +2,7 @@ import { runContentCleanup } from './lib/content';
 import app from 'vinext/server/fetch-handler';
 import { runClipboardCleanup } from './lib/clipboard-cleanup';
 import { handleWorkspaceRequest } from './lib/workspace-request';
+import { mainAddressRedirect } from './lib/canonical-origin';
 
 export default {
   async scheduled(controller, env) {
@@ -13,6 +14,8 @@ export default {
       throw new Error('Workspace storage cleanup has pending work.');
   },
   async fetch(request, env, ctx) {
+    const moved = mainAddressRedirect(request, env);
+    if (moved) return moved;
     const path = new URL(request.url).pathname;
     // Workspace APIs do not render React or use framework after() callbacks.
     // Returning their R2 bodies directly preserves native streaming instead of

@@ -10,7 +10,14 @@ import {
   type Role,
 } from './protocol';
 
-export const PAIRING_SITE = 'https://do-voice-workspace.davisopp.workers.dev';
+export const PAIRING_SITE = 'https://dictationoperative.com';
+// Mac apps already installed still put the site's first address in the links
+// and QR codes they show.
+const PAIRING_ORIGINS = [
+  PAIRING_SITE,
+  'https://do-voice-workspace.davisopp.workers.dev',
+  'http://localhost:3000',
+];
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export type PairingPeer = { device: Device; publicKey: string };
 export type PairingState = {
@@ -43,7 +50,7 @@ export function parsePairingLink(
     const u = new URL(value);
     if (
       u.pathname !== '/pair' ||
-      (u.origin !== PAIRING_SITE && u.origin !== 'http://localhost:3000')
+      !PAIRING_ORIGINS.includes(u.origin)
     )
       return null;
     const params = new URLSearchParams(u.hash.slice(1));

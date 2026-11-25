@@ -41,7 +41,7 @@ struct AccountSettingsView: View {
         Text("Clipboard items expire after 2 minutes. Shared settings persist until replaced. Removing a device stops future access; rotate any Groq key it already received. Existing direct pairings must be removed separately.").font(.caption).foregroundStyle(.secondary)
         Button("Forget account on this Mac", role: .destructive, action: account.forgetLocally).disabled(account.busy)
       } else {
-        Link("Open DO and sign in", destination: URL(string: "https://do-voice-workspace.davisopp.workers.dev/")!)
+        Link("Open DO and sign in", destination: URL(string: "https://dictationoperative.com/")!)
         Text("Set up account sync in the web app, pair this Mac, and choose Add paired device to account. Then receive the invitation here.").font(.caption)
         Button("Receive account invitation") { if let pair = sync.pair { account.connect(pair) } }.disabled(sync.pair == nil || sync.busy || account.busy)
       }
