@@ -1,7 +1,7 @@
-# Catchall Desk (formerly Dictation Operative)
+# Catch-all Desk (formerly Dictation Operative)
 
 **Current direction, November 2026:** this repository is being restructured into
-Catchall Desk, a lightweight workspace for moving text, images, and documents
+Catch-all Desk, a lightweight workspace for moving text, images, and documents
 between a Mac, a Windows PC, and an iPhone. The active code is the web app in
 [`pwa/`](pwa/README.md), a Cloudflare Worker with D1, private R2, and Better
 Auth, served at https://dictationoperative.com/. The encrypted device-handoff
@@ -82,13 +82,13 @@ Keep ad-hoc previews in DerivedData instead of overwriting `/Applications/Dictat
 ## Repository layout
 
 ```
-pwa/        Catchall Desk web app (the active code)
+pwa/        Catch-all Desk web app (the active code)
 backend/    sync-relay: Cloudflare Worker for encrypted device handoff
 Shared/     Sync protocol sources shared with the web app
 macos/      Legacy native Swift/SwiftUI dictation menu-bar app
 windows/    Legacy native hotkey/insertion compatibility prototype
 ios/        Empty; reserved for the planned iPhone app
-docs/       Architecture, roadmap, ADRs, platform-constraint notes (many predate Catchall Desk)
+docs/       Architecture, roadmap, ADRs, platform-constraint notes (many predate Catch-all Desk)
 ```
 
 ## CI

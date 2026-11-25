@@ -102,7 +102,7 @@ INSERT INTO auth_oauth_client
    dpop_bound_access_tokens, client_credentials_scopes, scopes,
    created_at, updated_at)
 VALUES
-  ('<random id>', '<client id>', 'Catchall Desk for iPhone',
+  ('<random id>', '<client id>', 'Catch-all Desk for iPhone',
    '["<redirect uri>"]', 'none', 'native',
    '["authorization_code","refresh_token"]', '["code"]', 1, 0, 0, '[]',
    '["openid","email","offline_access","workspace"]',

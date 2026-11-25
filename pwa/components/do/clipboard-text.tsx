@@ -1,20 +1,20 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { ClipboardPaste } from 'lucide-react';
 import { post, errorMessage } from '@/lib/client';
 import type { Clip } from '@/lib/domain';
 
+/** The white "Add text" card inside the blue add panel. */
 export function ClipboardText({
   locked,
   onSaved,
 }: {
   locked: boolean;
-  onSaved: () => void;
+  onSaved: (id: string) => void;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [pasted, setPasted] = useState(false);
   const [error, setError] = useState('');
   const attempt = useRef({ id: '', content: '' });
   const saving = useRef(false);
@@ -26,7 +26,6 @@ export function ClipboardText({
   }, [text]);
   async function paste() {
     setError('');
-    setNotice('');
     try {
       const value = await navigator.clipboard.readText();
       if (value.length > 20000)
@@ -35,11 +34,12 @@ export function ClipboardText({
         );
       if (!value) throw new RangeError('Your clipboard has no text to paste.');
       setText(value);
+      setPasted(true);
     } catch (e) {
       setError(
         e instanceof RangeError
           ? e.message
-          : 'Paste directly into the text field using your keyboard or touch menu.',
+          : 'Paste directly into the text box using your keyboard or touch menu.',
       );
     }
   }
@@ -48,11 +48,10 @@ export function ClipboardText({
     saving.current = true;
     setBusy(true);
     setError('');
-    setNotice('');
     if (attempt.current.content !== text || !attempt.current.id)
       attempt.current = { id: crypto.randomUUID(), content: text };
     try {
-      await post<Clip>('clips', {
+      const saved = await post<Clip>('clips', {
         id: attempt.current.id,
         content: text,
         kind: 'note',
@@ -60,11 +59,9 @@ export function ClipboardText({
         clipboardItem: true,
       });
       setText('');
+      setPasted(false);
       attempt.current = { id: '', content: '' };
-      setNotice(
-        'Saved to your shared Clipboard. It will appear on your other signed-in devices.',
-      );
-      onSaved();
+      onSaved(saved.id);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -73,49 +70,52 @@ export function ClipboardText({
     }
   }
   return (
-    <section
-      className="space-y-3 rounded-xl border p-4"
+    <form
+      className="add-text-card"
       aria-label="Add text to Clipboard"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
     >
-      <label htmlFor="clipboard-text" className="font-semibold">
-        Add text
-      </label>
-      <Textarea
+      <div className="add-text-head">
+        <label htmlFor="clipboard-text">Add text</label>
+        {pasted && text && <span className="badge-mint">Pasted</span>}
+      </div>
+      <textarea
         id="clipboard-text"
-        placeholder="Paste or type text here…"
+        placeholder="Paste or type text here"
         value={text}
         maxLength={20000}
-        rows={4}
+        rows={5}
         disabled={locked || busy}
         onChange={(event) => {
           setText(event.target.value);
-          setNotice('');
+          setPasted(false);
         }}
       />
-      <p className="subtle text-sm">
-        Paste with Ctrl+V on Windows or ⌘V on Mac, then save.
-      </p>
-      <div className="actions m-0">
-        <Button
-          onClick={() => void save()}
-          disabled={locked || busy || !text.trim()}
-        >
-          {busy ? 'Saving…' : 'Save to Clipboard'}
-        </Button>
-        <Button
-          variant="outline"
+      <div className="add-text-actions">
+        <button
+          type="button"
+          className="button-secondary"
           onClick={() => void paste()}
           disabled={locked || busy}
         >
-          Paste from clipboard
-        </Button>
+          <ClipboardPaste aria-hidden="true" /> Paste from clipboard
+        </button>
+        <button
+          type="submit"
+          className="button-primary"
+          disabled={locked || busy || !text.trim()}
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
       </div>
-      {notice && <output className="block text-sm">{notice}</output>}
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="add-text-error">
           {error}
         </p>
       )}
-    </section>
+    </form>
   );
 }

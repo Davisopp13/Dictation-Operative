@@ -1,4 +1,4 @@
-# Catchall Desk (web app)
+# Catch-all Desk (web app)
 
 Private, installable workspace for moving text, images, and documents between
 your devices. Paste, type, or upload on one device; copy, share, or download on
@@ -170,7 +170,7 @@ npm run deploy       # vinext build, then wrangler deploy
 ```
 
 Both commands change production and need explicit approval. Before the first
-Catchall Desk deploy, confirm which migrations production already has:
+Catch-all Desk deploy, confirm which migrations production already has:
 `0005_fuzzy_cable.sql` (daily cleanup), `0006_content_tray.sql` (Documents),
 `0007_workspace_revision.sql` (sync revision), and `0008_oauth_provider.sql`
 (native sign-in) were all unapplied when this branch was cut. Apply migrations before deploying the Worker.
@@ -207,8 +207,17 @@ and the wire identifiers and key-derivation strings in `lib/sync/` (including
 the salt `Dictation Operative Sync v1`) must stay byte-identical with
 `../Shared/Sync/` and the Mac app.
 
-## Brand assets
+## Look and brand
 
-The app uses a text wordmark (`components/do/wordmark.tsx`) until logo files
-are added under `public/brand/`. The installed-app icons in `public/icons/`
-still carry the previous artwork.
+The visual design is "Catch-all Desk": white cards on a pale sky, blue gradient
+panels where things come in, mint for what just arrived, sticky yellow for what
+is pinned. Colours, radii and fonts are tokens at the top of `app/globals.css`;
+the workspace's layout and components are styled in `app/desk.css`. The
+Midnight (dark) theme is derived from the same tokens and was not separately
+designed.
+
+Fonts (Figtree and Nunito) are bundled through `@fontsource-variable`, so no
+page load contacts a font service.
+
+Logo files live in `public/brand/` and are raster drafts; see the README there.
+The installed-app icons in `public/icons/` still carry the previous artwork.

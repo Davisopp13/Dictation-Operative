@@ -4,7 +4,7 @@ import { ConsentForm } from '@/components/do/consent-form';
 import { getUser, signInPath } from '../../auth';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Allow access — Catchall Desk' };
+export const metadata = { title: 'Allow access — Catch-all Desk' };
 
 /**
  * Shown when an app asks to sign in with this account. The request arrives in
@@ -33,7 +33,7 @@ export default async function Consent({
         description="The sign-in request is missing, has expired, or came from an app this account doesn’t recognize. Return to the app and try again."
       >
         <a className="entry-primary" href={user ? '/' : signInPath('/')}>
-          {user ? 'Open Catchall Desk' : 'Sign in'}
+          {user ? 'Open Catch-all Desk' : 'Sign in'}
         </a>
       </EntryPage>
     );
@@ -41,7 +41,7 @@ export default async function Consent({
   return (
     <EntryPage
       title={`Allow ${client.name || 'this app'}?`}
-      description={`It is asking to use your Catchall Desk account, ${user.email}.`}
+      description={`It is asking to use your Catch-all Desk account, ${user.email}.`}
     >
       <ConsentForm
         workspace={scopes.includes('workspace')}

@@ -5,14 +5,14 @@ import { SignedOut } from '@/app/signed-out';
 import { MAC_VERSION, macRelease } from '@/lib/mac-release';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Legacy Mac app — Catchall Desk' };
+export const metadata = { title: 'Legacy Mac app — Catch-all Desk' };
 
 export default async function MacSetup() {
   if (!(await getUser())) return <SignedOut signInPath={signInPath('/mac')} />;
   return (
     <main className="windows-setup">
       <Link href="/" className="navigation-button">
-        <ArrowLeft size={16} aria-hidden="true" /><span>Back to Catchall Desk</span>
+        <ArrowLeft size={16} aria-hidden="true" /><span>Back to Catch-all Desk</span>
       </Link>
       <header className="windows-setup-header">
         <span className="windows-setup-eyebrow"><Laptop size={18} aria-hidden="true" /> Mac setup</span>

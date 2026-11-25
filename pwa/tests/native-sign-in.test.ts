@@ -65,7 +65,7 @@ void test('native sign-in: authorization code with PKCE, bearer access to /api/v
       db
         .prepare(
           `INSERT INTO auth_oauth_client (id,client_id,name,redirect_uris,token_endpoint_auth_method,application_type,grant_types,response_types,require_pkce,disabled,dpop_bound_access_tokens,client_credentials_scopes,scopes,created_at,updated_at)
-           VALUES (?,?,'Catchall Desk for iPhone',?,'none','native','["authorization_code","refresh_token"]','["code"]',1,0,0,'[]','["openid","email","offline_access","workspace"]',?,?)`,
+           VALUES (?,?,'Catch-all Desk for iPhone',?,'none','native','["authorization_code","refresh_token"]','["code"]',1,0,0,'[]','["openid","email","offline_access","workspace"]',?,?)`,
         )
         .bind('client-row-1', CLIENT, JSON.stringify([REDIRECT]), now, now),
       db

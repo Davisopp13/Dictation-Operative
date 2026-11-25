@@ -7,6 +7,7 @@ import {
   Trash2,
   Download,
   Eye,
+  Upload,
   Play,
   Search,
   LoaderCircle,
@@ -253,7 +254,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         apply.
       </p>
       <p className="subtle content-policy">
-        Files are private to your signed-in account and readable by the Catchall Desk
+        Files are private to your signed-in account and readable by the Catch-all Desk
         server. They use saved cloud storage, separate from encrypted device
         Sync. Google links open the originals with Google’s permissions.
       </p>
@@ -321,7 +322,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
           {error || listError}
         </p>
       )}
-      <output className="content-status">
+      <output className={`content-status${busy ? ' is-busy' : ''}`}>
         {busy ? (
           <>
             <LoaderCircle className="animate-spin" aria-hidden="true" /> {busy}
@@ -331,23 +332,50 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         )}
       </output>
       {loading && !page && <output>Loading Documents…</output>}
-      {page && !page.items.length && !loading && (
+      {page && !page.items.length && !loading && (query || pinned) && (
         <div className="content-empty">
           <File aria-hidden="true" />
-          <h2>
-            {query || pinned
-              ? 'No matching content'
-              : 'Keep a few things within reach'}
-          </h2>
-          <p>
-            Add a PDF, an MP3, or another file, or a Google Docs/Sheets link.
-            Open Documents on another device using the same account.
-          </p>
+          <h2>No matching documents</h2>
+          <p>Try another search, or turn off Pinned only.</p>
         </div>
       )}
       <ul className="content-list">
+        {!query && !pinned && (
+          <li className="content-drop">
+            {/* The label opens the file picker by keyboard and click; dropping
+                a file on it is an extra way in for a mouse. */}
+            {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+            <label
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const files = Array.from(event.dataTransfer.files);
+                if (files.length && !busy) upload(files);
+              }}
+            >
+              <Upload aria-hidden="true" />
+              <strong>Drop files here</strong>
+              <span>A PDF, an MP3, or another file. Up to 50 MB each.</span>
+              <input
+                className="sr-only"
+                aria-label="Choose files to add to Documents"
+                type="file"
+                multiple
+                disabled={!!busy}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (files.length) upload(files);
+                }}
+              />
+            </label>
+          </li>
+        )}
         {page?.items.map((item) => (
-          <li key={item.id} className="content-card">
+          <li
+            key={item.id}
+            className={`content-card${item.pinned ? ' is-pinned' : ''}`}
+          >
             <div className="content-card-icon">
               {item.kind === 'link' ? (
                 <LinkIcon aria-hidden="true" />
@@ -356,10 +384,14 @@ export function ContentTray({ active = true }: { active?: boolean }) {
               )}
             </div>
             <div className="content-card-details">
-              <h2>
-                {item.name}
-                {item.pinned && <Pin size={16} aria-hidden="true" />}
-              </h2>
+              <span className="content-card-kind">
+                {item.pinned
+                  ? 'Pinned'
+                  : item.kind === 'link'
+                    ? 'Google link'
+                    : (item.filename.split('.').pop() ?? 'File').toUpperCase()}
+              </span>
+              <h2>{item.name}</h2>
               <p className="subtle">
                 {item.kind === 'link'
                   ? contentProvider(item.url)

@@ -7,24 +7,23 @@ import {
   useSyncExternalStore,
 } from 'react';
 import {
+  CircleHelp,
   Clipboard,
-  Settings,
-  Pin,
-  Download,
-  LoaderCircle,
-  WifiOff,
-  Smartphone,
   Copy,
-  BookOpen,
-  FolderOpen,
+  Download,
+  FileText,
+  LoaderCircle,
+  Pin,
+  Plus,
+  SlidersHorizontal,
+  WifiOff,
 } from 'lucide-react';
 import Image from 'next/image';
-import { Wordmark } from './wordmark';
+import { LogoOnBrand, Wordmark } from './wordmark';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { SidebarProvider, Sidebar } from '@/components/ui/sidebar';
 import { Toaster, toast } from '@/components/ui/toast';
 import {
   Dialog,
@@ -41,10 +40,9 @@ import { Recovery } from './recovery';
 import { ContentTray } from './content-tray';
 import { LibrarySurface } from './library';
 import { DeleteClipboardText } from './delete-clipboard-text';
-import { ThemeToggle } from './theme';
-import { MobileMenu } from './mobile-menu';
 import { QuickStartDialog } from './quick-start';
-import { SettingsDialog, type SettingsState } from '@/components/do/settings';
+import { ScreenTitle } from './screen-title';
+import { SettingsPage, type SettingsState } from '@/components/do/settings';
 import { SyncDialog } from '@/components/do/sync';
 import { ClipEditor } from '@/components/do/editor';
 import { api, post, errorMessage, download } from '@/lib/client';
@@ -81,9 +79,19 @@ function subscribeInstalled(callback: () => void) {
 }
 const nav = [
   ['clipboard', 'Clipboard', Clipboard],
-  ['content', 'Documents', FolderOpen],
+  ['content', 'Documents', FileText],
 ] as const;
 const subscribeHydration = () => () => {};
+function ago(time: number) {
+  const minutes = Math.round((Date.now() - time) / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} hr ago`;
+  return new Date(time).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
 export default function Home({
   account,
   email,
@@ -112,6 +120,7 @@ export default function Home({
 }
 function HomeContent({ account, email }: { account: string; email: string }) {
   const [initialNavigation] = useState(() => readWorkspaceNavigation(account));
+  const [openedAt] = useState(() => Date.now());
   const organization = useWorkspaceTools();
   const { watch: watchClipboard } = useClipboardSync();
   const [toolsOpen, setToolsOpen] = useState(false),
@@ -128,6 +137,10 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   const [documentsOpened, setDocumentsOpened] = useState(
     initialNavigation.view === 'content',
   );
+  // Settings is a screen, but not one a visit can start on.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // On a phone, adding is its own full-screen step opened from the tab bar.
+  const [addOpen, setAddOpen] = useState(false);
   const [view, setActiveView] = useState<View>(initialNavigation.view),
     [query, setQuery] = useState(''),
     [clips, setClips] = useState<ClipSummary[]>([]),
@@ -136,7 +149,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     [busy, setBusy] = useState(false),
     [refresh, setRefresh] = useState(0);
   const [settings, setSettings] = useState<SettingsState>({}),
-    [settingsOpen, setSettingsOpen] = useState(false),
     [editor, setEditor] = useState<Clip | null>(null),
     [, setSurfacedMessage] = useState(''),
     [importOpen, setImportOpen] = useState(false),
@@ -147,6 +159,21 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null),
     [copyText, setCopyText] = useState<string | null>(null),
     [updateReady, setUpdateReady] = useState(false);
+  // Text that arrived from another device while this tab was open. `known`
+  // holds every identifier this tab has already shown or saved itself.
+  const known = useRef<Set<string> | null>(null);
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
+  const markKnown = useCallback((ids: string[]) => {
+    known.current = new Set([...(known.current ?? []), ...ids]);
+  }, []);
+  const settle = useCallback((id: string) => {
+    setFresh((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
   // One feedback layer. The top banner and the editor's inline messages were
   // two unrelated mechanisms; both now speak through the toast viewport.
   const setMessage = useCallback((text: string) => {
@@ -157,12 +184,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     if (text) toast.add({ title: text, type: 'error' });
   }, []);
   const latest = useRef({
-      query,
-      view,
-      collectionFilter,
-      tagFilter,
-      clipboardFilter,
-    });
+    query,
+    view,
+    collectionFilter,
+    tagFilter,
+    clipboardFilter,
+  });
   useEffect(() => {
     latest.current = {
       query,
@@ -182,6 +209,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
   >({});
   const setView = useCallback(
     (next: View) => {
+      setSettingsOpen(false);
+      setAddOpen(false);
       if (next === view) return;
       viewFilters.current[view] = {
         query,
@@ -263,6 +292,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           { signal: abort.signal },
         )
           .then((result) => {
+            // Whatever a load the user asked for shows is not news.
+            markKnown(result.items.map((item) => item.id));
             setClips(result.items);
             setHasMore(result.hasMore);
           })
@@ -287,6 +318,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     tagFilter,
     clipboardFilter,
     setError,
+    markKnown,
   ]);
   const visibleClipCount = useRef(0);
   useEffect(() => {
@@ -311,6 +343,20 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           ),
       );
       if (!signal.aborted) {
+        // A background refresh found text this tab has never shown, saved
+        // after the tab was opened: it arrived from another device.
+        const seen = known.current;
+        if (seen) {
+          const arrived = result.items.filter(
+            (item) => !seen.has(item.id) && item.createdAt >= openedAt,
+          );
+          if (arrived.length)
+            setFresh(
+              (current) =>
+                new Set([...current, ...arrived.map((item) => item.id)]),
+            );
+        }
+        markKnown(result.items.map((item) => item.id));
         setClips(result.items);
         setHasMore(result.hasMore);
       }
@@ -326,6 +372,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     editor,
     watchClipboard,
     clipboardFilter,
+    openedAt,
+    markKnown,
   ]);
   async function run(task: () => Promise<void>) {
     setBusy(true);
@@ -340,9 +388,11 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     }
   }
   async function openClip(id: string) {
+    settle(id);
     await run(async () => setEditor(await api<Clip>('clips/' + id)));
   }
   async function copyClip(item: ClipSummary) {
+    settle(item.id);
     await run(async () => {
       const full = await api<Clip>('clips/' + item.id);
       try {
@@ -388,6 +438,8 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     setBusy(true);
     setImportError('');
     let imported = 0;
+    // Restored text is not news from another device.
+    known.current = null;
     try {
       for (let i = 0; i < backup.length; i++) {
         setImportProgress(`Restoring ${i + 1} of ${backup.length}…`);
@@ -459,6 +511,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         expected.clipboardFilter !== latest.current.clipboardFilter
       )
         return;
+      markKnown(r.items.map((item) => item.id));
       setClips((current) => [
         ...current,
         ...r.items.filter((c) => !current.some((old) => old.id === c.id)),
@@ -466,30 +519,33 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       setHasMore(r.hasMore);
     });
   }
-  // The whole card stays clickable, but the button no longer wraps the
-  // heading and the time — it names the thought and stretches over the card.
-  const card = (item: ClipSummary) => (
-    <article className="thought-card" key={item.id}>
-      <div className="thought-main">
-        <div className="thought-meta">
-          <span>
-            {item.kind === 'combined'
-              ? 'Draft'
-              : item.kind === 'prompt'
-                ? 'AI prompt'
-                : item.kind}
+  // One saved text. Pinned text is a yellow sticky note; text that just
+  // arrived from another device is mint until it is opened or copied.
+  const card = (item: ClipSummary) => {
+    const arrived = fresh.has(item.id) && !item.pinned;
+    return (
+      <article
+        className={`clip-card${item.pinned ? ' is-pinned' : arrived ? ' is-fresh' : ''}`}
+        key={item.id}
+      >
+        <div className="clip-card-top">
+          <span className="clip-card-kind">
+            {item.pinned
+              ? 'Pinned'
+              : arrived
+                ? 'Just arrived'
+                : item.collection
+                  ? `Text · ${item.collection}`
+                  : 'Text'}
           </span>
           <time dateTime={new Date(item.createdAt).toISOString()}>
-            {new Date(item.createdAt).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-            })}
+            {ago(item.updatedAt)}
           </time>
         </div>
         <h3>
           <button
             type="button"
-            className="thought-open"
+            className="clip-open"
             disabled={locked}
             onClick={() => void openClip(item.id)}
           >
@@ -497,187 +553,187 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           </button>
         </h3>
         <p>{item.content}</p>
-        {(item.collection || item.tags.length > 0) && (
-          <span className="subtle text-sm">
-            {[item.collection, ...item.tags.map((t) => '#' + t)]
-              .filter(Boolean)
-              .join(' · ')}
+        {item.tags.length > 0 && (
+          <span className="clip-card-tags">
+            {item.tags.map((t) => '#' + t).join(' · ')}
           </span>
         )}
-      </div>
-      <div className="thought-actions">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="icon-control"
-          disabled={locked}
-          onClick={() => void pinClip(item)}
-          aria-label={item.pinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
-        >
-          <Pin
-            className={item.pinned ? 'text-primary' : ''}
-            fill={item.pinned ? 'currentColor' : 'none'}
+        <div className="clip-card-actions">
+          <button
+            type="button"
+            className="card-button card-button-solid"
+            disabled={locked}
+            onClick={() => void copyClip(item)}
+            aria-label={`Copy ${item.title}`}
+          >
+            <Copy aria-hidden="true" /> Copy
+          </button>
+          <button
+            type="button"
+            className="card-button"
+            disabled={locked}
+            aria-pressed={item.pinned}
+            onClick={() => void pinClip(item)}
+            aria-label={item.pinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
+          >
+            <Pin
+              aria-hidden="true"
+              fill={item.pinned ? 'currentColor' : 'none'}
+            />
+            {item.pinned ? 'Unpin' : 'Pin'}
+          </button>
+          <DeleteClipboardText
+            clip={item}
+            locked={locked}
+            onDelete={onClipDeleted}
           />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="icon-control"
-          disabled={locked}
-          onClick={() => void copyClip(item)}
-          aria-label={`Copy ${item.title}`}
-        >
-          <Copy />
-        </Button>
-        <DeleteClipboardText
-          clip={item}
-          locked={locked}
-          onDelete={onClipDeleted}
-        />
-      </div>
-    </article>
-  );
-  return (
-    <SidebarProvider>
-      <Toaster />
-      <Sidebar collapsible="none" className="app-sidebar">
-        <div className="brand">
-          <Wordmark />
         </div>
-        <nav className="side-nav" aria-label="Main navigation">
+      </article>
+    );
+  };
+  const openSettings = () => {
+    setAddOpen(false);
+    setSettingsOpen(true);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+  const current = settingsOpen ? 'settings' : view;
+  return (
+    <div className="desk">
+      <Toaster />
+      <aside className="desk-sidebar">
+        <div className="desk-sidebar-brand">
+          <LogoOnBrand />
+          <span>Text, images, documents</span>
+        </div>
+        <nav className="desk-nav" aria-label="Main navigation">
           {nav.map(([id, label, Icon]) => (
-            <Button
+            <button
               key={id}
-              className="nav-button"
-              variant={view === id ? 'secondary' : 'ghost'}
-              aria-busy={busy || undefined}
-              aria-current={view === id ? 'page' : undefined}
+              type="button"
+              className="desk-nav-item"
+              aria-current={current === id ? 'page' : undefined}
               onClick={() => setView(id)}
             >
-              <Icon />
-              {label}
-            </Button>
+              <Icon aria-hidden="true" />
+              <span>{label}</span>
+            </button>
           ))}
         </nav>
-        <div className="side-bottom">
-          <Button variant="ghost" className="nav-button mb-4" onClick={() => setHelpOpen(true)}>
-            <BookOpen /> Help · Quick start
-          </Button>
-          <span className="mini-label">
-            Paste, upload, or scan in. Copy, share, or print out.
-          </span>
-          {!installed && (
-            <Button
-              variant="outline"
-              className="control w-full mt-4"
-              onClick={() => setInstallOpen(true)}
-            >
-              <Smartphone /> Install app
-            </Button>
-          )}
-          <p className="mt-5">
-            Catchall Desk<br />
-            Your private workspace across devices
-          </p>
+        <div className="desk-sidebar-spacer" />
+        <div className="desk-nav desk-nav-secondary">
+          <button
+            type="button"
+            className="desk-nav-item"
+            aria-current={current === 'settings' ? 'page' : undefined}
+            onClick={openSettings}
+          >
+            <SlidersHorizontal aria-hidden="true" />
+            <span>Settings</span>
+          </button>
+          <button
+            type="button"
+            className="desk-nav-item"
+            onClick={() => setHelpOpen(true)}
+          >
+            <CircleHelp aria-hidden="true" />
+            <span>Quick start</span>
+          </button>
         </div>
-      </Sidebar>
-      <main className="workspace">
-        <header className="topbar">
-          <span className="brand mobile-brand">
-            <Wordmark />
-          </span>
-          <div className="actions m-0 desktop-header-actions">
-            <ThemeToggle />
-            <Button
-              variant="outline"
-              className="control"
-              disabled={locked}
-              onClick={() => setToolsOpen(true)}
-            >
-              Collections
-            </Button>
-
-            {!installed && (
-              <Button
-                className="control mobile-install"
-                variant="ghost"
-                onClick={() => setInstallOpen(true)}
-                aria-label="Install Catchall Desk"
-              >
-                <Smartphone />
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              className="control"
-              onClick={() => setSyncOpen(true)}
-            >
-              Sync
-            </Button>
-            <Button
-              variant="outline"
-              className="control"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings /> Settings
-            </Button>
+        {!installed && (
+          <div className="desk-install">
+            <strong>Keep your desk one tap away</strong>
+            <span>
+              Install Catch-all Desk on this device so it opens like an app.
+            </span>
+            <button type="button" onClick={() => setInstallOpen(true)}>
+              Install
+            </button>
           </div>
-          <MobileMenu
-            locked={locked}
-            installed={installed}
-            onTools={() => setToolsOpen(true)}
-            onSync={() => setSyncOpen(true)}
-            onSettings={() => setSettingsOpen(true)}
-            onInstall={() => setInstallOpen(true)}
-            onHelp={() => setHelpOpen(true)}
-          />
-        </header>
+        )}
+      </aside>
+      <main className="desk-main">
+        <div className="desk-mobile-top">
+          <Wordmark />
+          <div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Quick start"
+              onClick={() => setHelpOpen(true)}
+            >
+              <CircleHelp aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Settings"
+              aria-pressed={settingsOpen}
+              onClick={openSettings}
+            >
+              <SlidersHorizontal aria-hidden="true" />
+            </button>
+          </div>
+        </div>
         <Recovery
           disabled={locked}
           onSaved={(clip) => {
+            markKnown([clip.id]);
             setEditor(clip);
             refreshLibrary();
           }}
         />
-        <div className="content">
-          {!online && (
-            <output className="banner">
-              <WifiOff size={18} /> You’re offline. Reconnect to load, save,
-              or sync your items.
-            </output>
-          )}
-          {updateReady && (
-            <div className="banner">
-              A new version of Catchall Desk is ready.
-              <Button
-                variant="outline"
-                className="control"
-                disabled={locked || !!editor}
-                onClick={() => window.location.reload()}
-              >
-                Reload
-              </Button>
-            </div>
-          )}
-          <div className="intro">
-            <div className="eyebrow">
-              {view === 'clipboard'
-                ? 'Ready to use again'
-                : 'Within reach, across devices'}
-            </div>
-            <h1>{view === 'clipboard' ? 'Clipboard' : 'Documents'}</h1>
-            <p className="subtle">
-              {view === 'clipboard'
-                ? 'All your saved text and images. Pin an item to keep it handy, or copy it to use in another app.'
-                : 'Files and Google links you deliberately keep handy. Open them from any device signed into this account.'}
-            </p>
+        {!online && (
+          <output className="desk-banner">
+            <WifiOff size={18} aria-hidden="true" /> You’re offline. Reconnect
+            to load, save, or sync your items.
+          </output>
+        )}
+        {updateReady && (
+          <div className="desk-banner">
+            A new version of Catch-all Desk is ready.
+            <Button
+              variant="outline"
+              className="control"
+              disabled={locked || !!editor}
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </Button>
           </div>
-          {documentsOpened && (
-            <div hidden={view !== 'content'}>
-              <ContentTray key={account} active={view === 'content'} />
-            </div>
-          )}
-          {view !== 'content' && (
+        )}
+        {settingsOpen && (
+          <SettingsPage
+            account={account}
+            email={email}
+            settings={settings}
+            onSettings={setSettings}
+            startPage={startPage}
+            onStartPageChange={(next) => {
+              saveStartPage(account, next);
+              setStartPage(next);
+            }}
+            locked={locked}
+            onSync={() => setSyncOpen(true)}
+            onCollections={() => setToolsOpen(true)}
+            onExport={() => void exportLibrary()}
+            onImport={() => setImportOpen(true)}
+          />
+        )}
+        {documentsOpened && (
+          <div hidden={settingsOpen || view !== 'content'}>
+            <ScreenTitle
+              title="Documents"
+              subtitle="Files and Google links that stay until you delete them."
+              accent="page"
+            />
+            <ContentTray
+              key={account}
+              active={!settingsOpen && view === 'content'}
+            />
+          </div>
+        )}
+        {view !== 'content' && (
+          <div hidden={settingsOpen}>
             <LibrarySurface
               dailyCleanup={!!settings.clipboardDailyCleanup}
               clipboardFilter={clipboardFilter}
@@ -704,11 +760,12 @@ function HomeContent({ account, email }: { account: string; email: string }) {
               loading={loading}
               hasMore={hasMore}
               loadMore={loadMore}
-              setImportOpen={setImportOpen}
-              exportLibrary={exportLibrary}
               locked={locked}
-              accountEmail={email}
-              onClipboardSaved={() => {
+              addOpen={addOpen}
+              onAddClose={() => setAddOpen(false)}
+              onClipboardSaved={(id) => {
+                markKnown([id]);
+                setAddOpen(false);
                 setClipboardFilter('all');
                 setQuery('');
                 setCollectionFilter('');
@@ -716,24 +773,39 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 refreshLibrary();
               }}
             />
-          )}
-        </div>
+          </div>
+        )}
       </main>
-      <nav className="mobile-nav" aria-label="Mobile navigation">
-        {nav.map(([id, label, Icon]) => (
-          <Button
-            key={id}
-            variant={view === id ? 'secondary' : 'ghost'}
-            aria-busy={busy || undefined}
-            aria-current={view === id ? 'page' : undefined}
-            onClick={() => setView(id)}
-          >
-            <span className="mobile-nav-icon">
-              <Icon />
-            </span>
-            <span>{label}</span>
-          </Button>
-        ))}
+      <nav className="desk-tabbar" aria-label="Mobile navigation">
+        <button
+          type="button"
+          className="desk-tab"
+          aria-current={current === 'clipboard' && !addOpen ? 'page' : undefined}
+          onClick={() => setView('clipboard')}
+        >
+          <Clipboard aria-hidden="true" />
+          <span>Clipboard</span>
+        </button>
+        <button
+          type="button"
+          className="desk-tab-add"
+          aria-label="Add to Clipboard"
+          onClick={() => {
+            setView('clipboard');
+            setAddOpen(true);
+          }}
+        >
+          <Plus aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="desk-tab"
+          aria-current={current === 'content' ? 'page' : undefined}
+          onClick={() => setView('content')}
+        >
+          <FileText aria-hidden="true" />
+          <span>Documents</span>
+        </button>
       </nav>
       <QuickStartDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <SyncDialog
@@ -746,17 +818,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         key={String(toolsOpen)}
         open={toolsOpen}
         onOpenChange={setToolsOpen}
-      />
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        settings={settings}
-        onSettings={setSettings}
-        startPage={startPage}
-        onStartPageChange={(next) => {
-          saveStartPage(account, next);
-          setStartPage(next);
-        }}
       />
       <ClipEditor
         key={editor?.id ?? 'closed'}
@@ -820,19 +881,19 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       </Dialog>
       <Dialog open={installOpen} onOpenChange={setInstallOpen}>
         <DialogContent className="settings-dialog">
-          <DialogTitle>Keep Catchall Desk one tap away</DialogTitle>
+          <DialogTitle>Keep Catch-all Desk one tap away</DialogTitle>
           <DialogDescription>
             Add it to your home screen for an app-like workspace.
           </DialogDescription>
           <div className="install-brand">
             <Image
               src="/icons/icon-192.png"
-              alt="Catchall Desk app icon"
+              alt="Catch-all Desk app icon"
               width={70}
               height={70}
               unoptimized
             />
-            <strong>Catchall Desk</strong>
+            <strong>Catch-all Desk</strong>
           </div>
           {installPrompt ? (
             <Button
@@ -846,7 +907,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
                 })
               }
             >
-              Install Catchall Desk
+              Install Catch-all Desk
             </Button>
           ) : (
             <>
@@ -892,6 +953,6 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           />
         </DialogContent>
       </Dialog>
-    </SidebarProvider>
+    </div>
   );
 }

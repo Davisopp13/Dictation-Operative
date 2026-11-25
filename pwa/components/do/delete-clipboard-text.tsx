@@ -1,7 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -61,17 +60,16 @@ export function DeleteClipboardText({
     >
       <AlertDialogTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="icon-control"
+          <button
+            type="button"
+            className="card-button card-button-icon"
             disabled={locked}
             aria-label={`Delete ${clip.title}`}
             title="Delete text"
           />
         }
       >
-        <Trash2 />
+        <Trash2 aria-hidden="true" />
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

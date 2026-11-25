@@ -1,43 +1,89 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
-import { NativeSelect } from '@/components/ui/native-select';
 import {
-  isWorkspacePage,
   workspacePages,
   type WorkspacePage,
 } from '@/lib/workspace-navigation';
 import { post, errorMessage } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
+import { ScreenTitle } from './screen-title';
+import { useTheme, type Theme } from './theme';
+
 export type SettingsState = {
   clipboardDailyCleanup?: boolean;
   logoutPath?: string;
 };
-export function SettingsDialog({
-  open,
-  onOpenChange,
+
+const themes: { value: Theme; label: string }[] = [
+  { value: 'light', label: 'Daylight' },
+  { value: 'dark', label: 'Midnight' },
+  { value: 'system', label: 'Match device' },
+];
+
+/** How many devices this browser is paired with, read from its own storage. */
+function usePairing(account: string) {
+  const [pairing, setPairing] = useState<{ name: string; paired: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    const read = () => {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(`do-sync-v1:${account}`) ?? 'null',
+        ) as { device?: { name?: string }; pairs?: unknown[] } | null;
+        setPairing(
+          saved
+            ? {
+                name: saved.device?.name ?? '',
+                paired: Array.isArray(saved.pairs) ? saved.pairs.length : 0,
+              }
+            : null,
+        );
+      } catch {
+        setPairing(null);
+      }
+    };
+    read();
+    window.addEventListener('focus', read);
+    window.addEventListener('storage', read);
+    return () => {
+      window.removeEventListener('focus', read);
+      window.removeEventListener('storage', read);
+    };
+  }, [account]);
+  return pairing;
+}
+
+/** The Settings screen. It opens from the sidebar; a visit never starts here. */
+export function SettingsPage({
+  account,
+  email,
   settings,
   onSettings,
   startPage,
   onStartPageChange,
+  locked,
+  onSync,
+  onCollections,
+  onExport,
+  onImport,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  account: string;
+  email: string;
   settings: SettingsState;
   onSettings: (s: SettingsState) => void;
   startPage: WorkspacePage;
   onStartPageChange: (page: WorkspacePage) => void;
+  locked: boolean;
+  onSync: () => void;
+  onCollections: () => void;
+  onExport: () => void;
+  onImport: () => void;
 }) {
+  const { theme, setTheme } = useTheme();
+  const pairing = usePairing(account);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [success, setSuccess] = useState('');
@@ -55,61 +101,85 @@ export function SettingsDialog({
     }
   }
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(value) => {
-        if (!busy) {
-          setError('');
-          setSuccess('');
-          onOpenChange(value);
-        }
-      }}
-    >
-      <DialogContent className="settings-dialog">
-        <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>
-            Choose where the app opens and how long Clipboard items are kept.
-          </DialogDescription>
-        </DialogHeader>
-        <div>
-          <label className="field-label" htmlFor="start-page">
-            Start page
-          </label>
-          <NativeSelect
-            id="start-page"
-            className="field"
-            value={startPage}
-            aria-describedby="start-page-description"
-            onChange={(event) => {
-              const next = event.target.value;
-              if (!isWorkspacePage(next)) return;
-              setError('');
-              setSuccess('');
-              try {
-                onStartPageChange(next);
-                setSuccess('Start page saved.');
-              } catch (e) {
-                setError(errorMessage(e));
-              }
-            }}
-          >
+    <>
+      <ScreenTitle
+        title="Settings"
+        subtitle="Where the app opens and how long Clipboard items are kept."
+        accent="sticky"
+      />
+      {error && (
+        <p className="settings-message is-error" role="alert">
+          {error}
+        </p>
+      )}
+      {success && (
+        <output className="settings-message" aria-live="polite">
+          {success}
+        </output>
+      )}
+      <div className="settings-grid">
+        <section className="settings-card" aria-labelledby="set-start">
+          <h2 id="set-start">Start page</h2>
+          <p>Where a fresh visit lands. Refreshing keeps the tab you were on.</p>
+          <fieldset className="segmented segmented-fill" aria-label="Start page">
             {workspacePages.map((page) => (
-              <option key={page.value} value={page.value}>
+              <button
+                key={page.value}
+                type="button"
+                aria-pressed={startPage === page.value}
+                onClick={() => {
+                  setError('');
+                  setSuccess('');
+                  try {
+                    onStartPageChange(page.value);
+                    setSuccess('Start page saved.');
+                  } catch (e) {
+                    setError(errorMessage(e));
+                  }
+                }}
+              >
                 {page.label}
-              </option>
+              </button>
             ))}
-          </NativeSelect>
-          <p id="start-page-description" className="subtle text-sm mt-2">
-            Choose where Catchall Desk opens on a fresh visit. Refreshing keeps
-            your current tab. Saved for your account in this browser.
+          </fieldset>
+        </section>
+
+        <section className="settings-card" aria-labelledby="set-sync">
+          <div className="settings-card-head">
+            <h2 id="set-sync">Device Sync</h2>
+            {pairing && pairing.paired > 0 && (
+              <span className="badge-mint">{pairing.paired} paired</span>
+            )}
+          </div>
+          <p>
+            Hand text and images straight to a paired device. Encrypted end to
+            end and gone from the relay in two minutes.
           </p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-4">
-            <label htmlFor="clipboard-daily-cleanup" className="font-semibold">
-              Daily Clipboard cleanup
-            </label>
+          {pairing?.name && (
+            <ul className="settings-list">
+              <li>
+                {pairing.name} <span>This device</span>
+              </li>
+            </ul>
+          )}
+          <button type="button" className="button-secondary" onClick={onSync}>
+            {pairing && pairing.paired > 0 ? 'Open Sync' : 'Pair a device'}
+          </button>
+        </section>
+
+        <section
+          className="settings-card settings-card-sticky"
+          aria-labelledby="set-clean"
+        >
+          <h2 id="set-clean">Daily Clipboard cleanup</h2>
+          <p id="clipboard-cleanup-description">
+            Once a day, removes unpinned Clipboard text and images older than 24
+            hours, even when the app is closed. Pinned items and Documents stay
+            put, and so do earlier dictation history and text saved before this
+            setting existed.
+          </p>
+          <label className="settings-switch" htmlFor="clipboard-daily-cleanup">
+            Clean up unpinned items daily
             <Switch
               id="clipboard-daily-cleanup"
               checked={!!settings.clipboardDailyCleanup}
@@ -119,60 +189,109 @@ export function SettingsDialog({
                 void change({ action: 'clipboard-cleanup', enabled })
               }
             />
-          </div>
-          <p id="clipboard-cleanup-description" className="subtle text-sm">
-            Once a day, permanently remove unpinned Clipboard text and images
-            older than 24 hours, even when the app is closed. Pin anything you
-            want to keep. Applies across your account’s devices. Earlier
-            dictation history and text saved before this feature stay saved.
+          </label>
+        </section>
+
+        <section className="settings-card" aria-labelledby="set-theme">
+          <h2 id="set-theme">Appearance</h2>
+          <fieldset className="segmented segmented-fill" aria-label="Theme">
+            {themes.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={theme === option.value}
+                onClick={() => setTheme(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </fieldset>
+        </section>
+
+        <section className="settings-card" aria-labelledby="set-collections">
+          <h2 id="set-collections">Collections</h2>
+          <p>
+            Suggested collection names for organizing saved text. Give any
+            saved text a collection and tags when you open it.
           </p>
-        </div>
-        {error && (
-          <Alert variant="destructive" className="error-message" role="alert">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert className="success-message" aria-live="polite">
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-        <div className="actions">
-          <Link href="/account/sign-in" className="text-link">
-            Account sign-in
-          </Link>
-          <Button
-            variant="outline"
-            className="control"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError('');
-              try {
-                const result = await authClient.signOut();
-                if (result.error)
-                  throw new Error(
-                    result.error.message || 'Could not sign out.',
-                  );
-                window.location.assign(settings.logoutPath ?? '/login');
-              } catch (e) {
-                setError(errorMessage(e));
-                setBusy(false);
-              }
-            }}
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={locked}
+            onClick={onCollections}
           >
-            Sign out
-          </Button>
-        </div>
-        <div className="subtle text-sm border-t pt-4">
-          Catchall Desk
-          <br />
-          Your saved Clipboard and Documents need a connection.{' '}
-          <Link href="/privacy" className="text-link">
-            Privacy & storage
-          </Link>
-        </div>
-      </DialogContent>
-    </Dialog>
+            Edit collections
+          </button>
+        </section>
+
+        <section className="settings-card" aria-labelledby="set-account">
+          <h2 id="set-account">Account sign-in</h2>
+          <p>
+            Signed in as <strong className="break-all">{email}</strong>. Use the
+            same account on another device to see the same Clipboard and
+            Documents.
+          </p>
+          <div className="settings-actions">
+            <Link href="/account/sign-in" className="button-secondary">
+              Sign-in methods
+            </Link>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  const result = await authClient.signOut();
+                  if (result.error)
+                    throw new Error(
+                      result.error.message || 'Could not sign out.',
+                    );
+                  window.location.assign(settings.logoutPath ?? '/login');
+                } catch (e) {
+                  setError(errorMessage(e));
+                  setBusy(false);
+                }
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </section>
+
+        <section className="settings-card" aria-labelledby="set-backup">
+          <h2 id="set-backup">Backup</h2>
+          <p>
+            A complete copy of your saved text, versions included. Images and
+            Documents are not part of it.
+          </p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={locked}
+              onClick={onExport}
+            >
+              Export
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={locked}
+              onClick={onImport}
+            >
+              Import
+            </button>
+          </div>
+        </section>
+      </div>
+      <p className="settings-foot">
+        Your saved Clipboard and Documents need a connection.{' '}
+        <Link href="/privacy" className="text-link">
+          Privacy & storage
+        </Link>
+      </p>
+    </>
   );
 }

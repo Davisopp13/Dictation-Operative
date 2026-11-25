@@ -1,7 +1,7 @@
 # DO Universal Clipboard — implementation roadmap
 
-> **Status, November 24, 2026:** this document predates the Catchall Desk
-> restructuring. Its "no cloud clipboard archive" default describes the encrypted relay only. Catchall Desk also keeps saved Clipboard items and Documents in account-owned, server-readable storage, which is a separate system from the relay. Wire identifiers and key derivation described here must not change. See [`pwa/README.md`](../pwa/README.md) for the current web app.
+> **Status, November 24, 2026:** this document predates the Catch-all Desk
+> restructuring. Its "no cloud clipboard archive" default describes the encrypted relay only. Catch-all Desk also keeps saved Clipboard items and Documents in account-owned, server-readable storage, which is a separate system from the relay. Wire identifiers and key derivation described here must not change. See [`pwa/README.md`](../pwa/README.md) for the current web app.
 
 Prepared September 7, 2026. Status: proposed implementation plan; no new platform support is claimed by this document.
 

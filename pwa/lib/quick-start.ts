@@ -1,6 +1,6 @@
 // Copy for the in-app guide and the /help page.
 export const quickStart = {
-  title: 'Catchall Desk in 60 seconds',
+  title: 'Catch-all Desk in 60 seconds',
   subtitle: 'Bring it in on one device. Take it out on another.',
   steps: [
     {
