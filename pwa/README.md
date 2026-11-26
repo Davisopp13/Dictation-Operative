@@ -31,6 +31,11 @@ would sign people out, break device pairing, or orphan stored data.
   dragged; the page is flattened, cleaned (Colour, Black & white, or Photo),
   and up to 40 pages are saved as one PDF. Everything runs in the browser
   (`lib/scan.ts`, no libraries); the PDF then uploads like any other file.
+- **PDF preview and printing**: choose View on a PDF in Documents for page
+  navigation, zoom, extracted page text, and printing a page range. Saved text
+  has Print under More actions; image previews in Clipboard and Documents also
+  offer Print. Only the chosen item is printed. Downloads remain available.
+  See [printing behavior and validation](docs/printing.md).
 - Search, pins, naming, editing, copy, share, delete, text export, and lossless
   JSON backup export/import.
 - **Device Sync**: end-to-end encrypted, short-lived text and image handoff

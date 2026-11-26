@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { DocumentScanner } from '@/components/do/document-scanner';
+import { PdfPreview } from '@/components/do/pdf-preview';
+import { DocumentPrintButton } from '@/components/do/document-print';
 import { api, errorMessage, workspaceRevision } from '@/lib/client';
 import { watchVisibleList, refreshPages } from '@/lib/live-list';
 import {
@@ -432,7 +434,9 @@ export function ContentTray({ active = true }: { active?: boolean }) {
                         <Play aria-hidden="true" /> Play
                       </Button>
                     )}
-                    {contentPreview(item.mime) === 'image' && (
+                    {['image', 'pdf'].includes(
+                      contentPreview(item.mime) ?? '',
+                    ) && (
                       <Button
                         variant="outline"
                         disabled={!!busy}
@@ -564,15 +568,29 @@ export function ContentTray({ active = true }: { active?: boolean }) {
           if (!open) setPreview(null);
         }}
       >
-        <DialogContent className="content-dialog">
+        <DialogContent
+          className={
+            preview?.mime === 'application/pdf'
+              ? 'content-dialog document-preview-dialog'
+              : 'content-dialog'
+          }
+        >
           <DialogTitle>{preview?.name}</DialogTitle>
           <DialogDescription>
-            {preview && contentPreview(preview.mime) === 'image'
-              ? 'Shown as saved. Download for the original file.'
-              : 'Playback depends on your browser and the file’s codec. Download if this format cannot play.'}
+            {preview?.mime === 'application/pdf'
+              ? 'Preview and print your saved document.'
+              : preview && contentPreview(preview.mime) === 'image'
+                ? 'Shown as saved. Download for the original file.'
+                : 'Playback depends on your browser and the file’s codec. Download if this format cannot play.'}
           </DialogDescription>
           {preview &&
-            (contentPreview(preview.mime) === 'image' ? (
+            (contentPreview(preview.mime) === 'pdf' ? (
+              <PdfPreview
+                key={preview.id}
+                name={preview.name}
+                url={`/api/content/${preview.id}/file`}
+              />
+            ) : contentPreview(preview.mime) === 'image' ? (
               // The name is the only description the user gave this image.
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -608,6 +626,12 @@ export function ContentTray({ active = true }: { active?: boolean }) {
                 Your browser cannot play this audio.
               </audio>
             ))}
+          {preview && contentPreview(preview.mime) === 'image' && (
+            <DocumentPrintButton
+              name={preview.name}
+              source={{ kind: 'image', url: `/api/content/${preview.id}/file` }}
+            />
+          )}
           {preview && (
             <a
               className="text-link"

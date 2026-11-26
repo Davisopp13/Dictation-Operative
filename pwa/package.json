@@ -21,9 +21,11 @@
     "test:built-content": "node scripts/verify-built-content.mjs",
     "typecheck": "tsc --noEmit",
     "db:local": "wrangler d1 migrations apply DB --local",
-    "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json",
+    "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "types": "wrangler types db/bindings.d.ts --include-runtime false"
+    "types": "wrangler types db/bindings.d.ts --include-runtime false",
+    "predev": "node scripts/prepare-pdf-assets.mjs",
+    "prebuild": "node scripts/prepare-pdf-assets.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -42,6 +44,7 @@
     "input-otp": "1.4.2",
     "jose": "6.2.12",
     "lucide-react": "1.31.0",
+    "pdfjs-dist": "6.5.438",
     "qrcode.react": "4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

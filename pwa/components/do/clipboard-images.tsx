@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
+import { DocumentPrintButton } from './document-print';
 import {
   Dialog,
   DialogContent,
@@ -265,8 +266,8 @@ export function ClipboardImages({
         <div className="image-card-text">
           <h3>{item.name}</h3>
           <span>
-            {item.pinned ? 'Pinned · ' : ''}PNG · {item.width} × {item.height}{' '}
-            · {(item.size / 1024 / 1024).toFixed(1)} MiB
+            {item.pinned ? 'Pinned · ' : ''}PNG · {item.width} × {item.height} ·{' '}
+            {(item.size / 1024 / 1024).toFixed(1)} MiB
           </span>
         </div>
         <div className="image-card-actions">
@@ -310,7 +311,10 @@ export function ClipboardImages({
               })
             }
           >
-            <Pin aria-hidden="true" fill={item.pinned ? 'currentColor' : 'none'} />
+            <Pin
+              aria-hidden="true"
+              fill={item.pinned ? 'currentColor' : 'none'}
+            />
           </button>
           <a
             className="icon-button"
@@ -481,6 +485,10 @@ export function ClipboardImages({
               >
                 <Copy /> Copy image
               </Button>
+              <DocumentPrintButton
+                name={preview.name}
+                source={{ kind: 'image', url: `/api/images/${preview.id}` }}
+              />
               <a
                 className="text-link"
                 href={`/api/images/${preview.id}?download=1`}

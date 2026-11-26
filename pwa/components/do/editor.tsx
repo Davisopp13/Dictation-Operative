@@ -42,6 +42,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
+import { DocumentPrintButton } from './document-print';
 import { useWorkspaceTools } from './workspace-tools';
 import { api, errorMessage, download } from '@/lib/client';
 import { type Clip } from '@/lib/domain';
@@ -288,6 +289,12 @@ export function ClipEditor({
                     <MoreVertical size={18} />
                   </summary>
                   <div className="overflow-sheet">
+                    {draft && (
+                      <DocumentPrintButton
+                        name={title || 'Saved text'}
+                        source={{ kind: 'text', text: draft }}
+                      />
+                    )}
                     <button
                       type="button"
                       disabled={!draft || dirty}
@@ -556,8 +563,8 @@ export function ClipEditor({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this text?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the text and all its versions from Clipboard, including All and Pinned.
-              Export anything you want to keep first.
+              This removes the text and all its versions from Clipboard,
+              including All and Pinned. Export anything you want to keep first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
