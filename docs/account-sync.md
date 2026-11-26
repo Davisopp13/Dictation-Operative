@@ -87,3 +87,13 @@ that all saved items remain until explicitly deleted when cleanup is enabled.
 The separate two-minute device-transfer lifetime is unchanged.
 
 See [cleanup design, validation and release state](clipboard-cleanup.md).
+
+## F2 shared item foundation
+
+The additive [browser/native shared-item contract](../pwa/docs/shared-items.md)
+uses the existing account stores and IDs, with typed references, aggregate reads,
+revision-aware pile membership and cleanup protection. It does not change the
+separate encrypted paired-device handoff protocol. Pile UI, legacy collection
+backfill and Take with me remain later gated work. See the
+[local F2 implementation handoff](catch-all-desk-f2-handoff.md) for migration,
+verification and review status.

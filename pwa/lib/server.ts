@@ -1,3 +1,4 @@
+import { ItemError } from './shared-items';
 import { handleContent, type ContentStore } from './content';
 import { handleV1 } from './api-v1';
 import { readBounded } from './request';
@@ -196,7 +197,7 @@ export async function handleAPI(
     }
     return json({ error: 'Not found.' }, 404);
   } catch (e) {
-    if (e instanceof AppError) return json({ error: e.message }, e.status);
+    if (e instanceof AppError) return json({ error: e.message, ...(e instanceof ItemError ? { code: e.code } : {}) }, e.status);
     console.error(
       'Workspace API failed',
       e instanceof Error ? e.name : 'UnknownError',

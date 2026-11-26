@@ -14,6 +14,10 @@ const workspaceTables = [
   'workspace_tools',
   'usage',
   'workspace_revision',
+  'piles',
+  'pile_members',
+  'pile_operations',
+  'item_deletions',
 ];
 
 void test('account deletion removes one account completely and nothing else', async (t) => {
@@ -103,6 +107,28 @@ void test('account deletion removes one account completely and nothing else', as
           .bind(owner),
         db
           .prepare('INSERT INTO usage (owner,window,count) VALUES (?,1,1)')
+          .bind(owner),
+      ]);
+      await db.batch([
+        db
+          .prepare(
+            'INSERT INTO piles(id,owner,name,updated_at) VALUES (?,?,?,0)',
+          )
+          .bind(`pile-${tag}-0001`, owner, 'Errands'),
+        db
+          .prepare(
+            "INSERT INTO pile_members VALUES (?,?,'text',?,0,1,'operation-0001')",
+          )
+          .bind(`pile-${tag}-0001`, owner, `clip-${tag}-0001`),
+        db
+          .prepare(
+            "INSERT INTO pile_operations VALUES (?, 'operation-0001', ?, '{}', '{}')",
+          )
+          .bind(owner, `pile-${tag}-0001`),
+        db
+          .prepare(
+            "INSERT INTO item_deletions VALUES (?,'text','gone-0001','cleared',0)",
+          )
           .bind(owner),
       ]);
     }

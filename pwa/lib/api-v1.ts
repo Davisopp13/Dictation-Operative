@@ -1,3 +1,12 @@
+import {
+  listSharedItems,
+  itemReference,
+  itemStatement,
+  missingItem,
+  sharedItem,
+  type ItemRow,
+} from './shared-items';
+import { readPileMembers, writePileMember } from './pile-members';
 import { handleContent } from './content';
 import { decodeCursor, page, pageLimit } from './cursor';
 import {
@@ -79,6 +88,31 @@ export async function handleV1(
     method = request.method,
     param = (name: string) => url.searchParams.get(name);
 
+  if (path === 'items' && method === 'GET')
+    return json(await listSharedItems(s.db, s.owner, url));
+  const shared = /^items\/(text|image|document)\/([^/]+)$/.exec(path);
+  if (shared && method === 'GET') {
+    const ref = itemReference({ kind: shared[1], id: shared[2] });
+    const row = await itemStatement(s.db, s.owner, ref).first<ItemRow>();
+    if (!row) return missingItem(s.db, s.owner, ref);
+    return json(sharedItem(row));
+  }
+  const members = /^piles\/([^/]+)\/members$/.exec(path);
+  if (members) {
+    const pileId = id(members[1]);
+    if (method === 'GET')
+      return json(await readPileMembers(s.db, s.owner, pileId));
+    if (method === 'POST')
+      return json(
+        await writePileMember(
+          s.db,
+          s.owner,
+          pileId,
+          await body(request, 12000),
+        ),
+      );
+  }
+
   if (path === 'revision' && method === 'GET')
     return json({
       ...(await readRevision(s.db, s.owner)),
@@ -138,7 +172,9 @@ export async function handleV1(
         s.db,
         s.owner,
         clipId,
-        revision(given === null ? (await body(request)).revision : Number(given)),
+        revision(
+          given === null ? (await body(request)).revision : Number(given),
+        ),
       );
       return json({ deleted: true });
     }

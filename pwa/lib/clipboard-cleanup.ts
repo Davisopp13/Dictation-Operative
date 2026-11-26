@@ -1,5 +1,4 @@
 import type { ImageStore } from './images';
-import { bumpRevision } from './revision';
 
 export const CLIPBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
@@ -38,33 +37,34 @@ export async function runClipboardCleanup(
   for (let page = 0; page < MAX_PAGES; page++) {
     // D1 batch is transactional. The image deletion trigger records the R2 key
     // atomically; a concurrent pin either commits first and survives, or sees 404.
-    const [text, image] = await db.batch([
+    const eligible = (table: string, kind: string) => `SELECT id FROM ${table}
+      WHERE ${kind === 'text' ? 'clipboard_item=1 AND ' : ''}pinned=0 AND created_at<?
+      AND owner IN (SELECT owner FROM preferences WHERE clipboard_daily_cleanup=1)
+      AND NOT EXISTS(SELECT 1 FROM pile_members m WHERE m.owner=${table}.owner AND m.kind='${kind}' AND m.item_id=${table}.id AND m.active=1)
+      ORDER BY id LIMIT ?`;
+    // Tombstone and deletion use exactly the same predicate in one transaction.
+    const tombstone = (table: string, kind: string) =>
       db
-        .prepare(`DELETE FROM clips WHERE id IN (
-        SELECT id FROM clips WHERE clipboard_item=1 AND pinned=0 AND created_at<?
-        AND owner IN (SELECT owner FROM preferences WHERE clipboard_daily_cleanup=1)
-        LIMIT ?
-      ) RETURNING owner`)
+        .prepare(`INSERT OR REPLACE INTO item_deletions(owner,kind,item_id,reason,deleted_at)
+      SELECT owner,'${kind}',id,'cleared',? FROM ${table} WHERE id IN (${eligible(table, kind)})`)
+        .bind(now, cutoff, PAGE_SIZE);
+    const [, text, , image] = await db.batch([
+      tombstone('clips', 'text'),
+      db
+        .prepare(
+          `DELETE FROM clips WHERE id IN (${eligible('clips', 'text')}) RETURNING owner`,
+        )
         .bind(cutoff, PAGE_SIZE),
+      tombstone('clipboard_images', 'image'),
       db
-        .prepare(`DELETE FROM clipboard_images WHERE id IN (
-        SELECT id FROM clipboard_images WHERE pinned=0 AND created_at<?
-        AND owner IN (SELECT owner FROM preferences WHERE clipboard_daily_cleanup=1)
-        LIMIT ?
-      ) RETURNING id`)
+        .prepare(
+          `DELETE FROM clipboard_images WHERE id IN (${eligible('clipboard_images', 'image')}) RETURNING id`,
+        )
         .bind(cutoff, PAGE_SIZE),
     ]);
     textDeleted += text.results.length;
     imagesDeleted += image.results.length;
-    // Image deletions bump the workspace revision through a trigger. Text
-    // deletions are bumped here so other devices notice the cleanup.
-    const owners = [
-      ...new Set(
-        (text.results as { owner: string }[]).map((row) => row.owner),
-      ),
-    ];
-    if (owners.length)
-      await db.batch(owners.map((owner) => bumpRevision(db, owner, now)));
+    // Migration 0009 invalidates text and image reads in the deletion transaction.
     if (text.results.length < PAGE_SIZE && image.results.length < PAGE_SIZE) {
       complete = true;
       break;
