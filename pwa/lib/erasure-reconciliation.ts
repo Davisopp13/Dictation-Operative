@@ -19,14 +19,86 @@ const sourceTables = [
   'usage',
 ] as const;
 
-export function reconciliationPlan(input: unknown) {
-  if (!Array.isArray(input) || !input.length || input.length > 100)
+// D1 documents 100,000 bytes per SQL statement. Leave 10% headroom and
+// conservatively cap the entire --command file at the same limit as well.
+// https://developers.cloudflare.com/d1/platform/limits/
+export const RECONCILIATION_SQL_BYTE_LIMIT = 90_000;
+const preamble =
+  '-- Generated from a verified pre-window account/owner snapshot.\n-- Follow docs/account-erasure-reconciliation.md; generating SQL does not authorize execution.\n';
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+const importColumns = [
+  'Total queries executed',
+  'Rows read',
+  'Rows written',
+  'Database size (MB)',
+];
+
+/** Accept one successful Wrangler query statement or the original plain pairs. */
+export function parseOwnerSnapshot(input: unknown): OwnerSnapshot[] {
+  if (!Array.isArray(input))
+    throw new Error(
+      'Supply plain snapshot pairs or one Wrangler query result envelope.',
+    );
+  const summaryRow = (value: unknown) =>
+    record(value) && importColumns.some((key) => Object.hasOwn(value, key));
+  if (
+    input.some(
+      (entry) =>
+        summaryRow(entry) ||
+        (record(entry) &&
+          Array.isArray(entry.results) &&
+          entry.results.some(summaryRow)),
+    )
+  )
+    throw new Error(
+      'Wrangler import summary is not a snapshot. Rerun the census with --command rather than --file.',
+    );
+  let rows: unknown[] = input;
+  if (
+    input.some(
+      (entry) =>
+        record(entry) &&
+        ['results', 'success', 'meta', 'finalBookmark'].some((key) =>
+          Object.hasOwn(entry, key),
+        ),
+    )
+  ) {
+    if (input.length !== 1)
+      throw new Error(
+        'The snapshot query must return exactly one statement envelope.',
+      );
+    const entry = input[0];
+    if (
+      !record(entry) ||
+      Object.keys(entry).length !== 3 ||
+      !Object.hasOwn(entry, 'results') ||
+      !Object.hasOwn(entry, 'success') ||
+      !Object.hasOwn(entry, 'meta') ||
+      !Array.isArray(entry.results) ||
+      !record(entry.meta)
+    )
+      throw new Error(
+        'Expected one query envelope containing only results, success and meta.',
+      );
+    if (entry.success !== true)
+      throw new Error(
+        'The snapshot query did not succeed; rerun it before generating a plan.',
+      );
+    rows = entry.results;
+  }
+  if (!rows.length || rows.length > 100)
     throw new Error(
       'Supply 1–100 verified account/owner snapshot pairs per plan.',
     );
   const seen = new Set<string>();
-  const pairs = input.map((row): OwnerSnapshot => {
-    if (!row || typeof row !== 'object')
+  const pairs = rows.map((row): OwnerSnapshot => {
+    if (
+      !record(row) ||
+      Object.keys(row).length !== 2 ||
+      !Object.hasOwn(row, 'accountId') ||
+      !Object.hasOwn(row, 'owner')
+    )
       throw new Error('Invalid snapshot pair.');
     const { accountId, owner } = row as Record<string, unknown>;
     for (const value of [accountId, owner])
@@ -50,6 +122,11 @@ export function reconciliationPlan(input: unknown) {
     seen.add(pair.owner);
     return pair;
   });
+  return pairs;
+}
+
+export function reconciliationPlan(input: unknown) {
+  const pairs = parseOwnerSnapshot(input);
   const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
   const candidates = `WITH approved(account_id,owner) AS (VALUES ${pairs.map((p) => `(${quote(p.accountId)},${quote(p.owner)})`).join(',')}),
 checked AS (SELECT approved.*,
@@ -68,5 +145,18 @@ FROM checked ORDER BY account_id;`;
     (table) => `${candidates}
 DELETE FROM ${table} WHERE owner IN (SELECT owner FROM checked WHERE eligible=1);`,
   );
-  return { audit, statements };
+  for (const [index, statement] of [audit, ...statements].entries())
+    assertSqlSize(statement, `SQL statement ${index + 1}`);
+  const auditFile = preamble + audit + '\n';
+  const applyFile = preamble + statements.join('\n\n') + '\n';
+  assertSqlSize(auditFile, 'Audit output file');
+  assertSqlSize(applyFile, 'Apply output file');
+  return { audit, statements, auditFile, applyFile };
+}
+
+function assertSqlSize(sql: string, label: string) {
+  if (new TextEncoder().encode(sql).byteLength >= RECONCILIATION_SQL_BYTE_LIMIT)
+    throw new Error(
+      `${label} reaches the conservative ${RECONCILIATION_SQL_BYTE_LIMIT}-byte SQL limit. Split the verified census into smaller disjoint batches.`,
+    );
 }

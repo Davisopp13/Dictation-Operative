@@ -4,6 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import {
   reconciliationPlan,
+  parseOwnerSnapshot,
+  RECONCILIATION_SQL_BYTE_LIMIT,
   type OwnerSnapshot,
 } from '../lib/erasure-reconciliation';
 
@@ -27,6 +29,109 @@ void test('reconciliation plans bound and safely quote reviewed raw identities',
   assert.match(plan.audit, /owner''\); DELETE FROM auth_user; --/);
   assert.equal(plan.statements.length, 5);
   assert.match(plan.statements.at(-1)!, /DELETE FROM workspace_revision/);
+});
+
+void test('snapshot parser accepts the direct query envelope and original plain pairs', () => {
+  const pairs = [
+    { accountId: 'synthetic-account', owner: 'synthetic-legacy-owner' },
+  ];
+  const query = [
+    {
+      results: pairs,
+      success: true,
+      meta: {
+        duration: 0.4,
+        rows_read: 2,
+        rows_written: 0,
+        served_by: 'synthetic-d1',
+      },
+    },
+  ];
+  assert.deepEqual(parseOwnerSnapshot(query), pairs);
+  assert.deepEqual(reconciliationPlan(query), reconciliationPlan(pairs));
+});
+
+void test('snapshot parser rejects import summaries and malformed envelopes or rows', () => {
+  const pair = { accountId: 'account-one', owner: 'owner-one' };
+  const envelope = { results: [pair], success: true, meta: { duration: 0.1 } };
+  const summary = {
+    'Total queries executed': 1,
+    'Rows read': 2,
+    'Rows written': 0,
+    'Database size (MB)': '0.02',
+  };
+  for (const input of [
+    [
+      {
+        results: [summary],
+        success: true,
+        meta: {},
+        finalBookmark: 'synthetic',
+      },
+    ],
+    [summary],
+  ])
+    assert.throws(
+      () => reconciliationPlan(input),
+      /import summary.*--command rather than --file/,
+    );
+  for (const input of [
+    { results: [pair], success: true, meta: {} },
+    [envelope, envelope],
+    [{ ...envelope, success: false }],
+    [{ ...envelope, success: 'true' }],
+    [{ results: [pair], success: true }],
+    [{ ...envelope, extra: 'not accepted' }],
+    [{ ...envelope, meta: null }],
+    [{ ...envelope, meta: [] }],
+    [{ ...envelope, results: pair }],
+    [{ ...envelope, results: [] }],
+    [{ ...envelope, results: [{ accountId: 'account-one' }] }],
+    [{ ...envelope, results: [{ ...pair, extra: 'not accepted' }] }],
+    [{ ...envelope, results: [null] }],
+    [{ ...envelope, results: [[pair]] }],
+    [{ accountId: 'account-one' }],
+    [{ ...pair, extra: 'not accepted' }],
+  ])
+    assert.throws(() => reconciliationPlan(input));
+});
+
+void test('UTF-8 byte guards bound each statement and complete file before writing', () => {
+  const ordinary = Array.from({ length: 100 }, (_, i) => ({
+    accountId: String(i).padStart(36, 'a'),
+    owner: String(i).padStart(36, 'o'),
+  }));
+  const plan = reconciliationPlan(ordinary),
+    bytes = (sql: string) => new TextEncoder().encode(sql).byteLength;
+  for (const sql of [
+    plan.audit,
+    ...plan.statements,
+    plan.auditFile,
+    plan.applyFile,
+  ])
+    assert.ok(bytes(sql) < RECONCILIATION_SQL_BYTE_LIMIT);
+  // All pairs meet the row limits; their generated SQL is too big. Exercise
+  // ASCII, quote doubling, and multi-byte UTF-8 rather than string.length.
+  for (const character of ['a', "'", '界']) {
+    const maximum = Array.from({ length: 100 }, (_, i) => ({
+      accountId: character.repeat(512),
+      owner: character.repeat(509) + String(i).padStart(3, '0'),
+    }));
+    assert.equal(parseOwnerSnapshot(maximum).length, 100);
+    assert.throws(
+      () => reconciliationPlan(maximum),
+      /SQL statement 1.*90000-byte.*smaller disjoint batches/,
+    );
+  }
+  // Individual statements fit; their five-statement apply file does not.
+  const fileTooBig = Array.from({ length: 50 }, (_, i) => ({
+    accountId: 'a'.repeat(200),
+    owner: 'o'.repeat(197) + String(i).padStart(3, '0'),
+  }));
+  assert.throws(
+    () => reconciliationPlan(fileTooBig),
+    /Apply output file.*90000-byte/,
+  );
 });
 
 void test('old Worker erasure on 0009 reconciles safely and repeatably, including mapped owners', async () => {
@@ -230,7 +335,13 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
       ).results,
     });
     const queuedBefore = await queues(),
-      plan = reconciliationPlan(snapshot);
+      plan = reconciliationPlan([
+        {
+          results: snapshot,
+          success: true,
+          meta: { duration: 0.1, rows_read: snapshot.length, rows_written: 0 },
+        },
+      ]);
     const audit = await db
       .prepare(plan.audit)
       .all<{ owner: string; eligible: number }>();
