@@ -89,3 +89,8 @@ The pile UI, collection migration and tray remain gated. Do not roll back to an
 older scheduler after populated memberships exist without disabling cleanup for
 affected accounts. See [shared contracts and release gates](../pwa/docs/shared-items.md).
 No production migration or deployment was performed.
+
+The older Worker's account-deletion handler also leaves F2 tombstones/pile
+metadata on schema 0009, even before memberships exist. Follow the separate
+[account-erasure reconciliation procedure](../pwa/docs/account-erasure-reconciliation.md)
+for rollout/rollback; the cleanup opt-out alone does not solve account erasure.

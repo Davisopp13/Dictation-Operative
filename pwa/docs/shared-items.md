@@ -174,8 +174,10 @@ legacy browser APIs, `/api/v1`, cleanup and account erasure. Existing image and
 document deletion queues remain authoritative; no byte/quota copy is made by
 membership. Source deletion remains permanent. Pile deletion cascades references
 only and preserves sources; a user-facing pile deletion route remains unavailable.
-Account deletion clears piles, slots, operation receipts and tombstones before
-its final workspace-revision deletion; tests verify the counter is not recreated.
+The F2 Worker account-deletion handler clears piles, slots, operation receipts
+and tombstones before its final workspace-revision deletion; tests verify the
+counter is not recreated. An older Worker on 0009 does not erase those new rows,
+even before any piles exist; its erasure is incomplete until reconciliation.
 Receipts/tombstones currently remain for the account lifetime; P1/C1 must define
 bounded retention without violating replay/cleared-error semantics before pruning.
 
@@ -190,7 +192,17 @@ protocol changes.
 
 The immediate application rollback target is the **pinned RETURNING-based base**,
 not an older text writer that interprets D1 trigger-inclusive change counts.
-Before any memberships are populated, that base remains schema-compatible.
+That base remains compatible with source-table reads/writes, but **not complete
+account erasure on 0009**. During migration-before-code rollout or rollback, its
+source-delete triggers leave tombstones, and populated piles/receipts can remain.
+Follow the [account-erasure reconciliation runbook](account-erasure-reconciliation.md):
+capture verified account-to-owner pairs before the window, pause account mutations
+through the old-Worker interval, and audit/reconcile after deploying the F2 Worker
+and after a rollback interval. Keep deletion paused while the old Worker remains
+live; one cleanup pass cannot cover later deletions. Do not sweep unmatched owners:
+legitimate Access-only owners may have no application-account row. If an elapsed
+window lacks identity evidence, document and resolve the gap before declaring
+erasure reconciled.
 **After memberships exist, an older scheduled cleanup implementation is unsafe**
 because it lacks the exclusion predicate. Keep this scheduler or turn cleanup
 off for all affected accounts before rolling back. Never roll back the migration

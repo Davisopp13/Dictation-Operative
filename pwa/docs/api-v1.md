@@ -166,3 +166,8 @@ triggers, including deletion in the cleanup transaction. The pinned base already
 uses `RETURNING` for optimistic text writes, so trigger-inclusive row counts no
 longer affect success detection. This supersedes the historical 0007-only
 text-trigger warning above. Do not roll back to earlier row-count-based writers.
+
+The pre-F2 Worker remains incomplete for account erasure after migration 0009.
+The [B1 reconciliation runbook](account-erasure-reconciliation.md) is required
+for the migration-before-code and rollback windows; a verified pre-window owner
+census and current-account guards protect legitimate legacy workspaces.
