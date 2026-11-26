@@ -63,6 +63,7 @@ export const clipboardImages = sqliteTable(
     owner: text('owner').notNull(),
     name: text('name').notNull(),
     objectKey: text('object_key').notNull(),
+    itemRevision: integer('item_revision').notNull().default(1),
     pinned: integer('pinned').notNull().default(0),
     size: integer('size').notNull(),
     width: integer('width').notNull(),
@@ -92,6 +93,7 @@ export const contentItems = sqliteTable('content_items', {
   createdAt: integer('created_at').notNull(),
   state: text('state').notNull(),
   expiresAt: integer('expires_at').notNull().default(0),
+  itemRevision: integer('item_revision').notNull().default(1),
 }, (table) => [
   index('content_items_owner_created').on(table.owner,table.createdAt),
   check('content_items_kind',sql`${table.kind} IN ('file','link')`),
@@ -104,11 +106,66 @@ export const contentDeletionQueue = sqliteTable('content_deletion_queue', {
   size: integer('size').notNull(),
 }, (table) => [index('content_deletion_queue_owner').on(table.owner)]);
 
-// One counter per workspace. Triggers in migration 0007 bump it on every
-// change to saved text, images, or documents, including scheduled cleanup, so
-// clients can poll one row instead of refetching lists.
+// One counter per workspace. Migrations 0007/0009 cover source, pile and
+// cleanup-setting changes atomically, including scheduled cleanup.
 export const workspaceRevision = sqliteTable('workspace_revision', {
   owner: text('owner').primaryKey(),
   revision: integer('revision').notNull().default(0),
   updatedAt: integer('updated_at').notNull().default(0),
 });
+
+// Shared references never copy source content or bytes. SQL guards/triggers live
+// in 0009; raw SQL is used for the bounded membership CAS transaction.
+export const piles = sqliteTable(
+  'piles',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('blue'),
+    revision: integer('revision').notNull().default(1),
+    updatedAt: integer('updated_at').notNull(),
+    writeToken: text('write_token').notNull().default(''),
+  },
+  (t) => [index('piles_owner').on(t.owner)],
+);
+export const pileMembers = sqliteTable(
+  'pile_members',
+  {
+    pileId: text('pile_id')
+      .notNull()
+      .references(() => piles.id, { onDelete: 'cascade' }),
+    owner: text('owner').notNull(),
+    kind: text('kind').notNull(),
+    itemId: text('item_id').notNull(),
+    position: integer('position').notNull(),
+    active: integer('active').notNull().default(1),
+    lastOperation: text('last_operation').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.pileId, t.kind, t.itemId] }),
+    index('pile_members_source').on(t.owner, t.kind, t.itemId, t.active),
+  ],
+);
+export const pileOperations = sqliteTable(
+  'pile_operations',
+  {
+    owner: text('owner').notNull(),
+    operationId: text('operation_id').notNull(),
+    pileId: text('pile_id').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    result: text('result').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.owner, t.operationId] })],
+);
+export const itemDeletions = sqliteTable(
+  'item_deletions',
+  {
+    owner: text('owner').notNull(),
+    kind: text('kind').notNull(),
+    itemId: text('item_id').notNull(),
+    reason: text('reason').notNull(),
+    deletedAt: integer('deleted_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.owner, t.kind, t.itemId] })],
+);

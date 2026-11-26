@@ -3,9 +3,10 @@
  * or documents increases it, so a client can poll a single row and refetch
  * lists only when the number moves.
  *
- * Images and documents are bumped by triggers (migration 0007). Saved text is
- * bumped here, in the same batch as the write, because its writes are
- * conditional on a row revision and D1 reports trigger writes in row counts.
+ * SQL triggers cover images/documents (0007) and text/piles/settings (0009).
+ * Existing text writers retain their explicit batch bump for compatibility.
+ * The counter is an invalidation token, not an exact count of mutations.
+ * Optimistic source writes use RETURNING; D1 change counts include triggers.
  */
 export function bumpRevision(db: D1Database, owner: string, now = Date.now()) {
   return db

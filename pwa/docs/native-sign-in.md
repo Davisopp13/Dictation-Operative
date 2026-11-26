@@ -154,3 +154,13 @@ The redirect URI is matched exactly.
 - Registering the real iPhone client, which needs its bundle identifier and
   redirect URI.
 - Any test in a real `ASWebAuthenticationSession`.
+
+### F2 shared account contracts
+
+Authenticated native clients can use the additive
+[shared item and pile membership contract](shared-items.md) through `/api/v1`.
+It preserves the existing bearer boundary and source upload APIs. Aggregate
+cursors require restart on `cursor_stale`; membership commands require a pile
+revision and an immutable operation ID. Capabilities are server hints that still
+require native platform checks. No native UI, OAuth registration, tray or offline
+pack was added by F2.

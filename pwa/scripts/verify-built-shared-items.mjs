@@ -1,0 +1,50 @@
+import { Miniflare } from 'miniflare';
+import { readFileSync,readdirSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const root='dist/server',origin='http://localhost';
+const mf=new Miniflare({modulesRoot:root,modules:['index.js',...readdirSync(root,{recursive:true}).filter(f=>f.endsWith('.js')&&f!=='index.js')].map(file=>({type:'ESModule',path:root+'/'+file})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['IMAGES'],bindings:{BETTER_AUTH_URL:origin,BETTER_AUTH_SECRET:'synthetic-built-shared-secret-32-characters'}});
+try {
+ const db=await mf.getD1Database('DB');
+ for(const file of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())for(const sql of readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint'))if(sql.trim())await db.prepare(sql.trim()).run();
+ async function signup(username){const response=await mf.dispatchFetch(origin+'/api/auth/sign-up/email',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({username,email:`${username}@example.test`,name:username,password:'synthetic-shared-password'})});assert.equal(response.status,200,await response.clone().text());const data=await response.json();return {cookie:response.headers.getSetCookie().map(value=>value.split(';')[0]).join('; '),owner:data.user.id};}
+ const alice=await signup('builtsharedalice'),bob=await signup('builtsharedbob');
+ const request=(path,method='GET',body,cookie=alice.cookie)=>mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+ const get=async(path,method='GET',body)=>{const response=await request(path,method,body);assert.equal(response.status,200,await response.clone().text());return response.json();};
+ const create=async()=>{const r=await request('v1/text','POST',{id:crypto.randomUUID(),content:'Synthetic shared item'});assert.equal(r.status,201);return r.json();};
+ const kept=await create(),loose=await create();
+ await db.prepare('UPDATE clips SET created_at=0').run();
+ await db.prepare("INSERT INTO piles(id,owner,name,updated_at) VALUES ('built-pile-001',?,'Errands',0)").bind(alice.owner).run();
+ const input={operationId:crypto.randomUUID(),revision:1,action:'add',ref:{kind:'text',id:kept.id}};
+ const added=await get('v1/piles/built-pile-001/members','POST',input);assert.equal(added.item.cleanup.reason,'pile');
+ assert.equal((await request('v1/piles/built-pile-001/members','GET',undefined,bob.cookie)).status,404);
+ assert.equal((await request('v1/items/text/'+kept.id,'GET',undefined,bob.cookie)).status,404);
+ assert.equal((await request('v1/piles','POST',{name:'Not implemented'})).status,404);
+ const page=await get('v1/items?limit=1');assert.ok(page.nextCursor);
+ await get('settings','POST',{action:'clipboard-cleanup',enabled:true});
+ await(await mf.getWorker()).scheduled({scheduledTime:Date.now(),cron:'0 8 * * *'});
+ assert.equal((await request('v1/text/'+loose.id)).status,404);assert.equal((await request('v1/text/'+kept.id)).status,200);
+ assert.equal((await request('v1/items?cursor='+page.nextCursor)).status,409);
+ assert.equal((await get('v1/piles/built-pile-001/members')).members.length,1);
+ const replay=await get('v1/piles/built-pile-001/members','POST',input);assert.equal(replay.replayed,true);
+ const removed=await get('v1/piles/built-pile-001/members','POST',{...input,operationId:crypto.randomUUID(),revision:2,action:'removeAndPin'});assert.equal(removed.item.cleanup.reason,'pinned');
+ await(await mf.getWorker()).scheduled({scheduledTime:Date.now(),cron:'0 8 * * *'});
+ assert.equal((await request('v1/text/'+kept.id)).status,200);
+ // Legacy source mutation still observes text CAS, and deletion clears retained Undo slots.
+ assert.equal((await request('clips/'+kept.id,'PATCH',{action:'edit',revision:1,content:'stale'})).status,409);
+ const current=await get('clips/'+kept.id);
+ assert.equal((await request('clips/'+kept.id,'DELETE',{revision:current.revision})).status,200);
+ assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM pile_members WHERE item_id=?').bind(kept.id).first()).n,0);
+ const linkResponse=await request('content','POST',{kind:'link',name:'Synthetic Google shortcut',url:'https://docs.google.com/document/d/synthetic/edit'});
+ assert.equal(linkResponse.status,201);const link=await linkResponse.json();
+ const addLink=await get('v1/piles/built-pile-001/members','POST',{operationId:crypto.randomUUID(),revision:(await get('v1/piles/built-pile-001/members')).pile.revision,action:'add',ref:{kind:'document',id:link.id}});
+ assert.equal(addLink.item.cleanup.reason,'pile');
+ assert.equal((await request('content/'+link.id,'DELETE')).status,200);
+ assert.equal((await get('v1/piles/built-pile-001/members')).members.length,0);
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
+ const uploaded=await mf.dispatchFetch(origin+'/api/images',{method:'POST',headers:{Origin:origin,Cookie:alice.cookie,'Content-Type':'image/png'},body:png});
+ assert.equal(uploaded.status,201);const image=await uploaded.json();
+ await get('v1/piles/built-pile-001/members','POST',{operationId:crypto.randomUUID(),revision:(await get('v1/piles/built-pile-001/members')).pile.revision,action:'add',ref:{kind:'image',id:image.id}});
+ assert.equal((await request('images/'+image.id,'DELETE')).status,200);
+ assert.equal((await get('v1/piles/built-pile-001/members')).members.length,0);
+ console.log('Built shared items Worker passed: owner isolation, aggregate cursor invalidation, idempotent membership, old piled cleanup fixture, atomic remove-and-pin and legacy source CAS/deletion.');
+} finally {await mf.dispose();}

@@ -151,3 +151,18 @@ PDFs and images itself, using `mime` and `filename` from the item.
   deploy it before the migration.
 - If the revision cannot be read, the web app reloads its lists on every tick,
   as it did before, so a revision outage never hides new items.
+
+## Shared items and pile references (F2)
+
+Migration `0009_shared_items.sql` adds `GET /items`, `GET /items/:kind/:id`, and
+`GET`/`POST /piles/:id/members`. See [the shared browser/native contract](shared-items.md)
+for typed references, current capabilities, cleanup status, revision-bound
+aggregate cursors, retry receipts, manual ordering and activation/rollback gates.
+These additions preserve the store-specific routes above. There is no pile
+creation/deletion workflow, collection backfill or tray endpoint in F2.
+
+With 0009, text source writes/deletes also invalidate the workspace through
+triggers, including deletion in the cleanup transaction. The pinned base already
+uses `RETURNING` for optimistic text writes, so trigger-inclusive row counts no
+longer affect success detection. This supersedes the historical 0007-only
+text-trigger warning above. Do not roll back to earlier row-count-based writers.
