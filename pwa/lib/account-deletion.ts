@@ -144,6 +144,7 @@ export async function handleAccountDeletion(
     remove('DELETE FROM clipboard_images WHERE owner=?', owner),
     remove('DELETE FROM content_items WHERE owner=?', owner),
     remove('DELETE FROM piles WHERE owner=?', owner),
+    remove('DELETE FROM collection_mappings WHERE owner=?', owner),
     remove('DELETE FROM pile_operations WHERE owner=?', owner),
     remove('DELETE FROM item_deletions WHERE owner=?', owner),
     remove('DELETE FROM preferences WHERE owner=?', owner),

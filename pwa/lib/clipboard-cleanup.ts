@@ -38,7 +38,7 @@ export async function runClipboardCleanup(
     // D1 batch is transactional. The image deletion trigger records the R2 key
     // atomically; a concurrent pin either commits first and survives, or sees 404.
     const eligible = (table: string, kind: string) => `SELECT id FROM ${table}
-      WHERE ${kind === 'text' ? 'clipboard_item=1 AND ' : ''}pinned=0 AND created_at<?
+      WHERE ${kind === 'text' ? "clipboard_item=1 AND NOT (collection<>'' AND collection_synced=0) AND " : ''}pinned=0 AND created_at<?
       AND owner IN (SELECT owner FROM preferences WHERE clipboard_daily_cleanup=1)
       AND NOT EXISTS(SELECT 1 FROM pile_members m WHERE m.owner=${table}.owner AND m.kind='${kind}' AND m.item_id=${table}.id AND m.active=1)
       ORDER BY id LIMIT ?`;

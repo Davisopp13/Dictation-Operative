@@ -6,6 +6,16 @@ start-page, collection, capture, tray or general-bookmark change. Google Docs an
 Sheets shortcuts remain ready `document` references. Use the existing
 [shared-item contract](shared-items.md) to resolve sources and manage memberships.
 
+## P2 coexistence
+
+After migration 0011, [collection mapping](collection-mapping.md) extends these
+same piles/slots/receipts. Mapping-created piles count against the same limits.
+Manual add can change provenance without changing active count. Deleting a mapped
+pile permanently suppresses its exact collection key; source collections stay
+intact. Unprocessed collection text retains its explicit cleanup hold, reflected
+in impact reads. Source revision checked removal/Undo can clear/restore the mapped
+legacy collection. All P1 confirmation and historical replay rules remain.
+
 ## Reads
 
 A `pile` is exactly:

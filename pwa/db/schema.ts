@@ -21,6 +21,7 @@ export const clips = sqliteTable(
     versions: text('versions').notNull(),
     context: text('context').notNull().default(''),
     collection: text('collection').notNull().default(''),
+    collectionSynced: integer('collection_synced').notNull().default(0),
     tags: text('tags').notNull().default('[]'),
     pinned: integer('pinned').notNull().default(0),
     revision: integer('revision').notNull().default(1),
@@ -30,6 +31,7 @@ export const clips = sqliteTable(
   },
   (table) => [
     index('clips_owner_updated').on(table.owner, table.updatedAt),
+    index('clips_collection_pending').on(table.owner, table.collectionSynced, table.id),
     index('clips_owner_pinned').on(table.owner, table.pinned),
   ],
 );
@@ -142,6 +144,8 @@ export const pileMembers = sqliteTable(
     position: integer('position').notNull(),
     active: integer('active').notNull().default(1),
     lastOperation: text('last_operation').notNull(),
+    manual: integer('manual'),
+    collectionKey: text('collection_key'),
   },
   (t) => [
     primaryKey({ columns: [t.pileId, t.kind, t.itemId] }),
@@ -170,3 +174,10 @@ export const itemDeletions = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.owner, t.kind, t.itemId] })],
 );
+
+// A null pile is an intentional, permanent suppression, never an unmapped key.
+export const collectionMappings = sqliteTable('collection_mappings', {
+  owner: text('owner').notNull(),
+  collectionKey: text('collection_key').notNull(),
+  pileId: text('pile_id').unique(),
+}, (t) => [primaryKey({ columns: [t.owner, t.collectionKey] })]);

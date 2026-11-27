@@ -27,7 +27,7 @@ void test('reconciliation plans bound and safely quote reviewed raw identities',
   ]);
   assert.match(plan.audit, /account''one/);
   assert.match(plan.audit, /owner''\); DELETE FROM auth_user; --/);
-  assert.equal(plan.statements.length, 5);
+  assert.equal(plan.statements.length, 6);
   assert.match(plan.statements.at(-1)!, /DELETE FROM workspace_revision/);
 });
 
@@ -134,7 +134,7 @@ void test('UTF-8 byte guards bound each statement and complete file before writi
   );
 });
 
-void test('old Worker erasure on 0009 reconciles safely and repeatably, including mapped owners', async () => {
+void test('old Worker erasure on 0011 reconciles safely and repeatably, including mapped owners', async () => {
   const mf = new Miniflare({
     modules: true,
     script: 'export default {fetch(){return new Response("test")}}',
@@ -192,7 +192,15 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
       ),
     );
     await migrate('0009_shared_items.sql');
+    await migrate('0010_pile_created_at.sql');
+    await migrate('0011_collection_mapping.sql');
     const seed = async (owner: string) => {
+      await db
+        .prepare(
+          "INSERT INTO collection_mappings VALUES (?,'Private suppressed collection',NULL)",
+        )
+        .bind(owner)
+        .run();
       await db
         .prepare(
           "INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,created_at,updated_at) VALUES (?,?,'Private','note','content','original','[]','[]',0,0)",
@@ -216,7 +224,9 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
         .bind('pile-' + owner, owner, 'Private pile ' + owner)
         .run();
       await db
-        .prepare("INSERT INTO pile_members VALUES (?,?,'text',?,0,1,'op-seed')")
+        .prepare(
+          "INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation) VALUES (?,?,'text',?,0,1,'op-seed')",
+        )
         .bind('pile-' + owner, owner, 'clip-' + owner)
         .run();
       await db
@@ -306,6 +316,7 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
         'content_items',
         'piles',
         'pile_members',
+        'collection_mappings',
         'pile_operations',
         'item_deletions',
         'workspace_revision',
@@ -375,6 +386,7 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
       for (const table of [
         'piles',
         'pile_members',
+        'collection_mappings',
         'pile_operations',
         'item_deletions',
         'workspace_revision',

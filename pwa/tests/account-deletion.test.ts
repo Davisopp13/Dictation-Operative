@@ -22,6 +22,7 @@ const workspaceTables = [
   'workspace_revision',
   'piles',
   'pile_members',
+  'collection_mappings',
   'pile_operations',
   'item_deletions',
 ];
@@ -123,7 +124,7 @@ void test('account deletion removes one account completely and nothing else', as
           .bind(`pile-${tag}-0001`, owner, 'Errands'),
         db
           .prepare(
-            "INSERT INTO pile_members VALUES (?,?,'text',?,0,1,'operation-0001')",
+            "INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation) VALUES (?,?,'text',?,0,1,'operation-0001')",
           )
           .bind(`pile-${tag}-0001`, owner, `clip-${tag}-0001`),
         db
@@ -137,6 +138,9 @@ void test('account deletion removes one account completely and nothing else', as
           )
           .bind(owner),
       ]);
+      // Both a live mapped key and a suppression must be erased, including mapped owners.
+      await db.prepare("UPDATE clips SET collection='Account collection',collection_synced=1 WHERE owner=?").bind(owner).run();
+      await db.prepare("INSERT INTO collection_mappings VALUES (?,'Deleted collection',NULL)").bind(owner).run();
       // Real P1 receipts, including a deleted pile whose receipts outlive it.
       const created = await createPile(db, owner, {
         operationId: crypto.randomUUID(),

@@ -324,6 +324,29 @@ try {
     await mf.getWorker()
   ).scheduled({ scheduledTime: Date.now(), cron: '0 8 * * *' });
   assert.equal((await request('v1/items/text/' + exposed.id)).status, 410);
+  // P2 transition hold, bounded backfill, compatibility, provenance and Undo
+  // through the built router and scheduler, with real session authentication.
+  await db.prepare("INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,collection,clipboard_item,created_at,updated_at) VALUES ('built-legacy-p2',?,'Legacy','note','body','original','[]','[]','Built collection',1,0,0)").bind(alice.owner).run();
+  const pending=await get('v1/collection-backfill'); assert.equal(pending.pending,1);
+  assert.equal((await get('v1/items/text/built-legacy-p2')).cleanup.reason,'collection_pending');
+  await (await mf.getWorker()).scheduled({scheduledTime:Date.now(),cron:'0 8 * * *'});
+  assert.equal((await request('clips/built-legacy-p2')).status,200);
+  const denied=await mf.dispatchFetch(origin+'/api/v1/collection-backfill',{method:'POST',headers:{Cookie:alice.cookie,'Content-Type':'application/json'},body:'{}'}); assert.equal(denied.status,403);
+  const foreign=await request('v1/collection-backfill','GET',undefined,bob.cookie); assert.equal((await foreign.json()).pending,0);
+  const progressed=await get('v1/collection-backfill','POST',{limit:1}); assert.equal(progressed.processed,1); assert.equal(progressed.complete,true);
+  assert.equal((await get('v1/collection-backfill','POST',{})).processed,0);
+  const mappedItem=await get('v1/items/text/built-legacy-p2'), mappedPile=mappedItem.piles[0].id;
+  const addManual=await get(`v1/piles/${mappedPile}/members`,'POST',{operationId:crypto.randomUUID(),revision:(await get(`v1/piles/${mappedPile}`)).pile.revision,ref:{kind:'text',id:'built-legacy-p2'},action:'add'}); assert.equal(addManual.changed,true);
+  const removedMapped=await get(`v1/piles/${mappedPile}/members`,'POST',{operationId:crypto.randomUUID(),revision:addManual.pileRevision,ref:{kind:'text',id:'built-legacy-p2'},action:'removeAndPin'});
+  assert.equal((await get('clips/built-legacy-p2')).collection,'');
+  const restoredMapped=await get(`v1/piles/${mappedPile}/members`,'POST',{operationId:crypto.randomUUID(),revision:removedMapped.pileRevision,ref:{kind:'text',id:'built-legacy-p2'},action:'restore',undoOperationId:removedMapped.operationId});
+  assert.equal(restoredMapped.item.pinned,true); assert.equal((await get('clips/built-legacy-p2')).collection,'Built collection');
+  const mappedImpact=await get(`v1/piles/${mappedPile}/deletion-impact`);
+  await get(`v1/piles/${mappedPile}`,'DELETE',{operationId:crypto.randomUUID(),revision:mappedImpact.pile.revision,impactToken:mappedImpact.impactToken,mode:'pin'});
+  const legacyCurrent=await get('clips/built-legacy-p2');
+  await get('clips/built-legacy-p2','PATCH',{action:'rename',title:'Unrelated',revision:legacyCurrent.revision});
+  assert.equal((await get('v1/collection-backfill','POST',{})).suppressedKeys,1);
+  assert.equal((await get('v1/items/text/built-legacy-p2')).piles.length,0);
   const erased = await request('auth/account-deletion', 'POST', {
     confirmEmail: 'builtsharedalice@example.test',
   });
@@ -331,6 +354,7 @@ try {
   for (const table of [
     'piles',
     'pile_members',
+    'collection_mappings',
     'pile_operations',
     'item_deletions',
     'workspace_revision',
@@ -354,7 +378,7 @@ try {
     200,
   );
   console.log(
-    'Built shared items Worker passed: P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
+    'Built shared items Worker passed: P2 mapping/backfill/provenance/suppression and P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
   );
 } finally {
   await mf.dispose();

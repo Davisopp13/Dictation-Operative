@@ -231,7 +231,7 @@ void test('shared items and membership contracts on real D1', async (t) => {
           );
         await assert.rejects(
           db
-            .prepare('INSERT INTO pile_members VALUES (?,?,?,?,0,1,?)')
+            .prepare('INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation) VALUES (?,?,?,?,0,1,?)')
             .bind(pile, 'alice', 'text', foreign.id, 'bad-op-01')
             .run(),
           /item_gone/,

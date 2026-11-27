@@ -81,7 +81,8 @@ export async function handleAPI(
     const url = new URL(request.url),
       path = url.pathname.replace(/^\/api\//, '');
     const method = request.method;
-    if (path.startsWith('v1/')) return await handleV1(request, s, path.slice(3));
+    if (path.startsWith('v1/'))
+      return await handleV1(request, s, path.slice(3));
     if (path === 'mac-downloads' || path.startsWith('mac-downloads/'))
       return await handleMacDownload(request, s, path);
     if (path.startsWith('windows-downloads/'))
@@ -119,10 +120,15 @@ export async function handleAPI(
       const data = await body(request);
       if (data.action === 'clipboard-cleanup') {
         if (typeof data.enabled !== 'boolean')
-          throw new AppError('Choose whether to enable daily Clipboard cleanup.');
-        await s.db.prepare(
-          'INSERT INTO preferences (owner,clipboard_daily_cleanup) VALUES (?,?) ON CONFLICT(owner) DO UPDATE SET clipboard_daily_cleanup=excluded.clipboard_daily_cleanup',
-        ).bind(s.owner, data.enabled ? 1 : 0).run();
+          throw new AppError(
+            'Choose whether to enable daily Clipboard cleanup.',
+          );
+        await s.db
+          .prepare(
+            'INSERT INTO preferences (owner,clipboard_daily_cleanup) VALUES (?,?) ON CONFLICT(owner) DO UPDATE SET clipboard_daily_cleanup=excluded.clipboard_daily_cleanup',
+          )
+          .bind(s.owner, data.enabled ? 1 : 0)
+          .run();
       } else throw new AppError('Unknown settings action.');
       return json(await settingsState(s));
     }
@@ -166,15 +172,24 @@ export async function handleAPI(
         .bind(s.owner, clip.id)
         .first();
       if (restored) return json({ imported: false });
-      await insertClip(s.db, s.owner, clip);
+      await insertClip(s.db, s.owner, clip, false, s.accountId);
       return json({ imported: true });
     }
     if (path === 'clips' && method === 'POST') {
       const data = await body(request);
-      if (data.clipboardItem !== undefined && typeof data.clipboardItem !== 'boolean')
+      if (
+        data.clipboardItem !== undefined &&
+        typeof data.clipboardItem !== 'boolean'
+      )
         throw new AppError('Choose whether this is a Clipboard item.');
       return json(
-        await insertClip(s.db, s.owner, newClip(data), data.clipboardItem === true),
+        await insertClip(
+          s.db,
+          s.owner,
+          newClip(data),
+          data.clipboardItem === true,
+          s.accountId,
+        ),
         201,
       );
     }
@@ -188,7 +203,13 @@ export async function handleAPI(
         return json(
           updated === clip
             ? clip
-            : await saveClip(s.db, s.owner, updated, clip.revision),
+            : await saveClip(
+                s.db,
+                s.owner,
+                updated,
+                clip.revision,
+                input.action === 'organize',
+              ),
         );
       }
       if (method === 'DELETE') {
@@ -199,7 +220,23 @@ export async function handleAPI(
     }
     return json({ error: 'Not found.' }, 404);
   } catch (e) {
-    if (e instanceof AppError) return json({ error: e.message, ...(e instanceof ItemError ? { code: e.code } : {}) }, e.status);
+    if (String(e).includes('collection_capacity'))
+      return json(
+        {
+          error:
+            'Collection mapping has reached pile or member capacity. Free capacity and retry.',
+          code: 'collection_capacity',
+        },
+        409,
+      );
+    if (e instanceof AppError)
+      return json(
+        {
+          error: e.message,
+          ...(e instanceof ItemError ? { code: e.code } : {}),
+        },
+        e.status,
+      );
     console.error(
       'Workspace API failed',
       e instanceof Error ? e.name : 'UnknownError',

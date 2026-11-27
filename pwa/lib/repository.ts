@@ -1,5 +1,5 @@
 import { AppError, type Clip, type ClipSummary } from './domain';
-import { bumpRevision } from './revision';
+import { liveAccountSQL, liveAccountArgs } from './collection-mapping';
 import { page, type Cursor } from './cursor';
 type Row = {
   id: string;
@@ -162,10 +162,11 @@ export async function insertClip(
   owner: string,
   clip: Clip,
   clipboardItem = false,
+  accountId?: string,
 ) {
   const insert = db
     .prepare(
-      'INSERT INTO clips (id,owner,title,kind,content,original,context,segments,versions,collection,tags,pinned,revision,created_at,updated_at,clipboard_item) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
+      `INSERT INTO clips (id,owner,title,kind,content,original,context,segments,versions,collection,tags,pinned,revision,created_at,updated_at,clipboard_item,collection_synced) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1 WHERE ${liveAccountSQL} ON CONFLICT(id) DO NOTHING`,
     )
     .bind(
       clip.id,
@@ -184,8 +185,9 @@ export async function insertClip(
       clip.createdAt,
       clip.updatedAt,
       clipboardItem ? 1 : 0,
+      ...liveAccountArgs(owner, accountId),
     );
-  await db.batch([insert, bumpRevision(db, owner)]);
+  await insert.run();
   return getClip(db, owner, clip.id);
 }
 export async function saveClip(
@@ -193,13 +195,16 @@ export async function saveClip(
   owner: string,
   clip: Clip,
   previousRevision: number,
+  assignCollection = false,
 ) {
   // RETURNING, not the reported change count: D1 counts trigger writes too.
   const update = db
     .prepare(
-      'UPDATE clips SET title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? RETURNING id',
+      'UPDATE clips SET collection_synced=CASE WHEN ? OR collection<>? THEN 1 ELSE collection_synced END,title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? RETURNING id',
     )
     .bind(
+      assignCollection ? 1 : 0,
+      clip.collection,
       clip.title,
       clip.content,
       clip.original,
@@ -215,7 +220,7 @@ export async function saveClip(
       clip.id,
       previousRevision,
     );
-  const [result] = await db.batch([update, bumpRevision(db, owner)]);
+  const result = await update.all();
   if (result.results.length !== 1)
     throw new AppError(
       'This text changed elsewhere. Reopen it before saving; your unsaved text is still here.',
@@ -235,7 +240,6 @@ export async function deleteClip(
         'DELETE FROM clips WHERE owner=? AND id=? AND revision=? RETURNING id',
       )
       .bind(owner, id, revision),
-    bumpRevision(db, owner),
   ]);
   if (r.results.length !== 1)
     throw new AppError(

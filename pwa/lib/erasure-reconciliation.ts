@@ -6,6 +6,7 @@ export type OwnerSnapshot = { accountId: string; owner: string };
 const cleanupTables = [
   'piles',
   'pile_members',
+  'collection_mappings',
   'pile_operations',
   'item_deletions',
   'workspace_revision',
