@@ -76,7 +76,8 @@ export function DeleteClipboardText({
           <AlertDialogTitle>Delete this text?</AlertDialogTitle>
           <AlertDialogDescription>
             Permanently delete “{target?.title}” and all its versions from your
-            shared Clipboard, including All and Pinned. This cannot be undone.
+            account and every pile, including All and Pinned in Clipboard. This
+            cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (

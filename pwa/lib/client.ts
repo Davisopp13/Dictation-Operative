@@ -1,3 +1,12 @@
+export class APIError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (
@@ -15,11 +24,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     });
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw e;
-    throw new Error(
-      'You’re offline or the connection was interrupted. Your unsaved words are still here.',
-    );
+    throw new Error('You’re offline or the connection was interrupted.');
   }
-  let data: { error?: string };
+  let data: { error?: string; code?: string };
   try {
     data = await response.json();
   } catch {
@@ -28,7 +35,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
   if (!response.ok)
-    throw new Error(data.error ?? 'The request could not be completed.');
+    throw new APIError(
+      data.error ?? 'The request could not be completed.',
+      response.status,
+      data.code,
+    );
   return data as T;
 }
 export const post = <T>(path: string, data: unknown) =>

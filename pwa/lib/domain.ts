@@ -150,6 +150,12 @@ export function changeClip(
   let versionKind: VersionKind | undefined;
   switch (input.action) {
     case 'organize':
+      if (
+        input.keepPinned !== undefined &&
+        typeof input.keepPinned !== 'boolean'
+      )
+        throw new AppError('Invalid pin choice.');
+      next.pinned = current.pinned || input.keepPinned === true;
       // Tag-only saves must retain exact historical mapping identity, including
       // whitespace or keys longer than today's new-input limit.
       next.collection =

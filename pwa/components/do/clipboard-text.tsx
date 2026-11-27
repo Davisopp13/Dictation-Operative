@@ -8,22 +8,32 @@ import type { Clip } from '@/lib/domain';
 export function ClipboardText({
   locked,
   onSaved,
+  onDirtyChange,
+  initialText = '',
+  onSavingChange,
 }: {
   locked: boolean;
-  onSaved: (id: string) => void;
+  onSaved: (id: string) => void | Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
+  initialText?: string;
+  onSavingChange?: (saving: boolean) => void;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState(false);
   const [pasted, setPasted] = useState(false);
   const [error, setError] = useState('');
   const attempt = useRef({ id: '', content: '' });
   const saving = useRef(false);
+  const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!text) return;
     const protect = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', protect);
     return () => window.removeEventListener('beforeunload', protect);
   }, [text]);
+  useEffect(() => {
+    onDirtyChange?.(!!text);
+  }, [text, onDirtyChange]);
   async function paste() {
     setError('');
     try {
@@ -47,6 +57,7 @@ export function ClipboardText({
     if (saving.current || locked || !text.trim()) return;
     saving.current = true;
     setBusy(true);
+    onSavingChange?.(true);
     setError('');
     if (attempt.current.content !== text || !attempt.current.id)
       attempt.current = { id: crypto.randomUUID(), content: text };
@@ -61,12 +72,14 @@ export function ClipboardText({
       setText('');
       setPasted(false);
       attempt.current = { id: '', content: '' };
-      onSaved(saved.id);
+      await onSaved(saved.id);
+      requestAnimationFrame(() => field.current?.focus());
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       saving.current = false;
       setBusy(false);
+      onSavingChange?.(false);
     }
   }
   return (
@@ -83,12 +96,14 @@ export function ClipboardText({
         {pasted && text && <span className="badge-mint">Pasted</span>}
       </div>
       <textarea
+        ref={field}
         id="clipboard-text"
         placeholder="Paste or type text here"
         value={text}
         maxLength={20000}
         rows={5}
-        disabled={locked || busy}
+        disabled={locked}
+        readOnly={busy}
         onChange={(event) => {
           setText(event.target.value);
           setPasted(false);

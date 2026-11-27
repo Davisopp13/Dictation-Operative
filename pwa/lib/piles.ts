@@ -466,6 +466,10 @@ async function impactSnapshot(db: D1Database, owner: string, pileId: string) {
     revision: current,
     asOf,
     memberCount: pile.memberCount,
+    mappedCollection: !!(await db
+      .prepare('SELECT 1 FROM collection_mappings WHERE owner=? AND pile_id=?')
+      .bind(owner, pileId)
+      .first()),
     exposed,
     impactToken: encode({
       v: 1,

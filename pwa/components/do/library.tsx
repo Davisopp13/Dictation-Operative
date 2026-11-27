@@ -322,14 +322,18 @@ export function LibrarySurface({
           </div>
           <p className="saved-note">
             {dailyCleanup
-              ? 'Daily cleanup is on: unpinned text and images older than 24 hours are cleared once a day. Pin anything you want to keep.'
+              ? 'Daily cleanup is on: eligible text and images older than 24 hours clear once a day. Pins, pile memberships and pending collection holds protect items.'
               : 'Saved items stay until you delete them.'}
             {clipboardFilter === 'all' && (collectionFilter || tagFilter)
               ? ' Showing text matching your collection or tag; clear these filters to include images.'
               : ''}
           </p>
           {clipboardFilter === 'images' ? (
-            <ClipboardImages query={query} locked={locked} addSlot={imageSlot} />
+            <ClipboardImages
+              query={query}
+              locked={locked}
+              addSlot={imageSlot}
+            />
           ) : !collectionFilter && !tagFilter ? (
             <ClipboardImages
               query={query}

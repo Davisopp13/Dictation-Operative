@@ -1,5 +1,7 @@
 # Shared item and pile membership contract (F2, extended by P1/P2)
 
+> **P3 local extension:** [Workspace and additive API contract](p3-workspace.md) adds the browser UI, independent organization projection, guarded impact reads and general HTTPS bookmarks. Historical phase descriptions below retain their original scope; the P3 contract supersedes their no-UI/Google-only statements. No deployment or remote migration is included.
+
 Implemented locally on the exact root base `09675098986887be287b240d1b4e2449fa4e6f07`
 (tree `d71da055df4c7cd6d50ab524caa713037a17a2a3`, identical to F0's tested
 `e4cc4141364f1524c42b8d2327a084254b2a2238`). Requires migration

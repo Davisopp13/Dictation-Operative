@@ -45,6 +45,9 @@ import { toast } from '@/components/ui/toast';
 import { DocumentPrintButton } from './document-print';
 import { useWorkspaceTools } from './workspace-tools';
 import { api, errorMessage, download } from '@/lib/client';
+import { ItemOrganization, useDesk } from './desk';
+import { organizationMessage } from '@/lib/desk-client';
+import type { SharedItem } from '@/lib/shared-items';
 import { type Clip } from '@/lib/domain';
 type Props = {
   clip: Clip | null;
@@ -61,6 +64,12 @@ export function ClipEditor({
   onDelete,
 }: Props) {
   const organization = useWorkspaceTools();
+  const desk = useDesk();
+  const [organizeConfirm, setOrganizeConfirm] = useState<{
+    workspaceRevision: number;
+    collection: string;
+    tags: string[];
+  } | null>(null);
   const [collection, setCollection] = useState(clip?.collection ?? ''),
     [tags, setTags] = useState((clip?.tags ?? []).join(', '));
   const [draft, setDraft] = useState(clip?.content ?? ''),
@@ -123,6 +132,22 @@ export function ClipEditor({
       setNotice('Saved to Clipboard.');
     });
   }
+  async function saveOrganization(data: Record<string, unknown>) {
+    const saved = await change({ action: 'organize', ...data });
+    setCollection(saved.collection);
+    setTags(saved.tags.join(', '));
+    organization.reload();
+    desk.refresh();
+    setOrganizeConfirm(null);
+    // Persistence succeeded even if the subsequent authoritative read fails.
+    try {
+      setNotice(
+        organizationMessage(await api<SharedItem>(`v1/items/text/${saved.id}`)),
+      );
+    } catch {
+      setNotice('Saved; organization status unavailable.');
+    }
+  }
   async function copy(value: string) {
     try {
       if (!navigator.clipboard) throw new Error();
@@ -146,7 +171,12 @@ export function ClipEditor({
   }
   function close() {
     if (locked) return;
-    if (dirty || addition) {
+    if (
+      dirty ||
+      addition ||
+      collection !== clip?.collection ||
+      tags !== (clip?.tags ?? []).join(', ')
+    ) {
       setDiscard(true);
       return;
     }
@@ -189,8 +219,15 @@ export function ClipEditor({
           </SheetHeader>
           {clip && (
             <div className="editor-body">
+              {clip && (
+                <ItemOrganization
+                  refValue={{ kind: 'text', id: clip.id }}
+                  revision={clip.revision}
+                />
+              )}
               <details className="editor-organization">
                 <summary>Collection and tags</summary>
+
                 <div className="space-y-2">
                   <label className="field-label">
                     Collection
@@ -229,16 +266,33 @@ export function ClipEditor({
                     disabled={locked || dirty}
                     onClick={() =>
                       void action(async () => {
-                        await change({
-                          action: 'organize',
+                        const data = {
                           collection,
                           tags: tags
                             .split(',')
                             .map((v) => v.trim())
                             .filter(Boolean),
-                        });
-                        organization.reload();
-                        setNotice('Organization saved.');
+                        };
+                        if (
+                          clip &&
+                          collection !== clip.collection &&
+                          clip.collection
+                        ) {
+                          const current = await api<SharedItem>(
+                            `v1/items/text/${clip.id}`,
+                          );
+                          if (
+                            current.revision !== clip.revision ||
+                            current.workspaceRevision === null
+                          )
+                            throw new Error(
+                              'This text changed. Reopen it and review your collection choice.',
+                            );
+                          setOrganizeConfirm({
+                            ...data,
+                            workspaceRevision: current.workspaceRevision,
+                          });
+                        } else await saveOrganization(data);
                       })
                     }
                   >
@@ -628,6 +682,62 @@ export function ClipEditor({
             readOnly
             onFocus={(e) => e.target.select()}
           />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!organizeConfirm}
+        onOpenChange={(open) => {
+          if (!open && !busy) setOrganizeConfirm(null);
+        }}
+      >
+        <DialogContent>
+          <DialogTitle>Change legacy Collection?</DialogTitle>
+          <DialogDescription>
+            Changing or clearing this collection can remove its pending cleanup
+            hold and its mapped membership. Other memberships remain. Keep
+            pinned saves the collection and pin atomically.
+          </DialogDescription>
+          <Button
+            disabled={busy}
+            onClick={() =>
+              void action(async () => {
+                try {
+                  await saveOrganization({
+                    ...organizeConfirm,
+                    keepPinned: true,
+                  });
+                } catch (e) {
+                  setOrganizeConfirm(null);
+                  throw e;
+                }
+              })
+            }
+          >
+            Save and keep pinned
+          </Button>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              void action(async () => {
+                try {
+                  await saveOrganization({
+                    ...organizeConfirm,
+                    keepPinned: false,
+                  });
+                } catch (e) {
+                  setOrganizeConfirm(null);
+                  throw e;
+                }
+              })
+            }
+          >
+            Save; allow cleanup if no protection remains
+          </Button>
+          <p>
+            If the workspace changed, no update is made. Review the current
+            state and confirm again.
+          </p>
         </DialogContent>
       </Dialog>
     </>

@@ -382,6 +382,35 @@ try {
   await (await mf.getWorker()).scheduled({scheduledTime:Date.now(),cron:'0 8 * * *'});
   assert.equal((await capacityRequest('clips/'+captureId)).status,200);
   assert.equal((await (await capacityRequest('v1/items/text/'+captureId)).json()).cleanup.reason,'collection_pending');
+  // P3 runs through the shipped authenticated routes, including a second session.
+  const p3Note=await create();
+  const p3LinkResponse=await request('v1/documents','POST',{id:crypto.randomUUID(),kind:'link',name:'Saturday shop',url:'https://shop.example.test/errands'});
+  assert.equal(p3LinkResponse.status,201);const p3Link=await p3LinkResponse.json();
+  const p3PdfBytes=Buffer.from('%PDF-1.4\nSynthetic receipt fixture\n%%EOF');
+  const p3PdfResponse=await request('v1/documents','POST',{id:crypto.randomUUID(),kind:'file',name:'Saturday receipt',filename:'receipt.pdf',mime:'application/pdf',size:p3PdfBytes.length});
+  assert.equal(p3PdfResponse.status,201);const p3Pdf=await p3PdfResponse.json();
+  const p3Upload=await mf.dispatchFetch(origin+'/api/v1/documents/'+p3Pdf.id+'/file',{method:'PUT',headers:{Origin:origin,Cookie:alice.cookie,'Content-Type':'application/octet-stream','Content-Length':String(p3PdfBytes.length)},body:p3PdfBytes});
+  assert.equal(p3Upload.status,200,await p3Upload.clone().text());
+  const p3Refs=[{kind:'text',id:p3Note.id},{kind:'image',id:retainedImage.id},{kind:'document',id:p3Pdf.id},{kind:'document',id:p3Link.id}];
+  const p3Budget=await get('v1/documents');
+  const p3Create=await request('v1/piles','POST',{operationId:crypto.randomUUID(),name:'Saturday errands',color:'mint',members:p3Refs});assert.equal(p3Create.status,201);const p3Pile=(await p3Create.json()).pile;
+  const p3Items=await get(`v1/piles/${p3Pile.id}/items`);assert.deepEqual(p3Items.items.map(i=>i.ref),p3Refs);assert.equal(p3Items.items[3].displayKind,'link');assert.equal(p3Items.items[3].preview.host,'shop.example.test');
+  assert.equal((await get('v1/documents')).usedBytes,p3Budget.usedBytes);
+  const p3Login=await request('auth/sign-in/email','POST',{email:'builtsharedalice@example.test',password:'synthetic-shared-password'},'');assert.equal(p3Login.status,200);const p3Cookie=p3Login.headers.getSetCookie().map(x=>x.split(';')[0]).join('; ');
+  const p3Second=await request(`v1/piles/${p3Pile.id}/items`,'GET',undefined,p3Cookie);assert.equal(p3Second.status,200);assert.deepEqual((await p3Second.json()).items.map(i=>i.ref),p3Refs);
+  assert.equal((await request(`v1/piles/${p3Pile.id}/items`,'GET',undefined,bob.cookie)).status,404);
+  const p3Impact=await get(`v1/piles/${p3Pile.id}/members/text/${p3Note.id}/impact`);
+  const p3Remove={operationId:crypto.randomUUID(),ref:p3Refs[0],action:'removeAndPin',revision:p3Impact.revision,workspaceRevision:p3Impact.workspaceRevision};
+  await create();assert.equal((await request(`v1/piles/${p3Pile.id}/members`,'POST',p3Remove)).status,409);
+  const p3Fresh=await get(`v1/piles/${p3Pile.id}/members/text/${p3Note.id}/impact`);p3Remove.workspaceRevision=p3Fresh.workspaceRevision;
+  const p3Removed=await get(`v1/piles/${p3Pile.id}/members`,'POST',p3Remove);assert.equal(p3Removed.item.pinned,true);assert.equal((await get(`v1/piles/${p3Pile.id}/members`,'POST',p3Remove)).replayed,true);
+  await get(`v1/piles/${p3Pile.id}/members`,'POST',{operationId:crypto.randomUUID(),ref:p3Refs[0],action:'restore',revision:p3Removed.pileRevision,undoOperationId:p3Remove.operationId});
+  const p3Edited=await get('v1/documents/'+p3Link.id,'PATCH',{revision:p3Link.revision,name:'Saturday shop updated',url:'https://shop.example.test/receipt'});assert.equal(p3Edited.revision,p3Link.revision+1);
+  assert.equal((await request('v1/documents/'+p3Link.id,'PATCH',{revision:p3Link.revision,name:'Stale'})).status,409);
+  for(const bad of ['http://example.test','javascript:alert(1)','https://user:pass@example.test']) assert.equal((await request('v1/documents/'+p3Link.id,'PATCH',{revision:p3Edited.revision,url:bad})).status,400);
+  const p3Pending=await (await capacityRequest('clips/'+captureId)).json();
+  assert.equal((await capacityRequest('clips/'+captureId,'PATCH',{action:'pin',revision:p3Pending.revision,pinned:true})).status,200);
+  const p3Projection=await (await capacityRequest('v1/items/text/'+captureId)).json();assert.equal(p3Projection.cleanup.reason,'pinned');assert.deepEqual(p3Projection.organization,{state:'member_capacity',pending:true});
   const erased = await request('auth/account-deletion', 'POST', {
     confirmEmail: 'builtsharedalice@example.test',
   });
@@ -413,7 +442,7 @@ try {
     200,
   );
   console.log(
-    'Built shared items Worker passed: P2 capacity-safe restore/capture/retry/cleanup, mapping/backfill/provenance/suppression and P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
+    'Built shared items Worker passed: P3 mixed ready sources, second session, bounded resolution, owner isolation, guarded removal/Undo, generic bookmark edits and independent pinned-pending projection; P2 capacity-safe restore/capture/retry/cleanup, mapping/backfill/provenance/suppression and P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
   );
 } finally {
   await mf.dispose();

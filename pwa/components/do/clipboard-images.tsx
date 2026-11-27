@@ -36,6 +36,7 @@ import {
   readClipboard,
   writeClipboard,
 } from '@/lib/sync/clipboard';
+import { ItemOrganization, OversizedImage } from './desk';
 import type { ClipboardImage } from '@/lib/images';
 import type { Payload } from '@/lib/sync/protocol';
 
@@ -54,6 +55,7 @@ export function ClipboardImages({
   addSlot?: HTMLElement | null;
 }) {
   const { watch: watchClipboard } = useClipboardSync();
+  const [oversized, setOversized] = useState<File | null>(null);
   const [images, setImages] = useState<ClipboardImage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -178,6 +180,10 @@ export function ClipboardImages({
             await save(await imagePayload(file), file.name || 'Pasted image');
             saved++;
           } catch (e) {
+            if (/8 MiB/.test(errorMessage(e))) {
+              setOversized(file);
+              break;
+            }
             failures.push(`${file.name || 'Image'}: ${errorMessage(e)}`);
           }
         }
@@ -265,6 +271,7 @@ export function ClipboardImages({
       <div className="image-card-body">
         <div className="image-card-text">
           <h3>{item.name}</h3>
+          <ItemOrganization refValue={{ kind: 'image', id: item.id }} />
           <span>
             {item.pinned ? 'Pinned · ' : ''}PNG · {item.width} × {item.height} ·{' '}
             {(item.size / 1024 / 1024).toFixed(1)} MiB
@@ -409,6 +416,13 @@ export function ClipboardImages({
       className="saved-images"
       aria-label={renderFeed ? 'Saved items' : 'Clipboard images'}
     >
+      {oversized && (
+        <OversizedImage
+          file={oversized}
+          onClose={() => setOversized(null)}
+          onSaved={() => announce('Original saved to Documents.')}
+        />
+      )}
       {addSlot ? createPortal(addImages, addSlot) : !pinnedOnly && addImages}
       {busy && (
         <output className="saved-status">

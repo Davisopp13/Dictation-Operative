@@ -195,11 +195,17 @@ export async function saveClip(
   owner: string,
   clip: Clip,
   previousRevision: number,
+  workspaceRevision?: unknown,
 ) {
+  if (
+    workspaceRevision !== undefined &&
+    (!Number.isSafeInteger(workspaceRevision) || Number(workspaceRevision) < 0)
+  )
+    throw new AppError('Invalid workspace revision.');
   // RETURNING, not the reported change count: D1 counts trigger writes too.
   const update = db
     .prepare(
-      'UPDATE clips SET collection_synced=CASE WHEN collection<>? THEN 1 ELSE collection_synced END,title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? RETURNING id',
+      'UPDATE clips SET collection_synced=CASE WHEN collection<>? THEN 1 ELSE collection_synced END,title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? AND (? IS NULL OR COALESCE((SELECT revision FROM workspace_revision WHERE owner=?),0)=?) RETURNING id',
     )
     .bind(
       clip.collection,
@@ -217,6 +223,9 @@ export async function saveClip(
       owner,
       clip.id,
       previousRevision,
+      workspaceRevision ?? null,
+      owner,
+      workspaceRevision ?? null,
     );
   const result = await update.all();
   if (result.results.length !== 1)

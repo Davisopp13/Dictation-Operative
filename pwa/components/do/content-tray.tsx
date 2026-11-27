@@ -25,6 +25,7 @@ import {
 import { toast } from '@/components/ui/toast';
 import { DocumentScanner } from '@/components/do/document-scanner';
 import { PdfPreview } from '@/components/do/pdf-preview';
+import { ItemOrganization } from './desk';
 import { DocumentPrintButton } from '@/components/do/document-print';
 import { api, errorMessage, workspaceRevision } from '@/lib/client';
 import { watchVisibleList, refreshPages } from '@/lib/live-list';
@@ -35,6 +36,7 @@ import {
   contentPreview,
   declaredContentType,
   contentProvider,
+  contentLink,
   type ContentItem,
   type ContentPage,
 } from '@/lib/content-model';
@@ -67,6 +69,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
     [scanOpen, setScanOpen] = useState(false);
   const [preview, setPreview] = useState<ContentItem | null>(null),
     [deleting, setDeleting] = useState<ContentItem | null>(null);
+  const linkAttempt = useRef<{ id: string; key: string } | null>(null);
   const visible = useRef(0),
     working = useRef(false),
     alive = useRef(true),
@@ -252,7 +255,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
           disabled={!!busy}
           onClick={() => setLinkOpen(true)}
         >
-          <LinkIcon aria-hidden="true" /> Add Google link
+          <LinkIcon aria-hidden="true" /> Add HTTPS link
         </Button>
         <Button
           variant="outline"
@@ -270,7 +273,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
       <p className="subtle content-policy">
         Files are private to your signed-in account and readable by the
         Catch-all Desk server. They use saved cloud storage, separate from
-        encrypted device Sync. Google links open the originals with Google’s
+        encrypted device Sync. Links open the originals with the website’s
         permissions.
       </p>
       <div className="content-quota">
@@ -403,10 +406,14 @@ export function ContentTray({ active = true }: { active?: boolean }) {
                 {item.pinned
                   ? 'Pinned'
                   : item.kind === 'link'
-                    ? 'Google link'
+                    ? contentProvider(item.url)
                     : (item.filename.split('.').pop() ?? 'File').toUpperCase()}
               </span>
               <h2>{item.name}</h2>
+              <ItemOrganization
+                refValue={{ kind: 'document', id: item.id }}
+                revision={item.revision}
+              />
               <p className="subtle">
                 {item.kind === 'link'
                   ? contentProvider(item.url)
@@ -501,26 +508,32 @@ export function ContentTray({ active = true }: { active?: boolean }) {
         }}
       >
         <DialogContent className="content-dialog">
-          <DialogTitle>Add a Google link</DialogTitle>
+          <DialogTitle>Add an HTTPS link</DialogTitle>
           <DialogDescription>
-            Keep the original in Google Drive. This saves a shortcut and does
-            not change who can open it.
+            Keep the original at its website. This saves a shortcut and does not
+            change who can open it. No page, metadata or favicon is fetched.
           </DialogDescription>
           <form
             className="content-link-form"
             onSubmit={(e) => {
               e.preventDefault();
               void run('Adding link…', async (signal) => {
-                await api('content', {
+                const normalized = contentLink(linkURL);
+                const key = JSON.stringify([linkTitle, normalized]);
+                if (linkAttempt.current?.key !== key)
+                  linkAttempt.current = { id: crypto.randomUUID(), key };
+                await api('v1/documents', {
                   method: 'POST',
                   signal,
                   body: JSON.stringify({
+                    id: linkAttempt.current.id,
                     kind: 'link',
                     name: linkTitle,
-                    url: linkURL,
+                    url: normalized,
                   }),
                 });
                 if (alive.current) {
+                  linkAttempt.current = null;
                   setLinkOpen(false);
                   setLinkTitle('');
                   setLinkURL('');
@@ -538,18 +551,25 @@ export function ContentTray({ active = true }: { active?: boolean }) {
               disabled={!!busy}
               onChange={(e) => setLinkTitle(e.target.value)}
             />
-            <label htmlFor="content-link-url">
-              Google Docs or Sheets HTTPS link
-            </label>
+            <label htmlFor="content-link-url">HTTPS link</label>
             <Input
               id="content-link-url"
               type="url"
               value={linkURL}
               required
               maxLength={2048}
-              placeholder="https://docs.google.com/document/d/…"
+              placeholder="https://example.com/…"
               disabled={!!busy}
-              onChange={(e) => setLinkURL(e.target.value)}
+              onChange={(e) => {
+                setLinkURL(e.target.value);
+                if (!linkTitle) {
+                  try {
+                    setLinkTitle(new URL(e.target.value).hostname);
+                  } catch {
+                    /* Incomplete URL. */
+                  }
+                }
+              }}
             />
             {error && (
               <p role="alert" className="content-error">
@@ -653,7 +673,7 @@ export function ContentTray({ active = true }: { active?: boolean }) {
           <DialogTitle>Delete {deleting?.name}?</DialogTitle>
           <DialogDescription>
             {deleting?.kind === 'link'
-              ? 'This removes the shortcut from Documents. The original Google document stays in Drive.'
+              ? 'This removes the shortcut from Documents. The remote site is unchanged.'
               : 'This removes the file from Documents across your signed-in devices. Download a copy first if you need it. File deletion retries automatically if storage is temporarily unavailable.'}
           </DialogDescription>
           {error && (
