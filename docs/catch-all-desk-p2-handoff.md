@@ -10,9 +10,9 @@ Not independently reviewed, integrated or released.**
 - Exact fetched base: `ae0446da6b278b3b6a9ba23cd6be27798c2e7c2e`.
   `origin/main` was exactly the supplied integrated P1 merge; no additional
   changes needed inspection or incorporation.
-- Implementation commit: `652b62f4a44a4931769e2605aabfab873462b247`.
+- Implementation commit: `0e6bcac994128ef7f1a50e2534f520a971037ebb`.
   Includes runtime, migration, tests and contract/runbook documentation.
-- This subsequent commit only adds this handoff. Final HEAD, full base-to-HEAD
+- This final documentation commit updates this handoff. Final HEAD, full base-to-HEAD
   patch hash and clean final state are recorded in
   `/Users/davis/.codex/worktrees/catch-all-desk-p2/review-manifest.json`.
   This avoids a self-referential commit ID. The exact full review patch is
@@ -78,6 +78,9 @@ The authoritative contract and full mutation inventory are in
   collection provenance; manual membership survives. Rejected/stale/duplicate
   source requests leave no mapping/provenance changes. Existing payloads,
   history, backups, collection/tag filters and retry behavior are preserved.
+  Only an actual collection value change activates an existing unsynced source;
+  unchanged collection values in legacy tag-only organize saves retain the hold.
+  This distinction was caught in the final safety pass and regression-tested.
 - `GET /api/v1/collection-backfill` inspects; `POST` with `{limit:25}` advances
   1–50 current rows in one transaction. It repeatedly chooses the first currently
   processable pending ID. No saved cursor or stale assignment exists. Current
@@ -143,9 +146,9 @@ A future remote rehearsal remains separately authorized and was not performed.
 ## Validation and evidence
 
 All required commands passed on synthetic isolated Miniflare D1/R2. Build finished
-before the built checks. Source/runtime did not change after that build; the final
-follow-up only strengthened concurrency/import/erasure tests and reran typecheck,
-lint and the full test suite.
+before the built checks. All eight commands were rerun after the final tag-only
+organization safety fix. No source/runtime/test changes followed that validation;
+only handoff and external checkpoint/review artifacts were updated.
 
 | Check | Result |
 | --- | --- |
@@ -195,9 +198,9 @@ print, or launch agents/chats.
 Worktree: /Users/davis/.codex/worktrees/catch-all-desk-p2/Dictation Operative
 Branch: codex/catch-all-desk-p2
 Exact base: ae0446da6b278b3b6a9ba23cd6be27798c2e7c2e
-Exact implementation: 652b62f4a44a4931769e2605aabfab873462b247
-Implementation diff: git diff ae0446da6b278b3b6a9ba23cd6be27798c2e7c2e 652b62f4a44a4931769e2605aabfab873462b247
-The subsequent commit only adds this handoff. Verify final HEAD and full patch
+Exact implementation: 0e6bcac994128ef7f1a50e2534f520a971037ebb
+Implementation diff: git diff ae0446da6b278b3b6a9ba23cd6be27798c2e7c2e 0e6bcac994128ef7f1a50e2534f520a971037ebb
+The final documentation commit only updates this handoff. Verify final HEAD and full patch
 SHA-256 against ../review-manifest.json, then review the full ../p2-review.diff.
 ../OPUS-REVIEW-PROMPT.txt repeats this prompt with the final full exact target.
 All paths are local to Davis's Mac; do not assume access from another host.
