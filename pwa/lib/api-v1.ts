@@ -224,13 +224,7 @@ export async function handleV1(
       return json(
         updated === clip
           ? clip
-          : await saveClip(
-              s.db,
-              s.owner,
-              updated,
-              clip.revision,
-              input.action === 'organize',
-            ),
+          : await saveClip(s.db, s.owner, updated, clip.revision),
       );
     }
     if (method === 'DELETE') {

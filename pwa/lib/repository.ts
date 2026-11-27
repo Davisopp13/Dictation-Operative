@@ -195,15 +195,13 @@ export async function saveClip(
   owner: string,
   clip: Clip,
   previousRevision: number,
-  assignCollection = false,
 ) {
   // RETURNING, not the reported change count: D1 counts trigger writes too.
   const update = db
     .prepare(
-      'UPDATE clips SET collection_synced=CASE WHEN ? OR collection<>? THEN 1 ELSE collection_synced END,title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? RETURNING id',
+      'UPDATE clips SET collection_synced=CASE WHEN collection<>? THEN 1 ELSE collection_synced END,title=?,content=?,original=?,segments=?,versions=?,collection=?,tags=?,pinned=?,revision=?,updated_at=?,clipboard_item=CASE WHEN ? THEN 0 ELSE clipboard_item END WHERE owner=? AND id=? AND revision=? RETURNING id',
     )
     .bind(
-      assignCollection ? 1 : 0,
       clip.collection,
       clip.title,
       clip.content,

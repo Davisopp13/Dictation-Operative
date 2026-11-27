@@ -586,8 +586,20 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
           (await ok(o, `v1/piles/${a}`, 'DELETE', removed.input)).replayed,
           true,
         );
-        await organize(o, pending, 'A');
+        // Legacy tag-only saves send the unchanged collection too: retain the hold.
+        await ok(o, 'clips/' + pending, 'PATCH', {
+          action: 'organize',
+          revision: (await row(pending))!.revision,
+          collection: 'A',
+          tags: ['new-tag'],
+        });
         assert.equal(await mapping(o, 'A'), null);
+        assert.equal(
+          (await ok(o, 'v1/items/text/' + pending)).cleanup.reason,
+          'collection_pending',
+        );
+        assert.equal((await backfill(o)).complete, false);
+        await organize(o, pending, '');
         assert.equal(
           (await ok(o, 'v1/items/text/' + pending)).cleanup.eligible,
           true,
@@ -694,14 +706,18 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
           collection: 'A',
         });
         assert.equal(failed.status, 409);
-        const raw = JSON.stringify(await row(blocked));
-        const failedEdit = await request(o, 'clips/' + blocked, 'PATCH', {
+        // Unchanged collection/tag edits do not activate mapping or lose the hold.
+        await organize(o, blocked, 'A');
+        assert.equal((await row(blocked))!.collection_synced, 0);
+        const candidate = await create(o, '');
+        const raw = JSON.stringify(await row(candidate.id));
+        const failedEdit = await request(o, 'clips/' + candidate.id, 'PATCH', {
           action: 'organize',
           revision: 1,
           collection: 'A',
         });
         assert.equal(failedEdit.status, 409);
-        assert.equal(JSON.stringify(await row(blocked)), raw);
+        assert.equal(JSON.stringify(await row(candidate.id)), raw);
         await db.prepare("DELETE FROM clips WHERE id='slot-text-1'").run();
         assert.equal((await backfill(o)).processed, 1);
         assert.equal((await slots(o, a)).length, 500);

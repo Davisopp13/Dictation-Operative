@@ -47,7 +47,7 @@ The actual mutation inventory is:
 | Legacy `POST /api/clips`, v1 `POST /api/v1/text` | `repository.insertClip`; creates with `collection_synced=1`, source and mapping/provenance in one SQL transaction |
 | Legacy `POST /api/import` | `backup.importClip` / `importedId`, then the same insert; deterministic imported IDs and existing-ID skips unchanged |
 | Legacy `PATCH /api/clips/:id`, v1 `PATCH /api/v1/text/:id` | `changeClip` then `repository.saveClip`; optimistic source revision remains the SQL precondition |
-| `organize` | Assigns collection deliberately, including an unchanged value, and sets `collection_synced=1` |
+| `organize` | Sets `collection_synced=1` when the exact collection value changes; unchanged values (including tag-only edits) preserve the marker |
 | `edit`, `rename`, `pin`, `append`, `without-segment`, `restore`, `restore-original` | Preserve the current collection and sync marker; text versions/segments retain existing behavior. A helper caller changing the actual collection also sets the marker |
 | Duplicate create / repeated append / duplicate import | Existing early-return or insert-conflict behavior; no trigger for a rejected insert, no provenance changes on replay |
 | Explicit Remove / Remove and pin / membership Undo | `pile-members.writePileMember`, with the collection/source CAS described below |
@@ -57,7 +57,7 @@ The actual mutation inventory is:
 Collection triggers run **after a successful source insert/update**, inside that
 statement's transaction. A→B removes only A's collection provenance, preserves
 manual A membership, and adds B's collection provenance. Clearing removes only
-collection provenance. New creates/imports and deliberate assignments that need
+collection provenance. New creates/imports and actual collection changes that need
 unavailable pile/slot capacity fail with HTTP **409 `collection_capacity`**, leaving
 source, history, mapping and provenance unchanged. An unrelated edit of an
 unprocessed historical row does not try to migrate it or remove its cleanup hold.
@@ -125,7 +125,7 @@ Response (POST adds `processed`; GET omits it):
 ```
 
 All counters are owner-scoped. `pending` counts nonempty historical collection
-rows not reconciled or deliberately reassigned; its four categories are disjoint.
+rows not reconciled or changed to a different collection value; its four categories are disjoint.
 `mappedMembers` counts collection provenance, not all effective manual members.
 `mappedKeys` counts live mappings including currently empty piles. Suppressed keys
 are not advertised as mapped. `status` is `complete` if pending=0, `incomplete` if
@@ -187,8 +187,10 @@ transactional exclusion. It does not disable cleanup globally; ordinary unfiled
 text/images retain opt-in, age and history rules.
 
 After successful backfill the hold is replaced atomically by real membership.
-Clearing or deliberately assigning a collection replaces/releases the hold within
-the source write transaction; unrelated edits preserve it. After mapped-pile
+Clearing or changing the exact collection value replaces/releases the hold within
+the source write transaction. Unchanged collection values, including legacy
+organize requests that only change tags, preserve the hold; use backfill to map
+unchanged historical values. After mapped-pile
 deletion, unprocessed rows keep their hold and `suppressedPending` remains blocked.
 They are not part of the pile's active members and cannot be silently exposed by
 its deletion. Previously mapped members use P1's existing workspace-bound impact:
