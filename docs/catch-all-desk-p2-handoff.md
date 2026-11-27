@@ -1,5 +1,9 @@
 # P2 collection mapping and backfill handoff
 
+> Historical pre-review handoff. The supplied P2 review found B1; the
+> [review follow-up](catch-all-desk-p2-review-followup.md) supersedes capacity
+> behavior, validation and review status below.
+
 November 27, 2026 (America/New_York). **Implemented and locally validated.
 Not independently reviewed, integrated or released.**
 
