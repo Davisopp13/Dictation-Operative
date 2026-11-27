@@ -1,4 +1,4 @@
-# Shared item and pile membership contract (F2)
+# Shared item and pile membership contract (F2, extended by P1)
 
 Implemented locally on the exact root base `09675098986887be287b240d1b4e2449fa4e6f07`
 (tree `d71da055df4c7cd6d50ab524caa713037a17a2a3`, identical to F0's tested
@@ -73,18 +73,19 @@ System share, copy-link and OCR copy remain unavailable. File preview uses the
 existing MIME allowlist, never filename guessing. Print is still bounded by the
 existing PDF preparation limits, and a dismissed dialog is not proof of output.
 
-## Minimal pile membership surface
+## Pile membership surface
 
-F2 supplies storage and membership reads/writes for existing piles. **There is no
-pile create/rename/delete/list workflow or UI.** P1 owns those endpoints, pile
-creation with initial selection, deletion impact/confirmation, and limits at
-creation. SQL fixtures create piles for verification. Pile records require a
-trimmed-name length of 1–60 and one of `blue/glow/sky/mint/sunny/paper`; duplicate
-names are legal. Proposed P1 account limit: 100 piles. Current enforced membership
-limit: 500 slots per pile, including inactive Undo slots. P1 must deliberately
-design slot compaction/Undo expiry before relaxing that bound.
+F2 established storage and membership operations. P1 adds list/read/create/update,
+initial selection and confirmed deletion through the same versioned API. See the
+[complete P1 lifecycle contract](piles.md) for exact shapes, impact tokens and
+retry semantics. P1 requires additive migration 0010 after 0009. Names are trimmed
+1–60 characters; colors are `blue/glow/sky/mint/sunny/paper`; duplicate names are
+legal. P1 enforces 100 piles per account and 50 initial-selection references per
+request. The 500-slot membership limit still includes inactive Undo slots: P1
+introduces no slot compaction, expiry or receipt pruning. No pile UI is added.
 
 `GET /api/v1/piles/:id/members` returns `{pile,members,revision}` in one transaction.
+`pile` includes identity, name, color, creation/update timestamps and active member count.
 `pile.revision` is the write precondition; top-level `revision` is the workspace
 counter. Active members are `{ref,position}`, in ascending manual order.
 
@@ -158,10 +159,10 @@ This is the next scheduled opportunity, not a promise about scheduler punctualit
 
 The current shared-item read supplies pile names for source-deletion warnings.
 The membership write result supplies the actual post-removal protection state, so
-a client can correct a stale warning/toast. F2 adds no destructive pile operation.
-P1 must add transactionally consistent pile-deletion impact and atomic pinning of
-newly exposed sources before enabling Delete pile. Recommended initial behavior:
-confirmation only, **no pile-deletion Undo**; pile restoration is not in F2.
+a client can correct a stale warning/toast. P1 provides transactionally consistent
+pile-deletion impact, workspace-bound confirmation and atomic pinning of newly
+exposed sources. Pile deletion is confirmation-only with **no Undo**; individual
+membership removal retains the existing Undo behavior.
 
 Scheduled cleanup still defaults off and runs daily at 08:00 UTC, with the same
 strict `created_at < now - 24h` rule and history exemptions. Each deletion checks
@@ -173,12 +174,12 @@ Source-deletion triggers remove all memberships in the same transaction from
 legacy browser APIs, `/api/v1`, cleanup and account erasure. Existing image and
 document deletion queues remain authoritative; no byte/quota copy is made by
 membership. Source deletion remains permanent. Pile deletion cascades references
-only and preserves sources; a user-facing pile deletion route remains unavailable.
+only and preserves sources; P1 exposes the confirmed deletion API without adding UI.
 The F2 Worker account-deletion handler clears piles, slots, operation receipts
 and tombstones before its final workspace-revision deletion; tests verify the
 counter is not recreated. An older Worker on 0009 does not erase those new rows,
 even before any piles exist; its erasure is incomplete until reconciliation.
-Receipts/tombstones currently remain for the account lifetime; P1/C1 must define
+Receipts/tombstones remain for the account lifetime in P1; a later slice must define
 bounded retention without violating replay/cleared-error semantics before pruning.
 
 ## Gates, migration and older clients

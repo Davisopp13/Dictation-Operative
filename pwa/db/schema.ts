@@ -125,6 +125,7 @@ export const piles = sqliteTable(
     color: text('color').notNull().default('blue'),
     revision: integer('revision').notNull().default(1),
     updatedAt: integer('updated_at').notNull(),
+    createdAt: integer('created_at'),
     writeToken: text('write_token').notNull().default(''),
   },
   (t) => [index('piles_owner').on(t.owner)],

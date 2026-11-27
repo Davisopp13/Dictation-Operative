@@ -11,7 +11,7 @@ import {
   type ItemRow,
 } from './shared-items';
 
-export const PILE_MEMBER_LIMIT = 500; // Includes retained Undo slots, until P1 adds compaction.
+export const PILE_MEMBER_LIMIT = 500; // Includes retained Undo slots, no compaction or expiry in P1.
 export const PILE_LIMIT = 100;
 type Pile = {
   id: string;
@@ -20,6 +20,7 @@ type Pile = {
   color: string;
   revision: number;
   updated_at: number;
+  created_at: number | null;
 };
 type Member = {
   kind: ItemReference['kind'];
@@ -61,6 +62,8 @@ export async function readPileMembers(
       color: pile.color,
       revision: pile.revision,
       updatedAt: pile.updated_at,
+      createdAt: pile.created_at,
+      memberCount: (m.results as Member[]).filter((x) => x.active).length,
     },
     members: (m.results as Member[])
       .filter((x) => x.active)

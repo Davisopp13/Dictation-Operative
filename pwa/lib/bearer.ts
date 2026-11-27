@@ -63,6 +63,7 @@ export async function resolveBearerUser(
   if (!user) return null;
   return {
     userId: await resolveWorkspaceOwner(config.DB, user, null),
+    accountId: user.id,
     email: user.email,
     displayName: user.name,
     fullName: user.name,

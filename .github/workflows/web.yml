@@ -47,6 +47,7 @@ jobs:
       - run: npm run test:built-auth
       - run: npm run test:built-clipboard
       - run: npm run test:built-content
+      - run: npm run test:built-shared-items
 
   relay:
     name: Sync relay

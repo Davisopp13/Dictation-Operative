@@ -151,7 +151,7 @@ void test('old Worker erasure on 0009 reconciles safely and repeatably, includin
         if (sql.trim()) await db.prepare(sql).run();
     };
     for (const file of readdirSync(new URL('../drizzle/', import.meta.url))
-      .filter((f) => f.endsWith('.sql') && !f.startsWith('0009'))
+      .filter((f) => f.endsWith('.sql') && f < '0009')
       .sort())
       await migrate(file);
     const user = async (accountId: string, owner = accountId) => {

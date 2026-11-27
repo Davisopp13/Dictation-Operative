@@ -532,7 +532,7 @@ void test('0009 upgrades populated legacy stores without changing text, collecti
         if (sql.trim()) await db.prepare(sql).run();
     };
     for (const file of readdirSync('drizzle')
-      .filter((f) => f.endsWith('.sql') && !f.startsWith('0009'))
+      .filter((f) => f.endsWith('.sql') && f < '0009')
       .sort())
       await apply(file);
     await db

@@ -171,3 +171,16 @@ The pre-F2 Worker remains incomplete for account erasure after migration 0009.
 The [B1 reconciliation runbook](account-erasure-reconciliation.md) is required
 for the migration-before-code and rollback windows; a verified pre-window owner
 census and current-account guards protect legitimate legacy workspaces.
+
+
+## Pile lifecycle (P1)
+
+After additive migration `0010_pile_created_at.sql`, `GET`/`POST /piles`,
+`GET`/`PATCH`/`DELETE /piles/:id`, and `GET /piles/:id/deletion-impact` are available.
+See [the exact P1 browser/native contract](piles.md) for request/response shapes,
+100-pile and 50-initial-selection limits, consistent pagination, operation receipts,
+no-op behavior, and workspace-bound deletion confirmation. Safe deletion pins
+newly exposed sources; exposure requires explicit acknowledgment. Pile deletion
+has no Undo; F2 individual membership Undo is preserved. Existing source APIs,
+collections, quotas and navigation remain unchanged. Requires 0010 before code;
+all prior F2 cleanup/rollback/account-erasure gates still apply.
