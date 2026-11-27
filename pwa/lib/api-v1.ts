@@ -1,4 +1,8 @@
 import {
+  inspectCollectionBackfill,
+  advanceCollectionBackfill,
+} from './collection-mapping';
+import {
   listPiles,
   readPile,
   createPile,
@@ -96,6 +100,22 @@ export async function handleV1(
     method = request.method,
     param = (name: string) => url.searchParams.get(name);
 
+  if (path === 'collection-backfill') {
+    if (url.search)
+      throw new AppError('Backfill does not accept query parameters.');
+    if (method === 'GET')
+      return json(await inspectCollectionBackfill(s.db, s.owner));
+    if (method === 'POST')
+      return json(
+        await advanceCollectionBackfill(
+          s.db,
+          s.owner,
+          await body(request, 1024),
+          s.accountId,
+        ),
+      );
+  }
+
   if (path === 'items' && method === 'GET')
     return json(await listSharedItems(s.db, s.owner, url));
   const shared = /^items\/(text|image|document)\/([^/]+)$/.exec(path);
@@ -184,7 +204,13 @@ export async function handleV1(
       throw new AppError('Choose a new identifier for this text.', 409);
     // Text saved by a client is a Clipboard item unless it says otherwise.
     return json(
-      await insertClip(s.db, s.owner, clip, data.clipboardItem !== false),
+      await insertClip(
+        s.db,
+        s.owner,
+        clip,
+        data.clipboardItem !== false,
+        s.accountId,
+      ),
       201,
     );
   }

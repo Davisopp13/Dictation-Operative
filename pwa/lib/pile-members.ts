@@ -28,6 +28,8 @@ type Member = {
   position: number;
   active: number;
   last_operation: string;
+  manual: number | null;
+  collection_key: string | null;
 };
 type Receipt = { fingerprint: string; result: string };
 const memberKey = (m: Member) => referenceKey({ kind: m.kind, id: m.item_id });
@@ -132,8 +134,9 @@ export async function writePileMember(
         'This operation identifier was already used for another change.',
       );
     const saved = JSON.parse(old.result);
+    const { undoState: _undoState, ...publicSaved } = saved;
     return {
-      ...saved,
+      ...publicSaved,
       item: itemProtection(saved.item, saved.committedAt),
       replayed: true,
     };
@@ -153,12 +156,35 @@ export async function writePileMember(
     member = members.find((x) => memberKey(x) === key);
   const order = members.map(memberKey);
   let changed = false;
+  // Old receipts predate provenance and are interpreted as manual-only Undo.
+  let restoreState: {
+    manual: number;
+    collectionKey: string | null;
+    collection: string | null;
+    collectionSynced: number;
+  } | null = null;
+  const removing = action === 'remove' || action === 'removeAndPin';
+  const clearCollection =
+    removing &&
+    !!member?.active &&
+    ref.kind === 'text' &&
+    source.collection !== '' &&
+    source.collectionPile === pileId;
+  const undoState = removing
+    ? {
+        manual: member ? (member.manual ?? member.active) : 0,
+        collectionKey: member?.collection_key ?? null,
+        collection: clearCollection ? source.collection : null,
+        collectionSynced: source.collectionSynced,
+      }
+    : undefined;
   if (action === 'add') {
     if (!member && members.length >= PILE_MEMBER_LIMIT)
       throw new ItemError(
         'limit_reached',
         'This pile has reached its member limit.',
       );
+    if (member?.active && !(member.manual ?? member.active)) changed = true;
     if (!member?.active) {
       const at = order.indexOf(key);
       if (at >= 0) order.splice(at, 1);
@@ -184,6 +210,21 @@ export async function writePileMember(
       throw new ItemError(
         'revision_conflict',
         'This removal can no longer be undone.',
+      );
+    const removal = JSON.parse(removed.result);
+    restoreState = removal.undoState ?? {
+      manual: 1,
+      collectionKey: null,
+      collection: null,
+      collectionSynced: 1,
+    };
+    if (
+      restoreState!.collection !== null &&
+      (source.revision !== removal.item.revision || source.collection !== '')
+    )
+      throw new ItemError(
+        'revision_conflict',
+        'The text changed after removal. This removal can no longer be undone.',
       );
     changed = true;
   } else if (action === 'move') {
@@ -212,7 +253,10 @@ export async function writePileMember(
     }
     changed = order.some((k, index) => k !== memberKey(members[index]));
   } else
-    changed = !!member?.active || (action === 'removeAndPin' && !source.pinned);
+    changed =
+      !!member?.active ||
+      clearCollection ||
+      (action === 'removeAndPin' && !source.pinned);
   const now = Date.now(),
     nextRevision = expected + (changed ? 1 : 0);
   // The token and receipt predicates make concurrent identical requests execute once.
@@ -235,7 +279,11 @@ export async function writePileMember(
         operationId,
         owner,
         ref.id,
-        action === 'removeAndPin' ? 1 : 0,
+        action === 'removeAndPin' ||
+          clearCollection ||
+          restoreState?.collection != null
+          ? 1
+          : 0,
         source.revision,
       ),
   ];
@@ -244,7 +292,7 @@ export async function writePileMember(
       statements.push(
         db
           .prepare(
-            `INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation) SELECT ?,?,?,?,?,1,? WHERE ${guard} ON CONFLICT(pile_id,kind,item_id) DO UPDATE SET active=1,last_operation=excluded.last_operation`,
+            `INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation,manual,collection_key) SELECT ?,?,?,?,?,1,?,?,? WHERE ${guard} ON CONFLICT(pile_id,kind,item_id) DO UPDATE SET active=1,last_operation=excluded.last_operation,manual=excluded.manual,collection_key=excluded.collection_key`,
           )
           .bind(
             pileId,
@@ -253,6 +301,10 @@ export async function writePileMember(
             ref.id,
             order.indexOf(key),
             operationId,
+            action === 'add' ? 1 : restoreState!.manual,
+            action === 'add'
+              ? (member?.collection_key ?? null)
+              : restoreState!.collectionKey,
             ...args,
           ),
       );
@@ -260,9 +312,26 @@ export async function writePileMember(
       statements.push(
         db
           .prepare(
-            `UPDATE pile_members SET active=0,last_operation=? WHERE owner=? AND pile_id=? AND kind=? AND item_id=? AND active=1 AND ${guard}`,
+            `UPDATE pile_members SET active=0,manual=0,collection_key=NULL,last_operation=? WHERE owner=? AND pile_id=? AND kind=? AND item_id=? AND active=1 AND ${guard}`,
           )
           .bind(operationId, owner, pileId, ref.kind, ref.id, ...args),
+      );
+    // First remove/restore the slot provenance, then change the legacy field.
+    // Its trigger sees the already reconciled slot and cannot invalidate our CAS.
+    if (clearCollection || restoreState?.collection != null)
+      statements.push(
+        db
+          .prepare(
+            `UPDATE clips SET collection=?,collection_synced=?,revision=revision+1,updated_at=? WHERE owner=? AND id=? AND ${guard}`,
+          )
+          .bind(
+            clearCollection ? '' : restoreState!.collection,
+            clearCollection ? 1 : restoreState!.collectionSynced,
+            now,
+            owner,
+            ref.id,
+            ...args,
+          ),
       );
     if (action === 'move')
       statements.push(
@@ -272,7 +341,7 @@ export async function writePileMember(
           )
           .bind(operationId, owner, pileId, ref.kind, ref.id, ...args),
       );
-    if (action === 'add' || action === 'move')
+    if ((action === 'add' && !member?.active) || action === 'move')
       statements.push(
         db
           .prepare(
@@ -306,6 +375,7 @@ export async function writePileMember(
     pileRevision: nextRevision,
     committedAt: now,
     replayed: false,
+    ...(undoState ? { undoState } : {}),
   });
   statements.push(
     db
@@ -353,13 +423,14 @@ export async function writePileMember(
   const saved = JSON.parse(receipt.result);
   // Convert the stored database snapshot to the public typed view, fixing time to
   // commit time so duplicate retries return exactly the same cleanup schedule.
+  const { undoState: _undoState, ...publicSaved } = saved;
   return {
-    ...saved,
+    ...publicSaved,
     item: itemProtection(saved.item, saved.committedAt),
     replayed: result[0].results.length === 0,
   };
 }
 
 function itemStatementSQL() {
-  return `${itemCTE} SELECT json_object('owner',owner,'kind',kind,'id',id,'pinned',pinned,'revision',revision,'createdAt',createdAt,'sortTime',sortTime,'clipboardItem',clipboardItem,'history',history,'cleanupEnabled',cleanupEnabled,'piles',piles) FROM items WHERE owner=? AND kind=? AND id=?`;
+  return `${itemCTE} SELECT json_object('owner',owner,'kind',kind,'id',id,'pinned',pinned,'revision',revision,'createdAt',createdAt,'sortTime',sortTime,'clipboardItem',clipboardItem,'history',history,'cleanupEnabled',cleanupEnabled,'collectionPending',collectionPending,'piles',piles) FROM items WHERE owner=? AND kind=? AND id=?`;
 }

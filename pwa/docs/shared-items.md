@@ -1,4 +1,4 @@
-# Shared item and pile membership contract (F2, extended by P1)
+# Shared item and pile membership contract (F2, extended by P1/P2)
 
 Implemented locally on the exact root base `09675098986887be287b240d1b4e2449fa4e6f07`
 (tree `d71da055df4c7cd6d50ab524caa713037a17a2a3`, identical to F0's tested
@@ -6,6 +6,19 @@ Implemented locally on the exact root base `09675098986887be287b240d1b4e2449fa4e
 `0009_shared_items.sql` after 0000–0008. This document applies equally to browser
 session clients and native `/api/v1` bearer clients. No UI, production migration,
 deployment, collection backfill or tray was added.
+
+## P2 extension
+
+P2 requires migrations 0011 and 0012 and implements the collection contract below. See
+[collection mapping](collection-mapping.md) for exact provenance, backfill API,
+capacity, suppression, Undo, cleanup holds and rollout/rollback rules. Those
+rules supersede the historical F2-only statements below about unchanged collection
+behavior, removal never editing a source, and P2 being unimplemented. In P2,
+`add` establishes manual provenance even if collection provenance is active;
+explicit removal can clear the mapped legacy collection and bump its text revision.
+Protection adds `collection_pending` for unprocessed nonempty collection text.
+P2 account erasure also removes `collection_mappings`; P1 rollback is not safe
+for live writes once mapping is populated. No collection editor is hidden.
 
 ## Identity and aggregate reads
 
@@ -219,7 +232,7 @@ cleanup. T1 can use `pile` references resolved live in manual order, plus direct
 not create a materialized tray, snapshot members, or reserve speculative offline
 columns. Offline writes/pack lifetime belong to T2/T3.
 
-P2 mapping contract (not executed here): introduce an owner-scoped mapping table
+Established P2 mapping contract (now implemented; see the P2 extension above): introduce an owner-scoped mapping table
 with a unique `(owner, legacy_collection_key)` and stable `pile_id`; use the exact
 stored nonempty collection string (existing validation trims writes), never pile
 name as identity. Process old text rows in bounded batches with insert-on-conflict

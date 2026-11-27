@@ -184,3 +184,23 @@ newly exposed sources; exposure requires explicit acknowledgment. Pile deletion
 has no Undo; F2 individual membership Undo is preserved. Existing source APIs,
 collections, quotas and navigation remain unchanged. Requires 0010 before code;
 all prior F2 cleanup/rollback/account-erasure gates still apply.
+
+
+## Collection mapping (P2)
+
+After migrations `0011_collection_mapping.sql` and
+`0012_collection_capacity_pending.sql`, `GET /collection-backfill` inspects
+owner-scoped current progress and `POST /collection-backfill` with `{limit:25}`
+advances at most 50 current source rows transactionally. A 200 result can be
+`incomplete` or `blocked`; `complete` is explicit. See [the P2 contract](collection-mapping.md)
+for every field, retry rules, limits, source-write inventory, older-client versus
+older-Worker behavior, mapped-pile suppression and maintenance/rollback gates.
+New/imported/assigned collections receive provenance in the source transaction
+when capacity permits. At capacity the source still saves successfully; mapping
+is pending, cleanup is held and backfill reports the capacity block. Existing
+source success statuses and backup retry behavior are unchanged. Unexpected SQL
+failure still rolls back the whole source write. Manual pile/member operations
+retain their existing capacity errors.
+Existing membership add/remove/Undo contracts gain provenance and source CAS;
+shared cleanup reasons add `collection_pending`. Existing source payloads and
+backup formats stay unchanged; account erasure includes mapping/suppression.

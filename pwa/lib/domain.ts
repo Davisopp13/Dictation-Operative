@@ -150,7 +150,12 @@ export function changeClip(
   let versionKind: VersionKind | undefined;
   switch (input.action) {
     case 'organize':
-      next.collection = text(input.collection ?? '', 'Collection', 60, true);
+      // Tag-only saves must retain exact historical mapping identity, including
+      // whitespace or keys longer than today's new-input limit.
+      next.collection =
+        input.collection === current.collection
+          ? current.collection
+          : text(input.collection ?? '', 'Collection', 60, true);
       next.tags = tagList(input.tags ?? []);
       break;
     case 'pin':

@@ -993,7 +993,7 @@ void test('0010 preserves populated F2 piles, slots, receipts, revisions and unk
         "INSERT INTO piles(id,owner,name,color,revision,updated_at) VALUES('old-pile1','legacy-owner','Existing','mint',8,123)",
       ),
       db.prepare(
-        "INSERT INTO pile_members VALUES('old-pile1','legacy-owner','image','old-image',9,0,'old-operation')",
+        "INSERT INTO pile_members(pile_id,owner,kind,item_id,position,active,last_operation) VALUES('old-pile1','legacy-owner','image','old-image',9,0,'old-operation')",
       ),
       db.prepare(
         "INSERT INTO pile_operations VALUES('legacy-owner','old-operation','old-pile1','fingerprint','receipt')",

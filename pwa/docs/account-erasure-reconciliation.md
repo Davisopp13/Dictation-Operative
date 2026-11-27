@@ -6,6 +6,25 @@ It addresses Opus B1 and the B1-R1 tooling finding on
 No migration or runtime route is added by this fix. Production execution and any
 maintenance window still require the project's separate release authorization.
 
+## P2 schema/tool version
+
+The current generator targets **0011/0012** (0012 adds no tables) and emits six
+statements, adding
+`collection_mappings` after piles/member slots and before receipts/tombstones/
+workspace revision. Do not run this version against a 0009/0010-only schema;
+use that release's generator. P1 erasure on 0011 leaves exact collection keys,
+including suppression rows, and is incomplete even when all piles were deleted.
+P2 erases the new table in its account transaction. Before applying 0011,
+quiesce workspace writes, account changes and cleanup, drain in-flight requests,
+and capture verified owner evidence. Keep the gate closed through any old-Worker
+interval and reconciliation. After mapping population, P1 is not a live-write
+rollback target: its membership handlers cannot preserve provenance and its
+scheduler lacks the transitional hold. See [P2 rollout rules](collection-mapping.md).
+The six-table plan is locally tested with synthetic fixtures only; P1/F2's prior
+remote rehearsal does not establish remote execution of this changed plan.
+Any new remote rehearsal remains separately authorized. The guards below are
+unchanged; an unmatched owner is never permission to erase.
+
 ## Why this is necessary
 
 Migration 0009's source-delete triggers create `item_deletions`. The pinned
@@ -149,7 +168,7 @@ For each listed pair, the SQL requires all of these at **each statement**:
   usage or account AI-usage row belongs to that owner. Leftover ordinary workspace
   data means erasure was incomplete for another reason; investigate it separately.
 
-The audit reports the guard result and counts in all five maintenance tables.
+The audit reports the guard result and counts in all six maintenance tables.
 `eligible=1` means eligible **within the verified census**, not a general orphan
 classification. Unlisted owners are never inspected or deleted by the plan.
 An eligible row with all counts zero is already reconciled. A protected row with
@@ -176,20 +195,20 @@ npx wrangler d1 execute DB --config "$reconciliation_config" --remote --json --c
 # 2. Offline generation: consume that envelope directly; no database contact.
 node --import tsx scripts/prepare-erasure-reconciliation.ts "$reconciliation_evidence/snapshot.json" "$reconciliation_evidence/erasure-plan"
 
-# 3. Audit before apply: one envelope, each row has eligibility and five counts.
+# 3. Audit before apply: one envelope, each row has eligibility and six counts.
 npx wrangler d1 execute DB --config "$reconciliation_config" --remote --json --command="$(cat "$reconciliation_evidence/erasure-plan.audit.sql")" > "$reconciliation_evidence/audit-before.json"
 
 # 4. Apply only after reviewing/approving the concrete SQL and pre-audit.
 npx wrangler d1 execute DB --config "$reconciliation_config" --remote --json --command="$(cat "$reconciliation_evidence/erasure-plan.apply.sql")" > "$reconciliation_evidence/apply.json"
 
-# 5. Re-audit: every eligible row must have zero in all five residual columns.
+# 5. Re-audit: every eligible row must have zero in all six residual columns.
 npx wrangler d1 execute DB --config "$reconciliation_config" --remote --json --command="$(cat "$reconciliation_evidence/erasure-plan.audit.sql")" > "$reconciliation_evidence/audit-after.json"
 ```
 
 Check each command's exit status and JSON before continuing. Both audit envelopes
 must have `success: true` and readable `results` containing `accountId`, `owner`,
-`eligible`, `piles`, `pile_members`, `pile_operations`, `item_deletions`, and
-`workspace_revision`. Apply returns **five** statement entries with success and
+`eligible`, `piles`, `pile_members`, `collection_mappings`, `pile_operations`, `item_deletions`, and
+`workspace_revision`. Apply returns **six** statement entries with success and
 per-statement `meta` (including rows written on the remote query API); DELETE
 statements need not return rows. Empty audit results, an import summary, a wrong
 statement count or any unsuccessful statement are failures, not proof of erasure.
@@ -204,7 +223,7 @@ through audit/apply/verify so identity mappings cannot change beneath the plan.
 The flags were checked against installed Wrangler 4.92.0 help/source and the
 [official D1 command reference](https://developers.cloudflare.com/workers/wrangler/commands/d1/).
 
-The apply sequence deletes piles, remaining member slots, receipts, tombstones,
+The apply sequence deletes piles, remaining member slots, collection mappings/suppressions, receipts, tombstones,
 then workspace revisions **last**. Deleting a pile triggers a new workspace
 revision, so omitting the last delete would still leave account data. It does not
 delete authentication rows, sources, preferences, or either durable byte-deletion
@@ -214,7 +233,7 @@ Do not infer physical-byte deletion from an empty metadata audit.
 Each statement is independently guarded and idempotent. Even if execution stops
 after pile deletion, rerunning the full file clears the trigger-created revision
 and the remaining F2 metadata. Do not rely on all-file atomicity or change the
-order. Repeat the audit until eligible rows have zero in all five columns, and
+order. Repeat the audit until eligible rows have zero in all six columns, and
 check that live/mapped/unclaimed owners remain intact. Retain counts, target and
 completion evidence with the release record. Then reopen account mutations only
 on the erasure-compatible Worker. Securely remove temporary identity-bearing plan
@@ -223,7 +242,7 @@ files according to the release evidence retention policy.
 ## Local regression evidence
 
 `tests/erasure-reconciliation.test.ts` captures a pre-0009 account census, upgrades
-to 0009, and reproduces the exact ordered pre-F2 account-deletion database batch.
+through 0011, and reproduces the exact ordered pre-F2 account-deletion database batch.
 It confirms direct and mapped deleted owners retain tombstones, pile names and
 receipts before reconciliation. It exercises the generated SQL itself, including
 an interruption after pile deletion and a full retry, verifies no revision remains,

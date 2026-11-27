@@ -5,7 +5,15 @@ import { pageLimit } from './cursor';
 export type ItemReference = { kind: 'text' | 'image' | 'document'; id: string };
 export type CleanupStatus = {
   eligible: boolean;
-  reason: 'pinned' | 'pile' | 'tray' | 'document' | 'legacy' | 'history' | null;
+  reason:
+    | 'pinned'
+    | 'pile'
+    | 'tray'
+    | 'document'
+    | 'legacy'
+    | 'history'
+    | 'collection_pending'
+    | null;
   clearsAt: number | null;
 };
 export class ItemError extends AppError {
@@ -48,6 +56,10 @@ export type ItemRow = {
   clipboardItem: number;
   history: number;
   cleanupEnabled: number;
+  collection: string;
+  collectionSynced: number;
+  collectionPile: string | null;
+  collectionPending: number;
   piles: string;
 };
 // Keep sources in their existing stores; only ready documents are user items.
@@ -55,11 +67,12 @@ export const itemCTE = `WITH sources AS (
  SELECT owner,'text' AS kind,id,title AS name,substr(content,1,500) AS excerpt,length(content) AS contentLength,
  '' AS contentKind,'text/plain' AS mime,0 AS size,0 AS width,0 AS height,'' AS url,'' AS filename,
  pinned,revision,created_at AS createdAt,updated_at AS sortTime,clipboard_item AS clipboardItem,
- CASE WHEN json_array_length(segments)>1 THEN 1 ELSE 0 END AS history FROM clips
- UNION ALL SELECT owner,'image',id,name,'',0,'','image/png',size,width,height,'','',pinned,item_revision,created_at,created_at,1,0 FROM clipboard_images
- UNION ALL SELECT owner,'document',id,name,'',0,kind,mime,size,0,0,url,filename,pinned,item_revision,created_at,created_at,0,0 FROM content_items WHERE state='ready'
+ CASE WHEN json_array_length(segments)>1 THEN 1 ELSE 0 END AS history,collection,collection_synced AS collectionSynced FROM clips
+ UNION ALL SELECT owner,'image',id,name,'',0,'','image/png',size,width,height,'','',pinned,item_revision,created_at,created_at,1,0,'',1 FROM clipboard_images
+ UNION ALL SELECT owner,'document',id,name,'',0,kind,mime,size,0,0,url,filename,pinned,item_revision,created_at,created_at,0,0,'',1 FROM content_items WHERE state='ready'
 ), items AS (
- SELECT sources.*,COALESCE((SELECT clipboard_daily_cleanup FROM preferences WHERE owner=sources.owner),0) AS cleanupEnabled,
+ SELECT sources.*,CASE WHEN kind='text' AND collection<>'' AND collectionSynced=0 THEN 1 ELSE 0 END AS collectionPending,
+ (SELECT pile_id FROM collection_mappings WHERE owner=sources.owner AND collection_key=sources.collection) AS collectionPile,COALESCE((SELECT clipboard_daily_cleanup FROM preferences WHERE owner=sources.owner),0) AS cleanupEnabled,
  (SELECT json_group_array(json_object('id',p.id,'name',p.name,'color',p.color)) FROM piles p
  WHERE p.owner=sources.owner AND EXISTS(SELECT 1 FROM pile_members m WHERE m.pile_id=p.id AND m.owner=sources.owner AND m.kind=sources.kind AND m.item_id=sources.id AND m.active=1)) AS piles
  FROM sources
@@ -92,7 +105,7 @@ export type ProtectionRow = Pick<
   | 'history'
   | 'cleanupEnabled'
   | 'createdAt'
->;
+> & { collectionPending?: number };
 export function itemProtection(row: ProtectionRow, now: number) {
   const piles = JSON.parse(row.piles) as {
     id: string;
@@ -103,13 +116,15 @@ export function itemProtection(row: ProtectionRow, now: number) {
     ? 'pinned'
     : piles.length
       ? 'pile'
-      : row.kind === 'document'
-        ? 'document'
-        : row.history
-          ? 'history'
-          : !row.clipboardItem
-            ? 'legacy'
-            : null;
+      : row.collectionPending
+        ? 'collection_pending'
+        : row.kind === 'document'
+          ? 'document'
+          : row.history
+            ? 'history'
+            : !row.clipboardItem
+              ? 'legacy'
+              : null;
   const eligible = !!row.cleanupEnabled && reason === null;
   return {
     ref: { kind: row.kind, id: row.id } as ItemReference,
