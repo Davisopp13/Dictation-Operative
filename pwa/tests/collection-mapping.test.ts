@@ -10,6 +10,7 @@ import {
 import { runClipboardCleanup } from '../lib/clipboard-cleanup';
 import { writePileMember } from '../lib/pile-members';
 import { deletePile as deletePileDirect } from '../lib/piles';
+import { importedId, parseBackup } from '../lib/backup';
 import { insertClip } from '../lib/repository';
 import { newClip, type Clip } from '../lib/domain';
 import { reconciliationPlan } from '../lib/erasure-reconciliation';
@@ -146,6 +147,38 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
             .first())!.fingerprint,
           'old-fingerprint',
         );
+      },
+    );
+    await t.test(
+      '0012 preserves populated P2 sources, mappings, slots, receipts and revisions',
+      async () => {
+        await db
+          .prepare(
+            "INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,collection,collection_synced,created_at,updated_at) VALUES ('p2-upgrade-source','p2-upgrade','T','note','body','body','[]','[]','Existing mapping',1,0,0)",
+          )
+          .run();
+        const tables = [
+          'clips',
+          'piles',
+          'pile_members',
+          'collection_mappings',
+          'pile_operations',
+          'workspace_revision',
+        ];
+        const snapshot = async () =>
+          Promise.all(
+            tables.map(
+              async (table) =>
+                (
+                  await db
+                    .prepare(`SELECT * FROM ${table} ORDER BY rowid`)
+                    .all()
+                ).results,
+            ),
+          );
+        const before = await snapshot();
+        await apply('0012_collection_capacity_pending.sql');
+        assert.deepEqual(await snapshot(), before);
       },
     );
     // Typed local helper; these tests also exercise the real server auth/Origin routing.
@@ -632,9 +665,11 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
           content: 'capacity',
           collection: 'C',
         });
-        assert.equal(rejected.status, 409);
+        assert.equal(rejected.status, 201);
         assert.equal(await mapping(o, 'C'), undefined);
-        await db.prepare("DELETE FROM piles WHERE id='cap-pile-1'").run();
+        await db
+          .prepare("DELETE FROM piles WHERE id IN ('cap-pile-1','cap-pile-3')")
+          .run();
         assert.equal((await backfill(o)).complete, true);
         for (const id of ids) assert.equal((await row(id))!.content, 'body');
         const winner = await Promise.all([
@@ -650,7 +685,7 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
         ]);
         assert.deepEqual(
           winner.map((x) => x.status),
-          [409, 409],
+          [409, 201],
         );
         await db.prepare("DELETE FROM piles WHERE id='cap-pile-2'").run();
         await seed(o, 'Final key');
@@ -671,7 +706,7 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
         );
         assert.equal(
           (await inspectCollectionBackfill(db, o)).pending,
-          manualRace.status === 201 ? 1 : 0,
+          manualRace.status === 201 ? 2 : 1,
         );
       },
     );
@@ -705,19 +740,18 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
           content: 'capacity',
           collection: 'A',
         });
-        assert.equal(failed.status, 409);
+        assert.equal(failed.status, 201);
         // Unchanged collection/tag edits do not activate mapping or lose the hold.
         await organize(o, blocked, 'A');
         assert.equal((await row(blocked))!.collection_synced, 0);
         const candidate = await create(o, '');
-        const raw = JSON.stringify(await row(candidate.id));
-        const failedEdit = await request(o, 'clips/' + candidate.id, 'PATCH', {
-          action: 'organize',
-          revision: 1,
-          collection: 'A',
-        });
-        assert.equal(failedEdit.status, 409);
-        assert.equal(JSON.stringify(await row(candidate.id)), raw);
+        await organize(o, candidate.id, 'A');
+        assert.equal((await row(candidate.id))!.collection, 'A');
+        assert.equal((await row(candidate.id))!.collection_synced, 0);
+        assert.equal(
+          (await inspectCollectionBackfill(db, o)).memberCapacity,
+          3,
+        );
         await db.prepare("DELETE FROM clips WHERE id='slot-text-1'").run();
         assert.equal((await backfill(o)).processed, 1);
         assert.equal((await slots(o, a)).length, 500);
@@ -726,6 +760,300 @@ void test('P2 collection coexistence, transactional backfill and lifecycle on re
           2,
         );
         assert.equal((await row(initial.id))!.collection, 'A');
+      },
+    );
+    // Build capacity from real collection writes, not fabricated member counts.
+    const fillCollection = async (
+      owner: string,
+      key: string,
+      count: number,
+    ) => {
+      await db
+        .prepare(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<?)
+        INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,collection,collection_synced,created_at,updated_at)
+        SELECT ?||'-'||printf('%04d',x),?,'Old note','note','body','body','[]','[]',?,1,0,0 FROM n`)
+        .bind(count, owner, owner, key)
+        .run();
+      return (await mapping(owner, key))!;
+    };
+    await t.test(
+      'B1 restore crosses exhausted collection slots and keeps every later source, with safe whole-file retry',
+      async () => {
+        const o = 'restore-cap',
+          pile = await fillCollection(o, 'Inbox', 500);
+        await db
+          .prepare(
+            "UPDATE clips SET collection='',revision=revision+1 WHERE owner=?",
+          )
+          .bind(o)
+          .run();
+        assert.equal((await slots(o, pile)).length, 500);
+        assert.equal((await slots(o, pile)).filter((x) => x.active).length, 0);
+        const originalSlots = await slots(o, pile);
+        const native = await create(o, 'Inbox'),
+          legacy = await create(o, 'Inbox', uuid(), true);
+        for (const id of [native.id, legacy.id]) {
+          assert.equal((await row(id))!.collection_synced, 0);
+          assert.equal(
+            (await ok(o, 'v1/items/text/' + id)).cleanup.reason,
+            'collection_pending',
+          );
+        }
+        const backup = parseBackup({
+          app: 'DO',
+          version: 1,
+          clips: ['Other', 'Inbox', '', 'Other'].map((collection, i) =>
+            newClip(
+              {
+                id: uuid(),
+                collection,
+                content: 'Restored body ' + i,
+                title: 'Restored ' + i,
+                tags: ['backup'],
+              },
+              1000,
+            ),
+          ),
+        });
+        let restored = 0;
+        // Same bounded, sequential import request loop as workspace.restoreBackup.
+        for (const clip of backup)
+          if ((await ok(o, 'import', 'POST', { clip })).imported) restored++;
+        assert.equal(restored, 4);
+        for (const clip of backup) {
+          const id = await importedId(o, clip.id),
+            saved = await ok(o, 'clips/' + id);
+          assert.deepEqual(saved, { ...clip, id, revision: 1 });
+        }
+        const blockedId = await importedId(o, backup[1].id);
+        assert.equal((await row(blockedId))!.collection_synced, 0);
+        assert.equal(
+          (await inspectCollectionBackfill(db, o)).memberCapacity,
+          3,
+        );
+        const revision = (await ok(o, 'v1/revision')).revision;
+        for (const clip of backup)
+          assert.equal(
+            (await ok(o, 'import', 'POST', { clip })).imported,
+            false,
+          );
+        assert.equal((await ok(o, 'v1/revision')).revision, revision);
+        assert.deepEqual(await slots(o, pile), originalSlots);
+        // Cleanup cannot delete an old pending capture; imports retain their ordinary legacy exemption too.
+        await enable(o);
+        await db
+          .prepare('UPDATE clips SET created_at=0 WHERE id IN (?,?)')
+          .bind(native.id, legacy.id)
+          .run();
+        await purge();
+        for (const id of [native.id, legacy.id, blockedId])
+          assert.ok(await row(id));
+        assert.equal((await backfill(o)).processed, 0);
+        // Explicit source deletion, not merely reassignment, frees a retained slot.
+        await ok(o, 'clips/' + o + '-0001', 'DELETE', { revision: 2 });
+        const resumed = await backfill(o);
+        assert.equal(resumed.processed, 1);
+        assert.equal(resumed.memberCapacity, 2);
+        assert.equal((await slots(o, pile)).length, 500);
+      },
+    );
+    await t.test(
+      'B1 100 empty mapped piles do not prevent new collections, imports or later unfiled restore rows',
+      async () => {
+        const o = 'empty-maps';
+        await db
+          .prepare(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<100)
+        INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,collection,collection_synced,created_at,updated_at)
+        SELECT 'empty-map-source-'||x,?,'Old','note','body','body','[]','[]','Key '||x,1,0,0 FROM n`)
+          .bind(o)
+          .run();
+        await db.prepare('DELETE FROM clips WHERE owner=?').bind(o).run();
+        assert.equal((await inspectCollectionBackfill(db, o)).mappedKeys, 100);
+        const sources = await Promise.all([
+          create(o, 'New key'),
+          create(o, 'Newer key', uuid(), true),
+        ]);
+        const backup = [
+          newClip({
+            id: uuid(),
+            content: 'capacity import',
+            collection: 'Import key',
+          }),
+          newClip({ id: uuid(), content: 'later unfiled' }),
+        ];
+        for (const clip of backup)
+          assert.equal(
+            (await ok(o, 'import', 'POST', { clip })).imported,
+            true,
+          );
+        for (const source of sources)
+          assert.equal((await row(source.id))!.collection_synced, 0);
+        const state = await backfill(o);
+        assert.equal(state.pileCapacity, 3);
+        assert.equal(state.complete, false);
+        assert.equal(state.mappedKeys, 100);
+        assert.equal(await mapping(o, 'New key'), undefined);
+        assert.ok(await row(await importedId(o, backup[1].id)));
+        assert.equal(
+          (
+            await request(o, 'v1/piles', 'POST', {
+              operationId: uuid(),
+              name: 'Still full',
+            })
+          ).status,
+          409,
+        );
+      },
+    );
+    await t.test(
+      'B1 moving to a full collection removes only old collection provenance and rolls back on real SQL failure',
+      async () => {
+        const o = 'move-full',
+          full = await fillCollection(o, 'Full', 500),
+          item = await create(o, 'Old'),
+          old = (await mapping(o, 'Old'))!;
+        await member(o, old, item.id, 'add');
+        const prior = await row(item.id),
+          priorSlots = await slots(o, old),
+          priorFull = await slots(o, full),
+          revision = (await ok(o, 'v1/revision')).revision;
+        await db
+          .prepare(`CREATE TRIGGER fail_pending_write BEFORE UPDATE OF collection_synced ON clips
+        WHEN NEW.owner='move-full' AND NEW.collection_synced=0 BEGIN SELECT RAISE(ABORT,'synthetic pending failure'); END`)
+          .run();
+        const failed = await request(o, 'clips/' + item.id, 'PATCH', {
+          action: 'organize',
+          collection: 'Full',
+          revision: item.revision,
+        });
+        assert.equal(failed.status, 500);
+        assert.deepEqual(await row(item.id), prior);
+        assert.deepEqual(await slots(o, old), priorSlots);
+        assert.deepEqual(await slots(o, full), priorFull);
+        assert.equal((await ok(o, 'v1/revision')).revision, revision);
+        await db.prepare('DROP TRIGGER fail_pending_write').run();
+        await organize(o, item.id, 'Full', true);
+        assert.equal((await row(item.id))!.collection_synced, 0);
+        assert.deepEqual(
+          (await slots(o, old)).map((x) => [
+            x.manual,
+            x.collection_key,
+            x.active,
+          ]),
+          [[1, null, 1]],
+        );
+        assert.deepEqual(await slots(o, full), priorFull);
+        // Source CAS and duplicate create still reject/replay without an accidental mapping attempt.
+        assert.equal(
+          (
+            await request(o, 'v1/text/' + item.id, 'PATCH', {
+              action: 'organize',
+              collection: 'Fresh',
+              revision: item.revision,
+            })
+          ).status,
+          409,
+        );
+        assert.equal(await mapping(o, 'Fresh'), undefined);
+        assert.equal((await create(o, 'Fresh', item.id)).collection, 'Full');
+        await organize(o, item.id, '');
+        assert.equal((await row(item.id))!.collection_synced, 1);
+        assert.equal((await slots(o, full)).length, 500);
+        assert.equal((await slots(o, old))[0].active, 1);
+      },
+    );
+    await t.test(
+      'B1 later moves reconcile pending sources and same-key saves keep the cleanup hold',
+      async () => {
+        const o = 'pending-moves',
+          full = await fillCollection(o, 'Full', 500),
+          item = await create(o, 'Full');
+        assert.equal((await row(item.id))!.collection_synced, 0);
+        await ok(o, 'clips/' + item.id, 'PATCH', {
+          action: 'organize',
+          collection: 'Full',
+          tags: ['edited'],
+          revision: 1,
+        });
+        assert.equal((await row(item.id))!.collection_synced, 0);
+        await organize(o, item.id, 'Available');
+        const available = (await mapping(o, 'Available'))!;
+        assert.equal((await row(item.id))!.collection_synced, 1);
+        assert.equal((await slots(o, available)).length, 1);
+        await organize(o, item.id, 'Full');
+        assert.equal((await row(item.id))!.collection_synced, 0);
+        assert.equal((await slots(o, available))[0].active, 0);
+        assert.equal((await slots(o, full)).length, 500);
+        await enable(o);
+        await db
+          .prepare('UPDATE clips SET created_at=0 WHERE id=?')
+          .bind(item.id)
+          .run();
+        await purge();
+        assert.ok(await row(item.id));
+        assert.equal(
+          (await ok(o, 'v1/items/text/' + item.id)).cleanup.reason,
+          'collection_pending',
+        );
+      },
+    );
+    await t.test(
+      'Remove and Undo round-trip NUL and Unicode exact keys through the capacity-aware trigger',
+      async () => {
+        for (const key of ['nul\0key', 'e\u0301🗂']) {
+          const o = 'unusual-undo',
+            item = await create(o, key),
+            pile = (await mapping(o, key))!;
+          const removed = await member(o, pile, item.id, 'removeAndPin');
+          assert.equal((await row(item.id))!.collection, '');
+          await member(o, pile, item.id, 'restore', {
+            undoOperationId: removed.operationId,
+          });
+          assert.equal((await row(item.id))!.collection, key);
+          assert.equal((await row(item.id))!.pinned, 1);
+          assert.equal((await slots(o, pile))[0].collection_key, key);
+          assert.equal((await row(item.id))!.collection_synced, 1);
+        }
+      },
+    );
+    await t.test(
+      'O2 tag-only organize preserves exact historical identity and pending holds on both routes',
+      async () => {
+        const o = 'exact-tag-edit';
+        for (const key of [
+          '  Inbox  ',
+          ' '.repeat(4),
+          'x'.repeat(80),
+          'e\u0301🗂',
+        ]) {
+          const id = await seed(o, key);
+          for (const path of ['clips/', 'v1/text/']) {
+            const before = (await row(id))!;
+            await ok(o, path + id, 'PATCH', {
+              action: 'organize',
+              revision: before.revision,
+              collection: key,
+              tags: ['updated'],
+            });
+            assert.equal((await row(id))!.collection, key);
+            assert.equal((await row(id))!.collection_synced, 0);
+            assert.equal(await mapping(o, key), undefined);
+            assert.equal(
+              (await ok(o, 'v1/items/text/' + id)).cleanup.reason,
+              'collection_pending',
+            );
+          }
+          await backfill(o);
+          const pile = (await mapping(o, key))!,
+            originalSlots = await slots(o, pile);
+          await organize(o, id, key, true);
+          assert.equal((await row(id))!.collection, key);
+          assert.deepEqual(await slots(o, pile), originalSlots);
+          // A deliberate changed input still follows the existing new-key rules.
+          await organize(o, id, '  Changed  ');
+          assert.equal((await row(id))!.collection, 'Changed');
+          assert.ok(await mapping(o, 'Changed'));
+        }
       },
     );
     const beforeBatch = (effect: () => Promise<unknown>, ordinal = 1) => {

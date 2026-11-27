@@ -122,6 +122,17 @@ try {
   assert.equal(advanced.status,200,await advanced.clone().text());
   const state=await advanced.json(); assert.equal(state.processed,1); assert.equal(state.complete,true);
   const mapped=await bearer('/api/v1/items/text/native-legacy-p2'); assert.equal((await mapped.json()).cleanup.reason,'pile');
+  // B1: native bearer creates also save pending when all 100 piles are occupied.
+  const nativeOwner = (await db.prepare('SELECT owner FROM clips WHERE id=?').bind(nativeText.id).first()).owner;
+  await db.prepare(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<99)
+    INSERT INTO piles(id,owner,name,revision,updated_at) SELECT 'native-capacity-'||x,?,'Full',1,0 FROM n`).bind(nativeOwner).run();
+  const pendingId=crypto.randomUUID();
+  const deferred=await bearer('/api/v1/text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:pendingId,content:'Native pending text',collection:'New native key',clipboardItem:true})});
+  assert.equal(deferred.status,201,await deferred.clone().text()); assert.equal(deferred.headers.get('Cache-Control'),'no-store');
+  assert.equal((await deferred.json()).collection,'New native key');
+  assert.equal((await (await bearer('/api/v1/items/text/'+pendingId)).json()).cleanup.reason,'collection_pending');
+  const blocked=await (await bearer('/api/v1/collection-backfill',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+  assert.equal(blocked.status,'blocked'); assert.equal(blocked.pileCapacity,1); assert.equal(blocked.processed,0);
   const tampered = await mf.dispatchFetch(origin + '/api/v1/text', { headers: { Authorization: 'Bearer ' + tokens.access_token.slice(0, -3) + 'AAA' } });
   assert.equal(tampered.status, 401);
   await tampered.text();
@@ -131,7 +142,7 @@ try {
   });
   assert.equal(refreshed.status, 200, await refreshed.clone().text());
   await refreshed.text();
-  console.log('Built Worker passed: setup route, protected password creation, same-account alternate-host login and workspace access, native sign-in with PKCE, bearer access and refresh.');
+  console.log('Built Worker passed: setup route, protected password creation, same-account alternate-host login and workspace access, native sign-in with PKCE, bearer access, capacity-pending collection saves and refresh.');
 } finally {
   await mf.dispose();
 }

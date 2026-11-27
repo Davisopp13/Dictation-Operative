@@ -9,7 +9,7 @@ deployment, collection backfill or tray was added.
 
 ## P2 extension
 
-P2 requires migration 0011 and implements the collection contract below. See
+P2 requires migrations 0011 and 0012 and implements the collection contract below. See
 [collection mapping](collection-mapping.md) for exact provenance, backfill API,
 capacity, suppression, Undo, cleanup holds and rollout/rollback rules. Those
 rules supersede the historical F2-only statements below about unchanged collection

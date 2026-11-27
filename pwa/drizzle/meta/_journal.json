@@ -85,6 +85,13 @@
       "when": 1795799924168,
       "tag": "0011_collection_mapping",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795805399082,
+      "tag": "0012_collection_capacity_pending",
+      "breakpoints": true
     }
   ]
 }

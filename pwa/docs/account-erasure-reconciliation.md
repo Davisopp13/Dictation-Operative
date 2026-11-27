@@ -8,7 +8,8 @@ maintenance window still require the project's separate release authorization.
 
 ## P2 schema/tool version
 
-The current generator targets **0011** and emits six statements, adding
+The current generator targets **0011/0012** (0012 adds no tables) and emits six
+statements, adding
 `collection_mappings` after piles/member slots and before receipts/tombstones/
 workspace revision. Do not run this version against a 0009/0010-only schema;
 use that release's generator. P1 erasure on 0011 leaves exact collection keys,

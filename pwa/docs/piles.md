@@ -8,7 +8,7 @@ Sheets shortcuts remain ready `document` references. Use the existing
 
 ## P2 coexistence
 
-After migration 0011, [collection mapping](collection-mapping.md) extends these
+After migrations 0011 and 0012, [collection mapping](collection-mapping.md) extends these
 same piles/slots/receipts. Mapping-created piles count against the same limits.
 Manual add can change provenance without changing active count. Deleting a mapped
 pile permanently suppresses its exact collection key; source collections stay

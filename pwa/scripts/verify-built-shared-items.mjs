@@ -347,6 +347,41 @@ try {
   await get('clips/built-legacy-p2','PATCH',{action:'rename',title:'Unrelated',revision:legacyCurrent.revision});
   assert.equal((await get('v1/collection-backfill','POST',{})).suppressedKeys,1);
   assert.equal((await get('v1/items/text/built-legacy-p2')).piles.length,0);
+  // B1: the actual sequential restore protocol crosses slot capacity and keeps
+  // later unfiled rows; whole-file retry remains safe on the built session router.
+  const capacity = await signup('builtcapacity');
+  const capacityRequest = (path, method = 'GET', body) => request(path, method, body, capacity.cookie);
+  await db.prepare(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<499)
+    INSERT INTO clips(id,owner,title,kind,content,original,segments,versions,collection,collection_synced,created_at,updated_at)
+    SELECT 'built-capacity-'||x,?,'Old','note','body','body','[]','[]','Inbox',1,0,0 FROM n`).bind(capacity.owner).run();
+  const backup = ['Inbox', 'Inbox', ''].map((collection) => {
+    const id = crypto.randomUUID();
+    return { id, title: 'Restore '+id, kind: 'note', content: 'Restored body', original: 'Restored body', context: '', collection, tags: ['restore'], pinned: false, revision: 1, createdAt: 1, updatedAt: 1,
+      segments: [{id: crypto.randomUUID(), text: 'Restored body', createdAt: 1}],
+      versions: [{id: crypto.randomUUID(), text: 'Restored body', kind: 'original', createdAt: 1}] };
+  });
+  for (const imported of [true, false]) for (const clip of backup) {
+    const response = await capacityRequest('import', 'POST', {clip});
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.equal((await response.json()).imported, imported);
+  }
+  assert.equal((await db.prepare('SELECT count(*) n FROM clips WHERE owner=?').bind(capacity.owner).first()).n,502);
+  const blockedResponse = await capacityRequest('v1/collection-backfill', 'POST', {limit:50});
+  assert.equal(blockedResponse.status,200);
+  const blocked = await blockedResponse.json();
+  assert.equal(blocked.status,'blocked'); assert.equal(blocked.pending,1); assert.equal(blocked.memberCapacity,1); assert.equal(blocked.processed,0);
+  const deferred = await db.prepare(`SELECT id FROM clips WHERE owner=? AND collection_synced=0 AND collection<>''`).bind(capacity.owner).first();
+  assert.equal((await (await capacityRequest('v1/items/text/'+deferred.id)).json()).cleanup.reason,'collection_pending');
+  // A new clipboard capture also survives the real scheduled cleanup while blocked.
+  const captureId = crypto.randomUUID();
+  const capture = await capacityRequest('clips','POST',{id:captureId,content:'Keep pending capture',collection:'Inbox',clipboardItem:true});
+  assert.equal(capture.status,201,await capture.clone().text());
+  await db.prepare('UPDATE clips SET created_at=0 WHERE owner=? AND id=?').bind(capacity.owner,captureId).run();
+  assert.equal((await capacityRequest('settings','POST',{action:'clipboard-cleanup',enabled:true})).status,200);
+  await (await mf.getWorker()).scheduled({scheduledTime:Date.now(),cron:'0 8 * * *'});
+  assert.equal((await capacityRequest('clips/'+captureId)).status,200);
+  assert.equal((await (await capacityRequest('v1/items/text/'+captureId)).json()).cleanup.reason,'collection_pending');
   const erased = await request('auth/account-deletion', 'POST', {
     confirmEmail: 'builtsharedalice@example.test',
   });
@@ -378,7 +413,7 @@ try {
     200,
   );
   console.log(
-    'Built shared items Worker passed: P2 mapping/backfill/provenance/suppression and P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
+    'Built shared items Worker passed: P2 capacity-safe restore/capture/retry/cleanup, mapping/backfill/provenance/suppression and P1 lifecycle, mixed selection, stale impact, pin/expose deletion, source bytes/quota preservation, complete erasure, owner isolation, F2 retries/Undo and cleanup.',
   );
 } finally {
   await mf.dispose();

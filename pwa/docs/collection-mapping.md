@@ -1,7 +1,9 @@
 # Collection mapping and backfill (P2)
 
-Requires additive `0011_collection_mapping.sql` after 0000–0010. This extends
-[F2 memberships](shared-items.md) and [P1 piles](piles.md). Navigation, start page,
+Requires additive `0011_collection_mapping.sql` after 0000–0010, then
+`0012_collection_capacity_pending.sql` before activation. The latter replaces two
+source reconciliation triggers without rewriting rows, slots or receipts. This
+extends [F2 memberships](shared-items.md) and [P1 piles](piles.md). Navigation, start page,
 Collection editor, source payloads, text-only filters, tags and backup format stay
 as they are. No UI, tray, general bookmarks, printing or source copies are added.
 
@@ -56,11 +58,18 @@ The actual mutation inventory is:
 
 Collection triggers run **after a successful source insert/update**, inside that
 statement's transaction. A→B removes only A's collection provenance, preserves
-manual A membership, and adds B's collection provenance. Clearing removes only
+manual A membership, and adds B's collection provenance when capacity permits.
+Clearing removes only
 collection provenance. New creates/imports and actual collection changes that need
-unavailable pile/slot capacity fail with HTTP **409 `collection_capacity`**, leaving
-source, history, mapping and provenance unchanged. An unrelated edit of an
-unprocessed historical row does not try to migrate it or remove its cleanup hold.
+unavailable pile/slot capacity **save successfully with `collection_synced=0`**.
+The source, history and requested collection are committed; old collection
+provenance is removed while manual membership and retained slots stay intact.
+The pending source receives the cleanup hold and appears in blocked progress.
+This lets the existing sequential backup restore continue to every later item;
+whole-file retry still skips already imported IDs. Unexpected SQL failures roll
+back the entire source write and provenance changes. Source response shapes and
+normal create/import/edit success statuses remain unchanged. An unrelated edit of
+an unprocessed historical row does not try to migrate it or remove its cleanup hold.
 A stale save cannot change provenance. Source success still uses `RETURNING`,
 not trigger-inclusive change counts. Workspace invalidation comes from the
 existing SQL triggers; redundant application bumps on rejected text writes were
@@ -76,8 +85,9 @@ their existing identity boundary. Backfill uses the same guard.
 An explicit removal of an active slot removes both provenances. If the pile maps
 the text's current collection, it clears `clips.collection`, increments the text
 revision and updates its normal sort time in the same transaction. Source revision
-is checked at the serialization point even for plain Remove. Remove and pin also
-pins atomically; clearing and pinning may each increment the text revision. Bodies,
+is checked at the serialization point when clearing the collection or pinning.
+A manual-only plain Remove relies on the pile revision and does not edit the
+source. Remove and pin also pins atomically; clearing and pinning may each increment the text revision. Bodies,
 versions, tags and segments are untouched. Removing an absent/inactive membership
 is a no-op, except Remove and pin can still establish the requested pin.
 
@@ -124,8 +134,9 @@ Response (POST adds `processed`; GET omits it):
 }
 ```
 
-All counters are owner-scoped. `pending` counts nonempty historical collection
-rows not reconciled or changed to a different collection value; its four categories are disjoint.
+All counters are owner-scoped. `pending` counts nonempty collection rows with
+`collection_synced=0`, including historical rows and new captures/imports/assignments
+deferred by capacity. Its four categories are disjoint.
 `mappedMembers` counts collection provenance, not all effective manual members.
 `mappedKeys` counts live mappings including currently empty piles. Suppressed keys
 are not advertised as mapped. `status` is `complete` if pending=0, `incomplete` if
@@ -152,8 +163,8 @@ name/color, position, provenance and receipts are never reset by a retry.
 `complete=true` proves at the reported transaction snapshot that no pending
 nonempty collection row remains. There is no moving pagination boundary: a row
 created/changed/deleted between calls is re-evaluated from current state, including
-IDs sorting before previously processed rows. Normal P2 writes keep this invariant
-transactionally. An older Worker can create new pending rows later, so completion
+IDs sorting before previously processed rows. Normal P2 writes reconcile
+immediately when capacity permits and can create new pending rows when full. An older Worker can also create pending rows, so completion
 is not a promise about future writes. Suppressed, deliberately assigned rows can
 be complete without membership: `suppressedKeys` reports that intentional policy.
 
@@ -163,11 +174,18 @@ The same 100-pile account limit and 500 **retained slots** per pile apply to man
 and mapping operations. Active manual references and inactive Undo slots consume
 capacity. Existing slots can acquire collection provenance without a new slot.
 Backfill reports capacity-blocked rows rather than rejecting the whole useful
-batch. New source assignments fail atomically if they cannot fit. Free capacity
-by a normal pile deletion or source deletion, or deliberately clear/reassign a
-collection; then repeat POST. No automatic limits increase, slot eviction, splitting
-of keys, source loss, hidden pinning or "complete after skipping" behavior exists.
-A >500-item collection cannot fit without deliberate user organization changes.
+batch. New captures, imports and assignments save as pending when they cannot
+fit; they do not require capacity recovery to preserve the source or continue a
+backup restore. Existing-slot reactivation still fits at 500 retained slots.
+
+Deleting a source frees its retained slots. Deleting a pile frees account pile
+capacity and suppresses that pile's mapped key as described below. Clearing or
+reassigning a collection can resolve that source's pending work, but **does not
+free its old retained slots or remove empty mapped piles**. After actual capacity
+becomes available, repeat POST to map remaining pending sources. No automatic
+limits increase, slot compaction/eviction, key splitting, source loss, hidden
+pinning or "complete after skipping" behavior exists. A >500-item collection
+cannot all fit in one pile; excess sources remain safely pending.
 
 Deleting a mapped pile permanently suppresses its exact owner/key for this account
 lifetime: `pile_id=NULL` is the suppression, never a dangling live mapping. Pile
@@ -177,9 +195,9 @@ it**. A user can create a manual pile and add those sources, or use a different
 exact collection key for a new automatic mapping. There is no unsuppress endpoint
 or mapped-pile deletion Undo in P2. This policy is intentionally conservative.
 
-A historical text with nonempty collection and `collection_synced=0` has a
-**transitional cleanup hold**, even before the first backfill request and while
-capacity-blocked or suppressed-pending. Shared reads/receipts/impact calculations
+Any text with nonempty collection and `collection_synced=0` has an explicit
+**pending cleanup hold**, including new capacity-deferred sources, even before
+the first backfill request and while capacity-blocked or suppressed-pending. Shared reads/receipts/impact calculations
 report `{eligible:false, reason:"collection_pending", clearsAt:null}` when no
 higher-priority pin/pile protection exists. This is not a claim of committed pile
 membership. The scheduler adds exactly this owner/source predicate to its existing
@@ -187,13 +205,17 @@ transactional exclusion. It does not disable cleanup globally; ordinary unfiled
 text/images retain opt-in, age and history rules.
 
 After successful backfill the hold is replaced atomically by real membership.
-Clearing or changing the exact collection value replaces/releases the hold within
-the source write transaction. Unchanged collection values, including legacy
-organize requests that only change tags, preserve the hold; use backfill to map
-unchanged historical values. After mapped-pile
-deletion, unprocessed rows keep their hold and `suppressedPending` remains blocked.
+Clearing the collection releases the hold; changing it reconciles the new key
+in the same source transaction and keeps a hold if the new key is capacity-blocked.
+Unchanged exact collection values, including legacy organize requests that only
+change tags, preserve the hold; use backfill to map unchanged historical values.
+Tag-only organize preserves historical whitespace and overlength keys exactly;
+changed input still uses the existing trimming and 60-character validation.
+After mapped-pile deletion, unprocessed rows keep their hold and `suppressedPending` remains blocked.
 They are not part of the pile's active members and cannot be silently exposed by
-its deletion. Previously mapped members use P1's existing workspace-bound impact:
+its deletion. This hold can last indefinitely, especially for suppressed keys or
+capacity that is never freed; it is not a promise of automatic eventual migration.
+Previously mapped members use P1's existing workspace-bound impact:
 safe mode pins newly exposed members; expose requires acknowledgment. No bulk
 collection rewrite is used. Other manual piles and pins continue protecting sources.
 Provenance-only changes invalidate confirmation even when visible counts are equal.
@@ -206,8 +228,10 @@ An older deployed **Worker** is a different case:
 1. Quiesce workspace/account mutations and scheduled cleanup through the approved
    maintenance mechanism; drain in-flight requests before schema change. Capture
    verified account/owner evidence per the [erasure runbook](account-erasure-reconciliation.md).
-2. Apply 0011 after its prerequisites. It only adds schema/triggers/index/view;
-   it does not map sources. Default source marker=0 and inherited manual provenance
+2. Apply 0011 after its prerequisites, then 0012. Neither maps sources: 0011
+   adds schema/triggers/index/view; 0012 replaces the two source triggers without
+   changing stored data. A populated 0011 upgrade also requires 0012 before
+   reopening. Default source marker=0 and inherited manual provenance
    preserve populated P1 data. P1's scheduler lacks the transitional hold, so it
    must not run during this window. P1 account deletion lacks mapping erasure.
 3. Deploy P2 before reopening writes/scheduling. New source/import/assignment
@@ -216,16 +240,16 @@ An older deployed **Worker** is a different case:
    before reopening. Do not activate mapping on a P1 serving fleet.
 4. In an old-Worker text-write window, new inserts and unsynced historical rows
    remain marker=0 and pending. Updates to already synced collection values still
-   run the SQL reconciliation trigger. Capacity failure aborts their source write,
-   but an old Worker may return generic 500 rather than P2's 409. Unchanged values
-   do not resurrect suppressed mappings. These tests do not make old membership
+   run the SQL reconciliation trigger. With 0012, capacity defers those assignments
+   as pending without aborting the source write. Unchanged values do not resurrect
+   suppressed mappings. These tests do not make old membership
    handlers, cleanup or account-erasure code P2-compatible.
 5. **Rollback to P1 is not a safe live-write rollback after mapping population**:
    old membership handlers cannot maintain provenance, old cleanup misses pending
    holds, and old erasure leaves mappings/suppressions. Before any population the
    additive schema is source-compatible, but the pending-hold/scheduler and
    old-erasure gates still apply. A rollback interval must remain quiesced; retain
-   0011 and return to corrected P2, reconcile, verify, then reopen. Do not delete
+   0011/0012 and return to corrected P2, reconcile, verify, then reopen. Do not delete
    populated metadata or use P1 to process new pile commands. Unknown/unquiesced
    intervals require explicit investigation, not an assertion of reconciliation.
 
@@ -235,6 +259,6 @@ workspace revision. Sync/provenance metadata lives on source/member rows and is
 erased with them. The reconciliation generator now audits/removes six tables,
 including `collection_mappings`, preserving verified-owner evidence, live/raw/mapped
 account guards, unclaimed owners and durable byte queues. Validate the generated
-plan against a 0011 schema; use the previous release tool for a 0009/0010-only
-schema. Local synthetic tests do not replace a separately authorized remote query
+plan against a 0011/0012 schema (0012 adds no table); use the previous release
+tool for a 0009/0010-only schema. Local synthetic tests do not replace a separately authorized remote query
 API rehearsal or production release. No such action is authorized by this code.
