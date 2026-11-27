@@ -19,7 +19,10 @@ export class ItemError extends AppError {
 }
 export function itemReference(value: unknown): ItemReference {
   const input = object(value);
-  if (!['text', 'image', 'document'].includes(String(input.kind)))
+  if (
+    typeof input.kind !== 'string' ||
+    !['text', 'image', 'document'].includes(input.kind)
+  )
     throw new AppError('Unknown item kind.');
   return { kind: input.kind as ItemReference['kind'], id: id(input.id) };
 }

@@ -1,4 +1,12 @@
 import {
+  listPiles,
+  readPile,
+  createPile,
+  updatePile,
+  readPileDeletionImpact,
+  deletePile,
+} from './piles';
+import {
   listSharedItems,
   itemReference,
   itemStatement,
@@ -97,6 +105,34 @@ export async function handleV1(
     if (!row) return missingItem(s.db, s.owner, ref);
     return json(sharedItem(row));
   }
+  if (path === 'piles') {
+    if (method === 'GET') return json(await listPiles(s.db, s.owner, url));
+    if (method === 'POST') {
+      const result = await createPile(
+        s.db,
+        s.owner,
+        await body(request, 12000),
+        s.accountId,
+      );
+      return json(result, result.replayed ? 200 : 201);
+    }
+  }
+  const pile = /^piles\/([^/]+)$/.exec(path);
+  if (pile) {
+    const pileId = id(pile[1]);
+    if (method === 'GET') return json(await readPile(s.db, s.owner, pileId));
+    if (method === 'PATCH')
+      return json(
+        await updatePile(s.db, s.owner, pileId, await body(request, 12000)),
+      );
+    if (method === 'DELETE')
+      return json(
+        await deletePile(s.db, s.owner, pileId, await body(request, 12000)),
+      );
+  }
+  const impact = /^piles\/([^/]+)\/deletion-impact$/.exec(path);
+  if (impact && method === 'GET')
+    return json(await readPileDeletionImpact(s.db, s.owner, id(impact[1])));
   const members = /^piles\/([^/]+)\/members$/.exec(path);
   if (members) {
     const pileId = id(members[1]);

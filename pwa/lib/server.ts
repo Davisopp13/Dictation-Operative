@@ -29,6 +29,8 @@ export type Services = {
   images?: ImageStore;
   content?: ContentStore;
   owner: string;
+  /** Present for application sessions/bearer; absent for Access/local owners. */
+  accountId?: string;
   /**
    * How the caller proved who they are. A bearer token is sent deliberately by
    * a native client, so it needs no same-origin check; a session cookie is

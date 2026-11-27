@@ -241,3 +241,17 @@ or partial-failure semantics. The remote shape/routing was checked against the
 pinned Wrangler source. The authorized non-production remote rehearsal above is
 still required before a release. No remote D1, migration, deployment, production
 maintenance or account pause was performed for this fix.
+
+
+## P1 additive metadata
+
+P1's migration 0010 adds only nullable `piles.created_at`; lifecycle operations use
+the existing `pile_operations` table, retaining create/update/delete receipts
+for the account lifetime even when a pile is gone. No additional reconciliation
+table or deletion order is needed. The existing F2 erasure batch removes these
+rows, and P1 tests exercise actual lifecycle receipts for raw and mapped owners.
+Application-session/bearer pile creation rechecks the live account-to-owner mapping
+inside its insert transaction, preventing an authenticated in-flight create from
+resurrecting metadata after erasure. Legacy Access/local owners retain their
+existing identity boundary. These changes do not relax any pre-F2 old-Worker
+maintenance, evidence or reconciliation requirement above.

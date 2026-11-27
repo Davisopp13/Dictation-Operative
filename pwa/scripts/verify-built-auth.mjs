@@ -106,6 +106,13 @@ try {
   const listed = await bearer('/api/v1/text');
   assert.equal(listed.status, 200);
   assert.equal((await listed.json()).items.length, 1);
+  const nativePileRequest = {operationId:crypto.randomUUID(),name:'Native pile'};
+  const nativePileResponse = await bearer('/api/v1/piles', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nativePileRequest)});
+  assert.equal(nativePileResponse.status,201,await nativePileResponse.clone().text());
+  const nativePile=(await nativePileResponse.json()).pile;
+  const nativeRead=await bearer('/api/v1/piles/'+nativePile.id);assert.equal(nativeRead.status,200);assert.equal((await nativeRead.json()).pile.name,'Native pile');
+  const nativeImpactResponse=await bearer('/api/v1/piles/'+nativePile.id+'/deletion-impact');assert.equal(nativeImpactResponse.status,200);const nativeImpact=await nativeImpactResponse.json();
+  const nativeDelete=await bearer('/api/v1/piles/'+nativePile.id,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({operationId:crypto.randomUUID(),revision:nativePile.revision,impactToken:nativeImpact.impactToken,mode:'pin'})});assert.equal(nativeDelete.status,200,await nativeDelete.clone().text());
   const tampered = await mf.dispatchFetch(origin + '/api/v1/text', { headers: { Authorization: 'Bearer ' + tokens.access_token.slice(0, -3) + 'AAA' } });
   assert.equal(tampered.status, 401);
   await tampered.text();

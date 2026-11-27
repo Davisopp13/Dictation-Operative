@@ -27,6 +27,7 @@ export async function handleWorkspaceRequest(request: Request, env: Cloudflare.E
       images: env.IMAGES,
       content: env.IMAGES,
       owner: bearer.userId,
+      accountId: bearer.accountId,
       via: 'bearer',
     });
   }
@@ -60,6 +61,7 @@ export async function handleWorkspaceRequest(request: Request, env: Cloudflare.E
     images: env.IMAGES,
     content: env.IMAGES,
     owner: user?.userId ?? '',
+    accountId: user?.accountId,
     logoutPath: logoutPath(env),
   });
 }

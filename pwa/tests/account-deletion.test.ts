@@ -4,6 +4,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import { getAppAuth } from '../lib/app-auth';
 import { handleAccountDeletion } from '../lib/account-deletion';
+import {
+  createPile,
+  updatePile,
+  readPileDeletionImpact,
+  deletePile,
+} from '../lib/piles';
 
 const origin = 'https://do.example';
 const workspaceTables = [
@@ -131,6 +137,29 @@ void test('account deletion removes one account completely and nothing else', as
           )
           .bind(owner),
       ]);
+      // Real P1 receipts, including a deleted pile whose receipts outlive it.
+      const created = await createPile(db, owner, {
+        operationId: crypto.randomUUID(),
+        name: 'P1 private name',
+        members: [{ kind: 'document', id: `doc-${tag}-0001` }],
+      });
+      const pileId = created.pile!.id;
+      await updatePile(db, owner, pileId, {
+        operationId: crypto.randomUUID(),
+        revision: 1,
+        color: 'mint',
+      });
+      const impact = await readPileDeletionImpact(db, owner, pileId);
+      await deletePile(db, owner, pileId, {
+        operationId: crypto.randomUUID(),
+        revision: impact.pile.revision,
+        impactToken: impact.impactToken,
+        mode: 'pin',
+      });
+      await createPile(db, owner, {
+        operationId: crypto.randomUUID(),
+        name: 'Surviving P1 pile',
+      });
     }
     const rows = async (table: string, owner: string) =>
       (await db
@@ -178,8 +207,13 @@ void test('account deletion removes one account completely and nothing else', as
         401,
       );
       assert.equal(
-        (await call(alice, { confirmEmail: alice.email }, 'https://evil.example'))
-          .status,
+        (
+          await call(
+            alice,
+            { confirmEmail: alice.email },
+            'https://evil.example',
+          )
+        ).status,
         403,
       );
       assert.ok((await total(alice.id)) > 0);
@@ -197,40 +231,44 @@ void test('account deletion removes one account completely and nothing else', as
       });
     });
 
-    await t.test('refuses an old sign-in and a wrong confirmation', async () => {
-      const created = (await db
-        .prepare('SELECT created_at FROM auth_session WHERE user_id=?')
-        .bind(alice.id)
-        .first<{ created_at: number }>())!.created_at;
-      await db
-        .prepare('UPDATE auth_session SET created_at=? WHERE user_id=?')
-        .bind(Date.now() - 11 * 60 * 1000, alice.id)
-        .run();
-      const stale = await call(alice, { confirmEmail: alice.email });
-      assert.equal(stale.status, 403);
-      assert.equal(
-        ((await stale.json()) as { code: string }).code,
-        'REAUTHENTICATION_REQUIRED',
-      );
-      await db
-        .prepare('UPDATE auth_session SET created_at=? WHERE user_id=?')
-        .bind(created, alice.id)
-        .run();
-      for (const confirmEmail of [undefined, '', bob.email, 'delete'])
-        assert.equal((await call(alice, { confirmEmail })).status, 400);
-      // Five attempts in ten minutes is the limit, even with the right email.
-      const limited = await call(alice, { confirmEmail: alice.email });
-      assert.equal(limited.status, 429);
-      assert.ok(Number(limited.headers.get('Retry-After')) > 0);
-      await db.prepare('DELETE FROM auth_throttle').run();
-      // A request cannot name the account to delete.
-      assert.equal(
-        (await call(alice, { confirmEmail: bob.email, userId: bob.id })).status,
-        400,
-      );
-      assert.ok((await total(alice.id)) > 0);
-      assert.equal(await signedIn(alice), true);
-    });
+    await t.test(
+      'refuses an old sign-in and a wrong confirmation',
+      async () => {
+        const created = (await db
+          .prepare('SELECT created_at FROM auth_session WHERE user_id=?')
+          .bind(alice.id)
+          .first<{ created_at: number }>())!.created_at;
+        await db
+          .prepare('UPDATE auth_session SET created_at=? WHERE user_id=?')
+          .bind(Date.now() - 11 * 60 * 1000, alice.id)
+          .run();
+        const stale = await call(alice, { confirmEmail: alice.email });
+        assert.equal(stale.status, 403);
+        assert.equal(
+          ((await stale.json()) as { code: string }).code,
+          'REAUTHENTICATION_REQUIRED',
+        );
+        await db
+          .prepare('UPDATE auth_session SET created_at=? WHERE user_id=?')
+          .bind(created, alice.id)
+          .run();
+        for (const confirmEmail of [undefined, '', bob.email, 'delete'])
+          assert.equal((await call(alice, { confirmEmail })).status, 400);
+        // Five attempts in ten minutes is the limit, even with the right email.
+        const limited = await call(alice, { confirmEmail: alice.email });
+        assert.equal(limited.status, 429);
+        assert.ok(Number(limited.headers.get('Retry-After')) > 0);
+        await db.prepare('DELETE FROM auth_throttle').run();
+        // A request cannot name the account to delete.
+        assert.equal(
+          (await call(alice, { confirmEmail: bob.email, userId: bob.id }))
+            .status,
+          400,
+        );
+        assert.ok((await total(alice.id)) > 0);
+        assert.equal(await signedIn(alice), true);
+      },
+    );
 
     await t.test(
       'deletes the workspace, the files and the sign-in, and signs out everywhere',
@@ -257,14 +295,41 @@ void test('account deletion removes one account completely and nothing else', as
             .map((c) => c.split(';')[0])
             .join('; '),
         };
-        const response = await call(alice, {
-          confirmEmail: ` ${alice.email.toUpperCase()} `,
+        let erased = false;
+        const afterAuthentication = new Proxy(db, {
+          get(target, prop) {
+            if (prop === 'batch')
+              return async (statements: D1PreparedStatement[]) => {
+                if (!erased) {
+                  erased = true;
+                  const response = await call(alice, {
+                    confirmEmail: ` ${alice.email.toUpperCase()} `,
+                  });
+                  assert.equal(
+                    response.status,
+                    200,
+                    await response.clone().text(),
+                  );
+                  assert.deepEqual(await response.json(), {
+                    deleted: true,
+                    filesPending: false,
+                  });
+                }
+                return target.batch(statements);
+              };
+            const value = Reflect.get(target, prop);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
         });
-        assert.equal(response.status, 200, await response.clone().text());
-        assert.deepEqual(await response.json(), {
-          deleted: true,
-          filesPending: false,
-        });
+        await assert.rejects(
+          createPile(
+            afterAuthentication,
+            alice.id,
+            { operationId: crypto.randomUUID(), name: 'In-flight create' },
+            alice.id,
+          ),
+          { status: 401 },
+        );
         assert.equal(await total(alice.id), 0);
         for (const [table, column] of [
           ['auth_user', 'id'],
@@ -328,10 +393,21 @@ void test('account deletion removes one account completely and nothing else', as
           (await call(carol, { confirmEmail: carol.email })).status,
           200,
         );
+        await assert.rejects(
+          createPile(
+            db,
+            'legacy-carol-owner',
+            { operationId: crypto.randomUUID(), name: 'Late mapped create' },
+            carol.id,
+          ),
+          { status: 401 },
+        );
         assert.equal(await total('legacy-carol-owner'), 0);
         assert.equal(
           (await db
-            .prepare('SELECT COUNT(*) AS n FROM auth_legacy_owner WHERE user_id=?')
+            .prepare(
+              'SELECT COUNT(*) AS n FROM auth_legacy_owner WHERE user_id=?',
+            )
             .bind(carol.id)
             .first<{ n: number }>())!.n,
           0,

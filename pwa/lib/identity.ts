@@ -3,6 +3,8 @@ import { authReady, getAppAuth, resolveWorkspaceOwner, type AuthConfig } from '.
 
 export type User = {
   userId: string;
+  /** Application account, distinct from a mapped legacy workspace owner. */
+  accountId?: string;
   displayName: string;
   email: string;
   fullName: string | null;
@@ -87,7 +89,7 @@ export async function resolveUser(env: IdentityEnv, requestHeaders: Headers): Pr
     const session = await (await getAppAuth(env)).api.getSession({ headers: requestHeaders });
     if (session) {
       const userId = await resolveWorkspaceOwner(env.DB, session.user, legacy);
-      return { userId, email: session.user.email, displayName: session.user.name, fullName: session.user.name };
+      return { userId, accountId: session.user.id, email: session.user.email, displayName: session.user.name, fullName: session.user.name };
     }
   }
   if (legacy) return legacy;
