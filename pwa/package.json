@@ -16,9 +16,9 @@
     "db:generate": "drizzle-kit generate",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:built-downloads": "node scripts/verify-built-downloads.mjs",
-    "test:built-clipboard": "node scripts/verify-built-clipboard.mjs",
-    "test:built-auth": "node scripts/verify-built-auth.mjs",
-    "test:built-content": "node scripts/verify-built-content.mjs",
+    "test:built-clipboard": "node --import tsx scripts/verify-built-clipboard.mjs",
+    "test:built-auth": "node --import tsx scripts/verify-built-auth.mjs",
+    "test:built-content": "node --import tsx scripts/verify-built-content.mjs",
     "typecheck": "tsc --noEmit",
     "db:local": "wrangler d1 migrations apply DB --local",
     "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json",
@@ -26,7 +26,7 @@
     "types": "wrangler types db/bindings.d.ts --include-runtime false",
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "prebuild": "node scripts/prepare-pdf-assets.mjs",
-    "test:built-shared-items": "node scripts/verify-built-shared-items.mjs"
+    "test:built-shared-items": "node --import tsx scripts/verify-built-shared-items.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
