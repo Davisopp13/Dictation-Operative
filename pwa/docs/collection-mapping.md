@@ -1,5 +1,7 @@
 # Collection mapping and backfill (P2)
 
+> **P3 local extension:** [Workspace and additive API contract](p3-workspace.md) adds the browser UI, independent organization projection, guarded impact reads and general HTTPS bookmarks. Historical phase descriptions below retain their original scope; the P3 contract supersedes their no-UI/Google-only statements. No deployment or remote migration is included.
+
 Requires additive `0011_collection_mapping.sql` after 0000–0010, then
 `0012_collection_capacity_pending.sql` before activation. The latter replaces two
 source reconciliation triggers without rewriting rows, slots or receipts. This

@@ -203,7 +203,13 @@ export async function handleAPI(
         return json(
           updated === clip
             ? clip
-            : await saveClip(s.db, s.owner, updated, clip.revision),
+            : await saveClip(
+                s.db,
+                s.owner,
+                updated,
+                clip.revision,
+                input.workspaceRevision,
+              ),
         );
       }
       if (method === 'DELETE') {

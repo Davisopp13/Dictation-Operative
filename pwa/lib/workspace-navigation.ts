@@ -1,6 +1,8 @@
 // `content` is the saved value for the Documents view. It predates the
 // Documents name and is kept so stored start pages keep working.
 export const workspacePages = [
+  { value: 'desk', label: 'Desk' },
+  { value: 'piles', label: 'Piles' },
   { value: 'clipboard', label: 'Clipboard' },
   { value: 'content', label: 'Documents' },
 ] as const;
@@ -29,7 +31,7 @@ export function readWorkspaceNavigation(
   account: string,
   browser: Browser = window,
 ) {
-  let startPage: WorkspacePage = 'clipboard';
+  let startPage: WorkspacePage = 'desk';
   try {
     startPage =
       savedPage(browser.localStorage.getItem(startKey(account))) ?? startPage;
@@ -76,5 +78,23 @@ export function saveStartPage(
     throw new Error(
       'Could not save your start page. Allow site storage and try again.',
     );
+  }
+}
+
+export function deskNotice(account: string, browser: Browser = window) {
+  try {
+    return (
+      !browser.localStorage.getItem(`do-desk-notice:${account}`) &&
+      !savedPage(browser.localStorage.getItem(startKey(account)))
+    );
+  } catch {
+    return false;
+  }
+}
+export function dismissDeskNotice(account: string, browser: Browser = window) {
+  try {
+    browser.localStorage.setItem(`do-desk-notice:${account}`, '1');
+  } catch {
+    /* Session dismissal still works. */
   }
 }

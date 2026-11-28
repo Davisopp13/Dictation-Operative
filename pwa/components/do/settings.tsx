@@ -2,10 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
-import {
-  workspacePages,
-  type WorkspacePage,
-} from '@/lib/workspace-navigation';
+import { workspacePages, type WorkspacePage } from '@/lib/workspace-navigation';
 import { post, errorMessage } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
 import { ScreenTitle } from './screen-title';
@@ -24,9 +21,10 @@ const themes: { value: Theme; label: string }[] = [
 
 /** How many devices this browser is paired with, read from its own storage. */
 function usePairing(account: string) {
-  const [pairing, setPairing] = useState<{ name: string; paired: number } | null>(
-    null,
-  );
+  const [pairing, setPairing] = useState<{
+    name: string;
+    paired: number;
+  } | null>(null);
   useEffect(() => {
     const read = () => {
       try {
@@ -120,8 +118,13 @@ export function SettingsPage({
       <div className="settings-grid">
         <section className="settings-card" aria-labelledby="set-start">
           <h2 id="set-start">Start page</h2>
-          <p>Where a fresh visit lands. Refreshing keeps the tab you were on.</p>
-          <fieldset className="segmented segmented-fill" aria-label="Start page">
+          <p>
+            Where a fresh visit lands. Refreshing keeps the tab you were on.
+          </p>
+          <fieldset
+            className="segmented segmented-fill"
+            aria-label="Start page"
+          >
             {workspacePages.map((page) => (
               <button
                 key={page.value}
@@ -167,14 +170,12 @@ export function SettingsPage({
           </button>
         </section>
 
-        <section
-          className="settings-card"
-          aria-labelledby="set-clean"
-        >
+        <section className="settings-card" aria-labelledby="set-clean">
           <h2 id="set-clean">Daily Clipboard cleanup</h2>
           <p id="clipboard-cleanup-description">
             Once a day, removes unpinned Clipboard text and images older than 24
-            hours, even when the app is closed. Pinned items and Documents stay
+            hours when they have no protection, even when the app is closed.
+            Pinned items, piled items, pending collections and Documents stay
             put, and so do earlier dictation history and text saved before this
             setting existed.
           </p>
@@ -211,8 +212,8 @@ export function SettingsPage({
         <section className="settings-card" aria-labelledby="set-collections">
           <h2 id="set-collections">Collections</h2>
           <p>
-            Suggested collection names for organizing saved text. Give any
-            saved text a collection and tags when you open it.
+            Suggested collection names for organizing saved text. Give any saved
+            text a collection and tags when you open it.
           </p>
           <button
             type="button"

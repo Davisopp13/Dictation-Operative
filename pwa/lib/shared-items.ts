@@ -1,5 +1,5 @@
 import { AppError, id, object } from './domain';
-import { contentPreview } from './content-model';
+import { contentPreview, contentProvider } from './content-model';
 import { pageLimit } from './cursor';
 
 export type ItemReference = { kind: 'text' | 'image' | 'document'; id: string };
@@ -61,6 +61,8 @@ export type ItemRow = {
   collectionPile: string | null;
   collectionPending: number;
   piles: string;
+  organizationState?: string;
+  workspaceRevision?: number;
 };
 // Keep sources in their existing stores; only ready documents are user items.
 export const itemCTE = `WITH sources AS (
@@ -71,7 +73,14 @@ export const itemCTE = `WITH sources AS (
  UNION ALL SELECT owner,'image',id,name,'',0,'','image/png',size,width,height,'','',pinned,item_revision,created_at,created_at,1,0,'',1 FROM clipboard_images
  UNION ALL SELECT owner,'document',id,name,'',0,kind,mime,size,0,0,url,filename,pinned,item_revision,created_at,created_at,0,0,'',1 FROM content_items WHERE state='ready'
 ), items AS (
- SELECT sources.*,CASE WHEN kind='text' AND collection<>'' AND collectionSynced=0 THEN 1 ELSE 0 END AS collectionPending,
+ SELECT sources.*,
+ COALESCE((SELECT revision FROM workspace_revision WHERE owner=sources.owner),0) AS workspaceRevision,
+ CASE WHEN kind<>'text' OR collection='' THEN 'none'
+ WHEN collectionSynced=0 THEN COALESCE((SELECT state FROM collection_backfill_pending b WHERE b.owner=sources.owner AND b.id=sources.id),'unknown')
+ WHEN EXISTS(SELECT 1 FROM collection_mappings c WHERE c.owner=sources.owner AND c.collection_key=sources.collection AND c.pile_id IS NULL) THEN 'suppressed_settled'
+ WHEN EXISTS(SELECT 1 FROM pile_members m WHERE m.owner=sources.owner AND m.kind=sources.kind AND m.item_id=sources.id AND m.active=1 AND m.collection_key=sources.collection) THEN 'mapped'
+ ELSE 'unknown' END AS organizationState,
+ CASE WHEN kind='text' AND collection<>'' AND collectionSynced=0 THEN 1 ELSE 0 END AS collectionPending,
  (SELECT pile_id FROM collection_mappings WHERE owner=sources.owner AND collection_key=sources.collection) AS collectionPile,COALESCE((SELECT clipboard_daily_cleanup FROM preferences WHERE owner=sources.owner),0) AS cleanupEnabled,
  (SELECT json_group_array(json_object('id',p.id,'name',p.name,'color',p.color)) FROM piles p
  WHERE p.owner=sources.owner AND EXISTS(SELECT 1 FROM pile_members m WHERE m.pile_id=p.id AND m.owner=sources.owner AND m.kind=sources.kind AND m.item_id=sources.id AND m.active=1)) AS piles
@@ -105,7 +114,11 @@ export type ProtectionRow = Pick<
   | 'history'
   | 'cleanupEnabled'
   | 'createdAt'
-> & { collectionPending?: number };
+> & {
+  collectionPending?: number;
+  organizationState?: string;
+  workspaceRevision?: number;
+};
 export function itemProtection(row: ProtectionRow, now: number) {
   const piles = JSON.parse(row.piles) as {
     id: string;
@@ -128,6 +141,12 @@ export function itemProtection(row: ProtectionRow, now: number) {
   const eligible = !!row.cleanupEnabled && reason === null;
   return {
     ref: { kind: row.kind, id: row.id } as ItemReference,
+    organization: {
+      state: row.organizationState ?? 'unknown',
+      pending:
+        row.organizationState === undefined ? null : !!row.collectionPending,
+    },
+    workspaceRevision: row.workspaceRevision ?? null,
     pinned: !!row.pinned,
     revision: row.revision,
     piles,
@@ -152,7 +171,9 @@ export function sharedItem(row: ItemRow, now = Date.now()) {
         : row.kind === 'image'
           ? 'image'
           : row.contentKind === 'link'
-            ? 'google-link'
+            ? contentProvider(row.url) === 'Link'
+              ? 'link'
+              : 'google-link'
             : (preview ?? 'file'),
     contentKind: row.kind === 'document' ? row.contentKind : null,
     preview: {

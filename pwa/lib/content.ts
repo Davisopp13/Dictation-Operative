@@ -18,7 +18,7 @@ export type ContentServices = {
   content?: ContentStore;
 };
 const columns =
-  'id,kind,name,filename,mime,size,url,pinned,created_at AS createdAt,state';
+  'id,kind,name,filename,mime,size,url,pinned,created_at AS createdAt,item_revision AS revision,state';
 
 type Row = Omit<ContentItem, 'pinned'> & {
   pinned: number;
@@ -39,6 +39,7 @@ const decode = (r: Row): ContentItem => ({
   url: r.url,
   pinned: !!r.pinned,
   createdAt: r.createdAt,
+  revision: r.revision,
 });
 const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -193,7 +194,10 @@ export async function handleContent(
         time: r.createdAt,
         id: r.id,
       }));
-      listing = { items: listed.items.map(shape), nextCursor: listed.nextCursor };
+      listing = {
+        items: listed.items.map(shape),
+        nextCursor: listed.nextCursor,
+      };
     } else {
       const offset = Number(url.searchParams.get('offset') ?? 0);
       if (
@@ -502,15 +506,51 @@ export async function handleContent(
   }
   if (!match[2] && request.method === 'PATCH' && row.state === 'ready') {
     const data = await input(request);
-    if (typeof data.pinned !== 'boolean')
+    const editing = data.name !== undefined || data.url !== undefined;
+    if (
+      editing &&
+      (row.kind !== 'link' ||
+        !Number.isSafeInteger(data.revision) ||
+        Number(data.revision) < 1)
+    )
+      throw new AppError('Link edits require the current revision.');
+    if (!editing && typeof data.pinned !== 'boolean')
       throw new AppError('Choose whether to pin this item.');
+    if (data.pinned !== undefined && typeof data.pinned !== 'boolean')
+      throw new AppError('Choose whether to pin this item.');
+    let url = row.url;
+    if (data.url !== undefined) {
+      if (typeof data.url !== 'string')
+        throw new AppError('Enter a complete HTTPS link.');
+      try {
+        url = contentLink(data.url);
+      } catch (e) {
+        throw new AppError((e as Error).message);
+      }
+    }
+    const name =
+      data.name === undefined ? row.name : text(data.name, 'Title', 120);
     const updated = await s.db
       .prepare(
-        `UPDATE content_items SET pinned=? WHERE owner=? AND id=? AND state='ready' RETURNING ${columns}`,
+        `UPDATE content_items SET pinned=?,name=?,url=? WHERE owner=? AND id=? AND state='ready' AND (?=0 OR item_revision=?) RETURNING ${columns}`,
       )
-      .bind(data.pinned ? 1 : 0, s.owner, itemId)
+      .bind(
+        data.pinned === undefined ? row.pinned : data.pinned ? 1 : 0,
+        name,
+        url,
+        s.owner,
+        itemId,
+        editing ? 1 : 0,
+        editing ? data.revision : 0,
+      )
       .first<Row>();
-    if (!updated) throw new AppError('Content not found.', 404);
+    if (!updated)
+      throw new AppError(
+        'This item changed elsewhere. Refresh and confirm your edit again.',
+        409,
+      );
+    // AFTER triggers advance item_revision; RETURNING observes the pre-trigger value.
+    updated.revision = Number(updated.revision) + 1;
     return json(shape(updated));
   }
   if (!match[2] && request.method === 'DELETE') {

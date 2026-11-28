@@ -7,6 +7,7 @@ import {
   referenceKey,
   itemProtection,
   itemCTE,
+  sharedItem,
   type ItemReference,
   type ItemRow,
 } from './shared-items';
@@ -77,6 +78,78 @@ export async function readPileMembers(
   };
 }
 
+/** Complete bounded member resolution in one snapshot; no per-item requests. */
+export async function readPileItems(
+  db: D1Database,
+  owner: string,
+  pileId: string,
+  limit = 500,
+) {
+  const [p, i, r] = await db.batch([
+    pileStatement(db, owner, pileId),
+    db
+      .prepare(
+        `${itemCTE} SELECT i.* FROM items i JOIN pile_members m ON m.owner=i.owner AND m.kind=i.kind AND m.item_id=i.id WHERE m.owner=? AND m.pile_id=? AND m.active=1 ORDER BY m.position,m.kind,m.item_id LIMIT ?`,
+      )
+      .bind(owner, pileId, limit),
+    db
+      .prepare(
+        'SELECT COALESCE((SELECT revision FROM workspace_revision WHERE owner=?),0) AS revision',
+      )
+      .bind(owner),
+  ]);
+  const pile = p.results[0] as Pile | undefined;
+  if (!pile)
+    throw new ItemError('pile_gone', 'This pile no longer exists.', 404);
+  return {
+    pile: {
+      id: pile.id,
+      name: pile.name,
+      color: pile.color,
+      revision: pile.revision,
+      updatedAt: pile.updated_at,
+    },
+    items: (i.results as ItemRow[]).map((row) => sharedItem(row)),
+    revision: (r.results[0] as { revision: number }).revision,
+  };
+}
+export async function readMemberImpact(
+  db: D1Database,
+  owner: string,
+  pileId: string,
+  ref: ItemReference,
+) {
+  const [p, i] = await db.batch([
+    pileStatement(db, owner, pileId),
+    itemStatement(db, owner, ref),
+  ]);
+  const pile = p.results[0] as Pile | undefined,
+    row = i.results[0] as ItemRow | undefined;
+  if (!pile)
+    throw new ItemError('pile_gone', 'This pile no longer exists.', 404);
+  if (!row) return missingItem(db, owner, ref);
+  const piles = JSON.parse(row.piles) as { id: string }[];
+  const clearsCollection =
+    piles.some((p) => p.id === pileId) &&
+    row.kind === 'text' &&
+    row.collection !== '' &&
+    row.collectionPile === pileId;
+  return {
+    revision: pile.revision,
+    workspaceRevision: row.workspaceRevision,
+    clearsCollection,
+    after: itemProtection(
+      {
+        ...row,
+        piles: JSON.stringify(piles.filter((p) => p.id !== pileId)),
+        collectionPending: clearsCollection ? 0 : row.collectionPending,
+        organizationState: clearsCollection ? 'none' : row.organizationState,
+      },
+      Date.now(),
+    ),
+  };
+}
+
 /** A bounded CAS batch. Receipt replay cannot undo a later member change. */
 export async function writePileMember(
   db: D1Database,
@@ -107,6 +180,12 @@ export async function writePileMember(
   if (before && action !== 'move')
     throw new AppError('Only a move accepts a before reference.');
   const undo = action === 'restore' ? id(data.undoOperationId) : null;
+  const workspaceRevision = data.workspaceRevision;
+  if (
+    workspaceRevision !== undefined &&
+    (!Number.isSafeInteger(workspaceRevision) || Number(workspaceRevision) < 0)
+  )
+    throw new AppError('Invalid workspace revision.');
   const fingerprint = JSON.stringify({
     pileId,
     ref,
@@ -114,6 +193,7 @@ export async function writePileMember(
     action,
     before,
     undo,
+    ...(workspaceRevision === undefined ? {} : { workspaceRevision }),
   });
   const receiptStatement = db
     .prepare(
@@ -265,7 +345,7 @@ export async function writePileMember(
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
-        `UPDATE piles SET revision=?,updated_at=CASE WHEN ? THEN ? ELSE updated_at END,write_token=? WHERE owner=? AND id=? AND revision=? AND NOT EXISTS(SELECT 1 FROM pile_operations WHERE owner=? AND operation_id=?) AND EXISTS(SELECT 1 FROM ${ref.kind === 'text' ? 'clips' : ref.kind === 'image' ? 'clipboard_images' : 'content_items'} WHERE owner=? AND id=? ${ref.kind === 'document' ? "AND state='ready'" : ''} AND (?=0 OR ${ref.kind === 'text' ? 'revision' : 'item_revision'}=?)) RETURNING id`,
+        `UPDATE piles SET revision=?,updated_at=CASE WHEN ? THEN ? ELSE updated_at END,write_token=? WHERE owner=? AND id=? AND revision=? AND NOT EXISTS(SELECT 1 FROM pile_operations WHERE owner=? AND operation_id=?) AND EXISTS(SELECT 1 FROM ${ref.kind === 'text' ? 'clips' : ref.kind === 'image' ? 'clipboard_images' : 'content_items'} WHERE owner=? AND id=? ${ref.kind === 'document' ? "AND state='ready'" : ''} AND (?=0 OR ${ref.kind === 'text' ? 'revision' : 'item_revision'}=?)) AND (? IS NULL OR COALESCE((SELECT revision FROM workspace_revision WHERE owner=?),0)=?) RETURNING id`,
       )
       .bind(
         nextRevision,
@@ -285,6 +365,9 @@ export async function writePileMember(
           ? 1
           : 0,
         source.revision,
+        workspaceRevision ?? null,
+        owner,
+        workspaceRevision ?? null,
       ),
   ];
   if (changed) {
@@ -432,5 +515,5 @@ export async function writePileMember(
 }
 
 function itemStatementSQL() {
-  return `${itemCTE} SELECT json_object('owner',owner,'kind',kind,'id',id,'pinned',pinned,'revision',revision,'createdAt',createdAt,'sortTime',sortTime,'clipboardItem',clipboardItem,'history',history,'cleanupEnabled',cleanupEnabled,'collectionPending',collectionPending,'piles',piles) FROM items WHERE owner=? AND kind=? AND id=?`;
+  return `${itemCTE} SELECT json_object('owner',owner,'kind',kind,'id',id,'pinned',pinned,'revision',revision,'createdAt',createdAt,'sortTime',sortTime,'clipboardItem',clipboardItem,'history',history,'cleanupEnabled',cleanupEnabled,'collectionPending',collectionPending,'organizationState',organizationState,'workspaceRevision',workspaceRevision,'piles',piles) FROM items WHERE owner=? AND kind=? AND id=?`;
 }

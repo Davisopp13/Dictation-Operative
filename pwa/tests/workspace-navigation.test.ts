@@ -40,19 +40,21 @@ function browser() {
   };
 }
 
-void test('Clipboard is the default on first visit and first reload', () => {
+void test('Desk is the default on first visit and first reload', () => {
   const env = browser();
   for (const type of ['navigate', 'reload']) {
     env.navigate(type);
     assert.deepEqual(readWorkspaceNavigation('alice', env), {
-      startPage: 'clipboard',
-      view: 'clipboard',
+      startPage: 'desk',
+      view: 'desk',
     });
   }
 });
 
-void test('the two pages are Clipboard and Documents, stored as clipboard and content', () => {
+void test('Desk and Piles extend the legacy stored pages', () => {
   assert.deepEqual(workspacePages, [
+    { value: 'desk', label: 'Desk' },
+    { value: 'piles', label: 'Piles' },
     { value: 'clipboard', label: 'Clipboard' },
     { value: 'content', label: 'Documents' },
   ]);
@@ -121,8 +123,8 @@ void test('start and current pages are isolated between accounts', () => {
   for (const type of ['navigate', 'reload']) {
     env.navigate(type);
     assert.deepEqual(readWorkspaceNavigation('bob', env), {
-      startPage: 'clipboard',
-      view: 'clipboard',
+      startPage: 'desk',
+      view: 'desk',
     });
   }
 });
@@ -152,7 +154,7 @@ void test('invalid storage and missing navigation timing fall back safely', () =
   env.localStorage.setItem('do-start-page:alice', 'removed-tab');
   env.sessionStorage.setItem('do-current-page:alice', 'removed-tab');
   env.navigate('reload');
-  assert.equal(readWorkspaceNavigation('alice', env).view, 'clipboard');
+  assert.equal(readWorkspaceNavigation('alice', env).view, 'desk');
   saveStartPage('alice', 'content', env);
   assert.equal(readWorkspaceNavigation('alice', env).view, 'content');
   rememberWorkspacePage('alice', 'clipboard', env);
@@ -179,8 +181,8 @@ void test('blocked browser storage does not break navigation or silently report 
   }
   env.navigate('reload');
   assert.deepEqual(readWorkspaceNavigation('alice', env), {
-    startPage: 'clipboard',
-    view: 'clipboard',
+    startPage: 'desk',
+    view: 'desk',
   });
   assert.doesNotThrow(() => rememberWorkspacePage('alice', 'clipboard', env));
   assert.throws(

@@ -12,6 +12,7 @@ export type ContentItem = {
   url: string;
   pinned: boolean;
   createdAt: number;
+  revision?: number;
 };
 export type ContentPage = {
   items: ContentItem[];
@@ -87,14 +88,25 @@ export function contentLink(value: string): string {
   }
   if (url.protocol !== 'https:' || url.username || url.password)
     throw new Error('Use an HTTPS link without embedded credentials.');
-  if (
-    !/^\/((document|spreadsheets)\/d\/[^/]+)(\/|$)/.test(url.pathname) ||
-    url.hostname !== 'docs.google.com' ||
-    url.port
-  )
-    throw new Error('Add a Google Docs or Google Sheets document link.');
   return url.href;
 }
 export function contentProvider(url: string) {
-  return url.includes('/spreadsheets/') ? 'Google Sheets' : 'Google Docs';
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === 'docs.google.com' &&
+      !parsed.port &&
+      !parsed.username &&
+      !parsed.password
+    ) {
+      if (/^\/spreadsheets\/d\/[^/]+(?:\/|$)/.test(parsed.pathname))
+        return 'Google Sheets';
+      if (/^\/document\/d\/[^/]+(?:\/|$)/.test(parsed.pathname))
+        return 'Google Docs';
+    }
+  } catch {
+    /* Old or missing values must not acquire a provider. */
+  }
+  return 'Link';
 }

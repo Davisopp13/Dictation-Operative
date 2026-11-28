@@ -1,5 +1,7 @@
 # /api/v1
 
+> **P3 local extension:** [Workspace and additive API contract](p3-workspace.md) adds the browser UI, independent organization projection, guarded impact reads and general HTTPS bookmarks. Historical phase descriptions below retain their original scope; the P3 contract supersedes their no-UI/Google-only statements. No deployment or remote migration is included.
+
 The contract native clients build against. It sits on the same storage,
 ownership checks, quotas, and deletion queues as the browser API, which keeps
 working unchanged. The router is `lib/api-v1.ts`.

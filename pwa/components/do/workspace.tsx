@@ -8,6 +8,8 @@ import {
 } from 'react';
 import {
   CircleHelp,
+  LayoutGrid,
+  Layers,
   Clipboard,
   Copy,
   Download,
@@ -37,6 +39,7 @@ import {
   useWorkspaceTools,
 } from './workspace-tools';
 import { Recovery } from './recovery';
+import { DeskProvider, DeskSurface, ItemOrganization, useDesk } from './desk';
 import { ContentTray } from './content-tray';
 import { LibrarySurface } from './library';
 import { DeleteClipboardText } from './delete-clipboard-text';
@@ -52,6 +55,9 @@ import { type Clip, type ClipSummary } from '@/lib/domain';
 import { parseBackup } from '@/lib/backup';
 import {
   readWorkspaceNavigation,
+  deskNotice,
+  dismissDeskNotice,
+  isWorkspacePage,
   rememberWorkspacePage,
   saveStartPage,
   type WorkspacePage as View,
@@ -78,6 +84,8 @@ function subscribeInstalled(callback: () => void) {
   };
 }
 const nav = [
+  ['desk', 'Desk', LayoutGrid],
+  ['piles', 'Piles', Layers],
   ['clipboard', 'Clipboard', Clipboard],
   ['content', 'Documents', FileText],
 ] as const;
@@ -110,7 +118,9 @@ export default function Home({
     <WorkspaceToolsProvider account={account}>
       <ClipboardSyncProvider>
         {hydrated ? (
-          <HomeContent key={account} account={account} email={email} />
+          <DeskProvider key={account}>
+            <HomeContent account={account} email={email} />
+          </DeskProvider>
         ) : (
           <output className="subtle block p-6">Opening workspace…</output>
         )}
@@ -119,6 +129,8 @@ export default function Home({
   );
 }
 function HomeContent({ account, email }: { account: string; email: string }) {
+  const desk = useDesk();
+  const [notice, setNotice] = useState(() => deskNotice(account));
   const [initialNavigation] = useState(() => readWorkspaceNavigation(account));
   const [openedAt] = useState(() => Date.now());
   const organization = useWorkspaceTools();
@@ -208,7 +220,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     Partial<Record<View, { query: string; collection: string; tag: string }>>
   >({});
   const setView = useCallback(
-    (next: View) => {
+    (next: View, addHistory = true) => {
       setSettingsOpen(false);
       setAddOpen(false);
       if (next === view) return;
@@ -227,11 +239,37 @@ function HomeContent({ account, email }: { account: string; email: string }) {
       if (next === 'content') setDocumentsOpened(true);
       setActiveView(next);
       rememberWorkspacePage(account, next);
+      if (addHistory) window.history.pushState({ account, page: next }, '');
+      requestAnimationFrame(() =>
+        document.getElementById('desk-main')?.focus(),
+      );
       window.scrollTo({ top: 0, behavior: 'instant' });
     },
     [account, view, query, collectionFilter, tagFilter],
   );
 
+  useEffect(() => {
+    window.history.replaceState(
+      {
+        ...(window.history.state?.account === account
+          ? window.history.state
+          : {}),
+        account,
+        page: view,
+      },
+      '',
+    );
+    const restore = (event: PopStateEvent) => {
+      if (
+        event.state?.account === account &&
+        isWorkspacePage(event.state.page)
+      ) {
+        setView(event.state.page, false);
+      }
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [account, view, setView]);
   const online = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
@@ -280,7 +318,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
     };
   }, [setError]);
   useEffect(() => {
-    if (view === 'content' || (view === 'clipboard' && clipboardFilter === 'images')) {
+    if (view !== 'clipboard' || clipboardFilter === 'images') {
       return;
     }
     const abort = new AbortController();
@@ -452,6 +490,18 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         `Imported ${imported} items. Existing items were kept unchanged.`,
       );
       setBackup([]);
+      desk.refresh();
+      try {
+        const status = await api<{ pending: number }>('v1/collection-backfill');
+        if (status.pending)
+          setMessage(
+            `Imported ${imported} items. ${status.pending} account collections are pending; sources are saved. Open Piles → Collection progress.`,
+          );
+      } catch {
+        setMessage(
+          `Imported ${imported} items. Saved; organization status unavailable.`,
+        );
+      }
       setImportOpen(false);
       refreshLibrary();
     } catch (e) {
@@ -492,9 +542,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
         ),
         'application/json',
       );
-      setMessage(
-        `Exported ${all.length} items with originals and versions.`,
-      );
+      setMessage(`Exported ${all.length} items with originals and versions.`);
     });
   }
   async function loadMore() {
@@ -574,7 +622,9 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             disabled={locked}
             aria-pressed={item.pinned}
             onClick={() => void pinClip(item)}
-            aria-label={item.pinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
+            aria-label={
+              item.pinned ? `Unpin ${item.title}` : `Pin ${item.title}`
+            }
           >
             <Pin
               aria-hidden="true"
@@ -588,6 +638,10 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             onDelete={onClipDeleted}
           />
         </div>
+        <ItemOrganization
+          refValue={{ kind: 'text', id: item.id }}
+          revision={item.revision}
+        />
       </article>
     );
   };
@@ -651,7 +705,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           </div>
         )}
       </aside>
-      <main className="desk-main">
+      <main id="desk-main" tabIndex={-1} className="desk-main">
         <div className="desk-mobile-top">
           <LogoOnLight />
           <div>
@@ -674,6 +728,30 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             </button>
           </div>
         </div>
+        {notice && (
+          <div className="desk-banner">
+            Desk is your start page on this device.{' '}
+            <Button
+              variant="outline"
+              onClick={() => {
+                dismissDeskNotice(account);
+                setNotice(false);
+                openSettings();
+              }}
+            >
+              Change
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                dismissDeskNotice(account);
+                setNotice(false);
+              }}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
         <Recovery
           disabled={locked}
           onSaved={(clip) => {
@@ -723,7 +801,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           <div hidden={settingsOpen || view !== 'content'}>
             <ScreenTitle
               title="Documents"
-              subtitle="Files and Google links that stay until you delete them."
+              subtitle="Files and HTTPS links that stay until you delete them."
               accent="page"
             />
             <ContentTray
@@ -732,7 +810,16 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             />
           </div>
         )}
-        {view !== 'content' && (
+        {(view === 'desk' || view === 'piles') && !settingsOpen && (
+          <DeskSurface
+            key={view}
+            view={view}
+            account={account}
+            onOpenText={setEditor}
+            onNavigate={() => setView('desk')}
+          />
+        )}
+        {view === 'clipboard' && (
           <div hidden={settingsOpen}>
             <LibrarySurface
               dailyCleanup={!!settings.clipboardDailyCleanup}
@@ -776,36 +863,36 @@ function HomeContent({ account, email }: { account: string; email: string }) {
           </div>
         )}
       </main>
-      <nav className="desk-tabbar" aria-label="Mobile navigation">
+      <nav className="desk-tabbar p3-tabbar" aria-label="Mobile navigation">
+        {nav.slice(0, 2).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            className="desk-tab"
+            aria-current={current === id ? 'page' : undefined}
+            onClick={() => setView(id)}
+          >
+            <Icon aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        ))}
         <button
-          type="button"
-          className="desk-tab"
-          aria-current={current === 'clipboard' && !addOpen ? 'page' : undefined}
-          onClick={() => setView('clipboard')}
-        >
-          <Clipboard aria-hidden="true" />
-          <span>Clipboard</span>
-        </button>
-        <button
-          type="button"
           className="desk-tab-add"
-          aria-label="Add to Clipboard"
-          onClick={() => {
-            setView('clipboard');
-            setAddOpen(true);
-          }}
+          aria-label="Catch something"
+          onClick={() => desk.catchInto()}
         >
           <Plus aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="desk-tab"
-          aria-current={current === 'content' ? 'page' : undefined}
-          onClick={() => setView('content')}
-        >
-          <FileText aria-hidden="true" />
-          <span>Documents</span>
-        </button>
+        {nav.slice(2).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            className="desk-tab"
+            aria-current={current === id ? 'page' : undefined}
+            onClick={() => setView(id)}
+          >
+            <Icon aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        ))}
       </nav>
       <QuickStartDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <SyncDialog
@@ -858,9 +945,7 @@ function HomeContent({ account, email }: { account: string; email: string }) {
             disabled={busy}
             onChange={(event) => void readBackup(event.target.files?.[0])}
           />
-          {backup.length > 0 && (
-            <p>{backup.length} items ready to import.</p>
-          )}
+          {backup.length > 0 && <p>{backup.length} items ready to import.</p>}
           {importError && (
             <Alert variant="destructive" className="error-message" role="alert">
               <AlertDescription>{importError}</AlertDescription>

@@ -1,5 +1,7 @@
 # Content tray — local implementation, October 2, 2026
 
+> **P3 local extension:** [Workspace and additive API contract](p3-workspace.md) adds the browser UI, independent organization projection, guarded impact reads and general HTTPS bookmarks. Historical phase descriptions below retain their original scope; the P3 contract supersedes their no-UI/Google-only statements. No deployment or remote migration is included.
+
 > **Status, November 24, 2026:** the view is now labelled **Documents** in the
 > app. Its stored page value (`content`), API path (`/api/content`), tables
 > (`content_items`, `content_deletion_queue`), and R2 key prefix (`content/`)

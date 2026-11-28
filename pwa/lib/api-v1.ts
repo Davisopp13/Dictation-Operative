@@ -18,7 +18,12 @@ import {
   sharedItem,
   type ItemRow,
 } from './shared-items';
-import { readPileMembers, writePileMember } from './pile-members';
+import {
+  readPileItems,
+  readMemberImpact,
+  readPileMembers,
+  writePileMember,
+} from './pile-members';
 import { handleContent } from './content';
 import { decodeCursor, page, pageLimit } from './cursor';
 import {
@@ -153,6 +158,28 @@ export async function handleV1(
   const impact = /^piles\/([^/]+)\/deletion-impact$/.exec(path);
   if (impact && method === 'GET')
     return json(await readPileDeletionImpact(s.db, s.owner, id(impact[1])));
+  const pileItems = /^piles\/([^/]+)\/items$/.exec(path);
+  if (pileItems && method === 'GET') {
+    if ([...url.searchParams.keys()].some((key) => key !== 'limit'))
+      throw new AppError('Unsupported pile item filter.');
+    const limit = param('limit') === null ? 500 : Number(param('limit'));
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)
+      throw new AppError('Use a limit from 1 to 500.');
+    return json(await readPileItems(s.db, s.owner, id(pileItems[1]), limit));
+  }
+  const memberImpact =
+    /^piles\/([^/]+)\/members\/(text|image|document)\/([^/]+)\/impact$/.exec(
+      path,
+    );
+  if (memberImpact && method === 'GET')
+    return json(
+      await readMemberImpact(
+        s.db,
+        s.owner,
+        id(memberImpact[1]),
+        itemReference({ kind: memberImpact[2], id: memberImpact[3] }),
+      ),
+    );
   const members = /^piles\/([^/]+)\/members$/.exec(path);
   if (members) {
     const pileId = id(members[1]);
@@ -224,7 +251,13 @@ export async function handleV1(
       return json(
         updated === clip
           ? clip
-          : await saveClip(s.db, s.owner, updated, clip.revision),
+          : await saveClip(
+              s.db,
+              s.owner,
+              updated,
+              clip.revision,
+              input.workspaceRevision,
+            ),
       );
     }
     if (method === 'DELETE') {

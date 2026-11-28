@@ -1959,3 +1959,43 @@ h3 {
     flex: 1 1 100%;
   }
 }
+
+/* P3 uses the existing desk palette and surfaces. */
+.p3-surface { display: grid; gap: 1.25rem; }
+.p3-toolbar,.p3-selection,.p3-order,.p3-membership-row { display:flex; flex-wrap:wrap; align-items:center; gap:.65rem; }
+.p3-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr)); gap:1rem; }
+.p3-item,.p3-cover { min-width:0; border-radius:var(--r-xl); background:var(--card); color:var(--card-foreground); box-shadow:var(--card-shadow); padding:1.25rem; }
+.p3-item { display:flex; flex-direction:column; gap:.75rem; }
+.p3-item h2,.p3-cover h2 { font-size:1.3rem; font-weight:800; overflow-wrap:anywhere; }
+.p3-excerpt { white-space:pre-wrap; overflow-wrap:anywhere; max-height:9rem; overflow:hidden; }
+.p3-thumbnail { width:100%; height:150px; object-fit:contain; }
+.p3-cover-open { text-align:left; width:100%; min-height:180px; display:grid; gap:.8rem; }
+.p3-cover-previews { display:grid; gap:.4rem; }
+.p3-cover-previews span { display:block; border:1px solid currentColor; border-radius:8px; padding:.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.p3-blue { background:var(--deep); color:var(--on-brand); }
+.p3-glow { background:var(--glow); color:#06203b; }
+.p3-sky { background:var(--sky); }
+.p3-mint { background:var(--mint); color:var(--mint-ink); }
+.p3-sunny { background:var(--sticky); color:var(--sticky-ink); }
+.p3-paper { background:var(--card); color:var(--card-foreground); border:1px solid var(--border); }
+.p3-protection,.p3-organization { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.p3-protection small { flex-basis:100%; }
+.p3-chip { border-radius:8px; padding:4px 8px; font-size:.85rem; max-width:100%; overflow-wrap:anywhere; }
+.p3-modal { max-height:90dvh; overflow:auto; }
+.p3-modal label { display:grid; gap:.4rem; }
+.p3-modal label:has(input[type=checkbox]) { display:flex; align-items:center; gap:.75rem; min-height:44px; }
+.p3-modal input[type=checkbox],.p3-select input { width:22px; height:22px; }
+.p3-modal select { padding:.6rem; border:1px solid var(--border); border-radius:8px; background:var(--background); }
+.p3-counts { display:grid; grid-template-columns:1fr auto; gap:.5rem 1rem; }
+.p3-counts dd { font-weight:bold; }
+.p3-selection,.p3-undo { padding:1rem; background:var(--sky); border-radius:var(--r-md); }
+.p3-undo { display:grid; gap:.6rem; }
+.p3-surface button,.p3-modal button,.p3-organization button,.p3-surface a,.p3-modal a,.p3-surface summary,.p3-modal summary,.p3-select,.p3-membership-row [role=checkbox] { min-height:44px; }
+.p3-select { display:flex; align-items:center; gap:.75rem; }
+@media(max-width:767px) { .desk-tabbar.p3-tabbar { grid-template-columns:1fr 1fr 56px 1fr 1fr; } .p3-tabbar .desk-tab { min-width:0; font-size:.7rem; } .p3-modal { max-width:100%; width:100%; height:100dvh; max-height:100dvh; border-radius:0; align-content:start; padding-bottom:calc(1rem + env(safe-area-inset-bottom)); } }
+@media(prefers-reduced-motion:reduce) { .p3-surface *,.p3-modal { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+.p3-undo-stack { position:fixed; right:1rem; bottom:1rem; z-index:45; display:grid; gap:.75rem; width:min(380px,calc(100vw - 2rem)); max-height:45dvh; overflow:auto; }
+.p3-undo-stack:empty { display:none; }
+.p3-undo { box-shadow:var(--panel-shadow); border:1px solid var(--border); }
+.p3-undo button { min-height:44px; }
+@media(max-width:767px) { .p3-undo-stack { bottom:calc(100px + env(safe-area-inset-bottom)); } }
