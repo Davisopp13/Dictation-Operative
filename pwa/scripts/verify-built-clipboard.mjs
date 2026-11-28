@@ -1,3 +1,4 @@
+import { installTestReleaseFence } from './release-fence-fixture.mjs';
 import { Miniflare } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -16,10 +17,10 @@ const mf = new Miniflare({
   compatibilityFlags: ['nodejs_compat'],
   d1Databases: ['DB'],
   r2Buckets: ['IMAGES'],
-  bindings: { DEV_USER_EMAIL: 'built-clipboard@example.test' },
+  bindings: { WORKSPACE_WRITE_FENCE: 'on', DEV_USER_EMAIL: 'built-clipboard@example.test' },
 });
 try {
-  const db = await mf.getD1Database('DB');
+  let db = await mf.getD1Database('DB');
   const bucket = await mf.getR2Bucket('IMAGES');
   for (const file of readdirSync('drizzle')
     .filter((file) => file.endsWith('.sql'))
@@ -28,6 +29,7 @@ try {
       '--> statement-breakpoint',
     ))
       if (sql.trim()) await db.prepare(sql.trim()).run();
+  db = await installTestReleaseFence(db);
   const request = (path, data) =>
     mf.dispatchFetch(origin + '/api/' + path, {
       method: data === undefined ? 'GET' : 'POST',

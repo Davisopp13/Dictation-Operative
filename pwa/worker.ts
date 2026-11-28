@@ -1,10 +1,12 @@
+import { withEnv } from 'cloudflare:workers';
+import { releaseEnvironment } from './lib/release-fence';
 import { runContentCleanup } from './lib/content';
 import app from 'vinext/server/fetch-handler';
 import { runClipboardCleanup } from './lib/clipboard-cleanup';
 import { handleWorkspaceRequest } from './lib/workspace-request';
 import { mainAddressRedirect } from './lib/canonical-origin';
 
-export default {
+const handler = {
   async scheduled(controller, env) {
     const results = await Promise.allSettled([
       runClipboardCleanup(env.DB, env.IMAGES, controller.scheduledTime),
@@ -39,5 +41,20 @@ export default {
       }
     }
     return app.fetch(request, env, ctx);
+  },
+} satisfies ExportedHandler<Cloudflare.Env>;
+
+export default {
+  scheduled(controller, env) {
+    const scoped = releaseEnvironment(env);
+    return withEnv(scoped, () =>
+      handler.scheduled(controller, scoped),
+    ) as Promise<void>;
+  },
+  fetch(request, env, ctx) {
+    const scoped = releaseEnvironment(env);
+    return withEnv(scoped, () =>
+      handler.fetch(request, scoped, ctx),
+    ) as Promise<Response>;
   },
 } satisfies ExportedHandler<Cloudflare.Env>;

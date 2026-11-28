@@ -1,11 +1,13 @@
+import { installTestReleaseFence } from './release-fence-fixture.mjs';
 import { Miniflare } from 'miniflare';
 import { readFileSync,readdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const root='dist/server', origin='http://localhost';
-const mf=new Miniflare({modulesRoot:root,modules:['index.js',...readdirSync(root,{recursive:true}).filter(f=>f.endsWith('.js')&&f!=='index.js')].map(file=>({type:'ESModule',path:root+'/'+file})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['IMAGES'],bindings:{BETTER_AUTH_URL:origin,BETTER_AUTH_SECRET:'synthetic-built-content-secret-32-characters'}});
+const mf=new Miniflare({modulesRoot:root,modules:['index.js',...readdirSync(root,{recursive:true}).filter(f=>f.endsWith('.js')&&f!=='index.js')].map(file=>({type:'ESModule',path:root+'/'+file})),compatibilityDate:'2026-05-22',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['IMAGES'],bindings:{ WORKSPACE_WRITE_FENCE: 'on',BETTER_AUTH_URL:origin,BETTER_AUTH_SECRET:'synthetic-built-content-secret-32-characters'}});
 try {
- const db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('IMAGES');
+ let db=await mf.getD1Database('DB');const bucket=await mf.getR2Bucket('IMAGES');
  for(const file of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())for(const sql of readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint'))if(sql.trim())await db.prepare(sql.trim()).run();
+  db = await installTestReleaseFence(db);
  async function signup(username){const response=await mf.dispatchFetch(origin+'/api/auth/sign-up/email',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({username,email:`${username}@example.test`,name:username,password:'synthetic-content-password'})});assert.equal(response.status,200,await response.clone().text());const data=await response.json();return {cookie:response.headers.getSetCookie().map(value=>value.split(';')[0]).join('; '),owner:data.user.id};}
  const alice=await signup('builtcontentalice'),bob=await signup('builtcontentbob');
  const request=(path,method='GET',body,cookie=alice.cookie,headers={})=>mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,Cookie:cookie,'Content-Type':body instanceof Uint8Array?'application/octet-stream':'application/json',...headers},body:body===undefined?undefined:body instanceof Uint8Array?body:JSON.stringify(body)});

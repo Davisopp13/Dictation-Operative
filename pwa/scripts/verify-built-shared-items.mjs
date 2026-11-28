@@ -1,3 +1,4 @@
+import { installTestReleaseFence } from './release-fence-fixture.mjs';
 import { Miniflare } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -15,13 +16,13 @@ const mf = new Miniflare({
   compatibilityFlags: ['nodejs_compat'],
   d1Databases: ['DB'],
   r2Buckets: ['IMAGES'],
-  bindings: {
+  bindings: { WORKSPACE_WRITE_FENCE: 'on',
     BETTER_AUTH_URL: origin,
     BETTER_AUTH_SECRET: 'synthetic-built-shared-secret-32-characters',
   },
 });
 try {
-  const db = await mf.getD1Database('DB');
+  let db = await mf.getD1Database('DB');
   for (const file of readdirSync('drizzle')
     .filter((f) => f.endsWith('.sql'))
     .sort())
@@ -29,6 +30,7 @@ try {
       '--> statement-breakpoint',
     ))
       if (sql.trim()) await db.prepare(sql.trim()).run();
+  db = await installTestReleaseFence(db);
   async function signup(username) {
     const response = await mf.dispatchFetch(
       origin + '/api/auth/sign-up/email',
